@@ -1,0 +1,128 @@
+2025-11-26T12:38:29.885266 [INPUT] [default] why
+2025-11-26T12:38:29.885637 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T12:38:32.758213 [INPUT] [default] boot
+2025-11-26T12:38:32.758502 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T12:38:37.249504 [INPUT] [default] reset
+2025-11-26T12:38:37.249755 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T12:38:39.113209 [INPUT] [default] status
+2025-11-26T12:38:39.119173 [EXCEPTION] [default] cmd=status JSONDecodeError('Expecting value: line 1 column 1 (char 0)')
+2025-11-26T12:38:46.370413 [INPUT] [default] help
+2025-11-26T12:38:46.370691 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T13:12:12.742504 [INPUT] [default] status
+2025-11-26T13:12:12.743051 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T13:12:48.886881 [INPUT] [default] status
+2025-11-26T13:12:48.887500 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T13:13:50.142085 [INPUT] [default] status
+2025-11-26T13:13:50.142604 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T15:43:20.247999 [INPUT] [default] help
+2025-11-26T15:43:20.248385 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T15:43:23.107892 [INPUT] [default] why
+2025-11-26T15:43:23.108170 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T15:43:27.103904 [INPUT] [default] help
+2025-11-26T15:43:27.104159 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T15:50:25.379786 [INPUT] [default] help
+2025-11-26T15:50:25.380183 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T15:53:59.238511 [INPUT] [default] why
+2025-11-26T15:53:59.238764 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T15:54:02.026491 [INPUT] [default] status
+2025-11-26T15:54:02.027039 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T15:54:12.757590 [INPUT] [default] reset
+2025-11-26T15:54:12.757838 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T18:43:44.123464 [INPUT] [default] help
+2025-11-26T18:43:44.123853 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T18:54:08.620682 [INPUT] [default] help
+2025-11-26T18:56:50.750593 [INPUT] [default] help
+2025-11-26T18:56:50.750896 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T18:57:01.051512 [INPUT] [default] boot
+2025-11-26T18:57:01.051771 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T19:00:08.039464 [INPUT] [default] help
+2025-11-26T19:00:08.039759 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T19:30:20.226856 [INPUT] [default] help
+2025-11-26T19:30:20.227244 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T19:37:44.027448 [INPUT] [default] why
+2025-11-26T19:37:44.027779 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T19:49:35.157038 [INPUT] [default] boot
+2025-11-26T19:49:35.157330 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T19:49:42.532802 [INPUT] [default] reset
+2025-11-26T19:49:42.533057 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T19:58:50.554240 [INPUT] [default] boot
+2025-11-26T19:58:50.554526 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:00:35.572880 [INPUT] [default] boot
+2025-11-26T20:00:35.573157 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:01:26.897774 [INPUT] [default] boot
+2025-11-26T20:01:26.898062 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:01:29.474835 [INPUT] [default] reset
+2025-11-26T20:01:29.475073 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T20:03:22.598071 [INPUT] [default] boot
+2025-11-26T20:03:22.598358 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:04:56.465210 [INPUT] [default] boot
+2025-11-26T20:04:56.465493 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:04:58.265081 [INPUT] [default] help
+2025-11-26T20:04:58.265350 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T20:06:22.531750 [INPUT] [default] boot
+2025-11-26T20:06:22.532042 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:07:39.215406 [INPUT] [default] boot
+2025-11-26T20:07:39.215686 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:08:38.454630 [INPUT] [default] boot
+2025-11-26T20:08:38.454907 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:09:51.534374 [INPUT] [default] boot
+2025-11-26T20:09:51.534761 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:13:54.427178 [INPUT] [default] boot
+2025-11-26T20:13:54.427451 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:15:37.095934 [INPUT] [default] help
+2025-11-26T20:15:48.647652 [INPUT] [default] boot
+2025-11-26T20:15:48.647928 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:16:00.351232 [INPUT] [default] help
+2025-11-26T20:16:00.351552 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T20:16:09.813004 [INPUT] [default] boot
+2025-11-26T20:16:09.813276 [EXCEPTION] [default] cmd=boot AttributeError("'dict' object has no attribute 'mark_booted'")
+2025-11-26T20:17:27.666701 [INPUT] [default] boot
+2025-11-26T20:17:27.667075 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T20:19:54.705171 [INPUT] [default] boot
+2025-11-26T20:19:54.705466 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T20:20:18.572450 [INPUT] [default] reset
+2025-11-26T20:20:18.572747 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T21:00:49.595105 [INPUT] [default] help
+2025-11-26T21:00:49.595420 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T21:00:51.203927 [INPUT] [default] boot
+2025-11-26T21:00:51.204183 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T21:00:55.331898 [INPUT] [default] reset
+2025-11-26T21:00:55.332147 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T21:00:56.478835 [INPUT] [default] status
+2025-11-26T21:00:56.479432 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:00:58.513801 [INPUT] [default] why
+2025-11-26T21:00:58.514051 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T21:01:09.461332 [INPUT] [default] status
+2025-11-26T21:01:09.461870 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:11:04.157055 [INPUT] [default] status
+2025-11-26T21:11:04.157660 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:12:33.217755 [INPUT] [default] why
+2025-11-26T21:12:33.218060 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T21:12:34.262746 [INPUT] [default] help
+2025-11-26T21:12:34.262998 [RESPONSE] [default] cmd=help ok=True
+2025-11-26T21:12:35.487749 [INPUT] [default] status
+2025-11-26T21:12:35.488261 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:12:37.369776 [INPUT] [default] boot
+2025-11-26T21:12:37.370012 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T21:12:38.868132 [INPUT] [default] reset
+2025-11-26T21:12:38.868363 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T21:16:41.623963 [INPUT] [default] status
+2025-11-26T21:16:41.624516 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:17:09.880678 [INPUT] [default] status
+2025-11-26T21:17:09.881225 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:17:24.387608 [INPUT] [default] status
+2025-11-26T21:17:24.388196 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:18:42.166778 [INPUT] [default] status
+2025-11-26T21:18:42.167358 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:20:35.891659 [INPUT] [default] status
+2025-11-26T21:20:35.892202 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:21:14.071325 [INPUT] [default] why
+2025-11-26T21:21:14.071704 [RESPONSE] [default] cmd=why ok=True
+2025-11-26T21:21:14.768221 [INPUT] [default] boot
+2025-11-26T21:21:14.768450 [RESPONSE] [default] cmd=boot ok=True
+2025-11-26T21:21:16.589171 [INPUT] [default] reset
+2025-11-26T21:21:16.589416 [RESPONSE] [default] cmd=reset ok=True
+2025-11-26T21:21:21.193110 [INPUT] [default] status
+2025-11-26T21:21:21.193631 [RESPONSE] [default] cmd=status ok=True
+2025-11-26T21:21:48.675890 [INPUT] [default] status
+2025-11-26T21:21:48.676453 [RESPONSE] [default] cmd=status ok=True

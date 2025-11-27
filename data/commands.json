@@ -1,0 +1,27 @@
+{
+  "why": {
+    "handler": "handle_why",
+    "category": "core",
+    "description": "State NovaOS purpose, philosophy, and identity"
+  },
+  "boot": {
+    "handler": "handle_boot",
+    "category": "core",
+    "description": "Initialize NovaOS kernel and persona"
+  },
+  "reset": {
+    "handler": "handle_reset",
+    "category": "core",
+    "description": "Reload system memory and modules"
+  },
+  "status": {
+    "handler": "handle_status",
+    "category": "core",
+    "description": "Display system state"
+  },
+  "help": {
+    "handler": "handle_help",
+    "category": "core",
+    "description": "List all syscommands"
+  }
+}
