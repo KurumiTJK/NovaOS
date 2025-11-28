@@ -28,11 +28,12 @@ class ContextManager:
     def get_context(self, session_id: str) -> Dict[str, Any]:
         # Get or create the session context
         if session_id not in self._sessions:
-            self._sessions[session_id] = {"booted": False, "memory": {}}  # Default session state
-        return self._sessions[session_id]
+            self._sessions[session_id] = {"booted": False, "memory": {}}
+        else:
+            return self._sessions[session_id]
 
     def reset_session(self, session_id: str) -> None:
-        # Reset the session context
+        print(f"[CTX] reset_session({session_id})")
         self._sessions[session_id] = {"booted": False, "memory": {}}
 
     def mark_booted(self, session_id: str) -> None:

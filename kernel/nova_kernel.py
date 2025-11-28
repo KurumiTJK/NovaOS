@@ -1,125 +1,129 @@
 # kernel/nova_kernel.py
 from typing import Dict, Any
+
 from backend.llm_client import LLMClient
 from system.config import Config
 from system import nova_registry
-from . import syscommands
+from persona.nova_persona import BASE_SYSTEM_PROMPT
+from .command_types import CommandRequest, CommandResponse
+from .syscommand_router import SyscommandRouter
 from .context_manager import ContextManager
 from .memory_manager import MemoryManager
 from .policy_engine import PolicyEngine
 from .logger import KernelLogger
 
+
 class NovaKernel:
     """
     NovaOS kernel orchestrator.
     - Parses input
-    - Routes syscommands
+    - Builds CommandRequest objects
+    - Routes syscommands via SyscommandRouter
     - Coordinates memory, modules, persona, and backend calls
     """
 
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        llm_client: LLMClient | None = None,
+        context_manager: ContextManager | None = None,
+        memory_manager: MemoryManager | None = None,
+        policy_engine: PolicyEngine | None = None,
+        logger: KernelLogger | None = None,
+        router: SyscommandRouter | None = None,
+    ):
         self.config = config
-        self.llm_client = LLMClient()
-        self.commands = nova_registry.load_commands()  # Loaded dynamically
-        self.context_manager = ContextManager(config=config)  # ContextManager instance
-        self.memory_manager = MemoryManager(config=config)
-        self.policy_engine = PolicyEngine(config=config)
-        self.logger = KernelLogger(config=config)
+
+        # Dependencies (decoupled but with sensible defaults)
+        self.llm_client = llm_client or LLMClient()
+        self.context_manager = context_manager or ContextManager(config=config)
+        self.memory_manager = memory_manager or MemoryManager(config=config)
+        self.policy_engine = policy_engine or PolicyEngine(config=config)
+        self.logger = logger or KernelLogger(config=config)
+
+        # Command registry + router
+        self.commands = nova_registry.load_commands()  # dynamic commands.json
+        self.router = router or SyscommandRouter(self.commands)
 
     def handle_input(self, text: str, session_id: str) -> Dict[str, Any]:
         """
         Entry point for all UI input.
-        Returns a structured KernelResponse dict.
+        Returns a structured dict suitable for the UI.
         """
         self.logger.log_input(session_id, text)
 
         if not text.strip():
-            return self._error("EMPTY_INPUT", "No input provided.")
+            return self._error("EMPTY_INPUT", "No input provided.").to_dict()
 
         tokens = text.strip().split()
         cmd_name = tokens[0].lower()
         args = " ".join(tokens[1:]) if len(tokens) > 1 else ""
 
+        # v0.2: if the first token matches a command, treat it as a syscommand
         if cmd_name in self.commands:
-            return self._execute_syscommand(cmd_name, args, session_id)
-        else:
-            # Natural language: interpretation route
-            return self._handle_natural_language(text, session_id)
-
-    def _execute_syscommand(self, cmd_name: str, args: str, session_id: str) -> Dict[str, Any]:
-        meta = self.commands[cmd_name]
-        handler_name = meta.get("handler")
-
-        handler = syscommands.SYS_HANDLERS.get(handler_name)
-        if handler is None:
-            return self._error("NO_HANDLER", f"No handler for command '{cmd_name}'.")
-
-        # Directly call mark_booted on the ContextManager instance
-        self.context_manager.mark_booted(session_id)  # Correctly use the ContextManager instance here
-        context = self.context_manager.get_context(session_id)  # Get session context after marking booted
-        try:
-            response = handler(
+            request = CommandRequest(
                 cmd_name=cmd_name,
                 args=args,
                 session_id=session_id,
-                context=context,
-                kernel=self,
-                meta=meta,
+                raw_text=text,
+                meta=self.commands.get(cmd_name),
             )
-            self.logger.log_response(session_id, cmd_name, response)
-            return response
-        except Exception as e:
-            self.logger.log_exception(session_id, cmd_name, e)
-            return self._error("EXCEPTION", f"Exception in '{cmd_name}': {e}")
+            response = self.router.route(request, kernel=self)
+            self.logger.log_response(session_id, cmd_name, response.to_dict())
+            return response.to_dict()
+        else:
+            # Natural language: persona / interpretation route
+            response = self._handle_natural_language(text, session_id)
+            self.logger.log_response(session_id, "natural_language", response.to_dict())
+            return response.to_dict()
 
-    def _handle_natural_language(self, text: str, session_id: str) -> Dict[str, Any]:
+    def _build_system_prompt(self, context: dict | None = None) -> str:
         """
-        Fallback path for non-syscommand text.
-        Uses interpretation-style behavior via LLM.
+        Merge the static Nova persona prompt with dynamic OS context.
+        Hard fallback: even if context is None or malformed, we still return a valid system prompt.
         """
-        context = self.context_manager.get_context(session_id)  # Get the session context
-        prompt = context.build_system_prompt()  # Build system prompt using session context
+        parts = [BASE_SYSTEM_PROMPT.strip()]
 
-        llm_output = self.llm_client.chat(
-            system_prompt=prompt,
-            messages=[{"role": "user", "content": text}],
+        # context is allowed to just be a dict
+        if isinstance(context, dict):
+            memory_summary = context.get("memory_summary")
+            active_modules = context.get("active_modules")
+            time_rhythm = context.get("time_rhythm")
+
+            if memory_summary:
+                parts.append(f"\n\n[Memory Summary]\n{memory_summary}")
+            if active_modules:
+                parts.append(f"\n\n[Active Modules]\n{active_modules}")
+            if time_rhythm:
+                parts.append(f"\n\n[Time Rhythm]\n{time_rhythm}")
+
+        return "\n".join(parts)
+    
+    def _handle_natural_language(self, text: str, session_id: str) -> CommandResponse:
+        # Get whatever your ContextManager returns (likely a dict)
+        ctx = self.context_manager.get_context(session_id)
+
+        # Build system prompt via persona fallback
+        system_prompt = self._build_system_prompt(ctx)
+
+        # Call LLM using persona + context
+        llm_result = self.llm_client.complete(
+            system=system_prompt,
+            user=text,
+            session_id=session_id,
         )
 
-        # Policy and memory hooks
-        llm_output = self.policy_engine.postprocess_nl_response(llm_output, context)
-        self.memory_manager.maybe_store_nl_interaction(text, llm_output, context)
+        return CommandResponse(
+            ok=True,
+            command="natural_language",
+            summary=llm_result["text"],
+        )
 
-        return {
-            "ok": True,
-            "type": "natural_language",
-            "content": {
-                "summary": llm_output,
-            },
-        }
-
-    def _error(self, code: str, message: str) -> Dict[str, Any]:
-        return {
-            "ok": False,
-            "error": {
-                "code": code,
-                "message": message,
-            },
-        }
-
-    def handle_boot(self, cmd_name, args, session_id, context, kernel, meta):
-        """
-        Boot the system, mark the session as booted.
-        """
-        # Ensure self.context_manager is a ContextManager instance
-        if not isinstance(self.context_manager, ContextManager):
-            return self._error("INVALID_CONTEXT_MANAGER", "ContextManager is not an instance of ContextManager.")
-
-        # Correctly call mark_booted directly on the ContextManager instance
-        self.context_manager.mark_booted(session_id)  # Directly use the ContextManager instance
-
-        # Optionally print session context after booting for debugging purposes
-        # context = self.context_manager.get_context(session_id)
-        # print(f"Session context after boot: {context}")
-
-        summary = "NovaOS kernel booted. Persona loaded. Modules and memory initialized."
-        return _base_response(cmd_name, summary)
+    def _error(self, code: str, message: str) -> CommandResponse:
+        return CommandResponse(
+            ok=False,
+            command=code,
+            summary=message,
+            error_code=code,
+            error_message=message,
+        )

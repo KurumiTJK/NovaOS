@@ -1,6 +1,6 @@
 # backend/llm_client.py
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -22,7 +22,7 @@ class LLMClient:
         """
         Execute a chat completion and return assistant text.
         """
-        model = kwargs.pop("model", "gpt-5.1-mini")  # or your preferred model
+        model = kwargs.pop("model", "gpt-5.1")  # or your preferred model
         resp = self.client.chat.completions.create(
             model=model,
             messages=[
@@ -32,3 +32,26 @@ class LLMClient:
             **kwargs,
         )
         return resp.choices[0].message.content
+
+    # 🔹 New method used by NovaKernel._handle_natural_language
+    def complete(
+        self,
+        system: str,
+        user: str,
+        session_id: Optional[str] = None,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        High-level helper used by NovaKernel.
+        Wraps `chat()` and returns a dict with a `text` field.
+        """
+        messages = [
+            {"role": "user", "content": user}
+        ]
+
+        text = self.chat(system_prompt=system, messages=messages, **kwargs)
+
+        return {
+            "text": text,
+            "session_id": session_id,
+        }

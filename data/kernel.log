@@ -126,3 +126,129 @@
 2025-11-26T21:21:21.193631 [RESPONSE] [default] cmd=status ok=True
 2025-11-26T21:21:48.675890 [INPUT] [default] status
 2025-11-26T21:21:48.676453 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T12:36:54.336996 [INPUT] [default] why
+2025-11-28T12:36:54.337650 [RESPONSE] [default] cmd=why ok=True
+2025-11-28T12:36:55.448491 [INPUT] [default] boot
+2025-11-28T12:36:55.448775 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T12:36:58.876275 [INPUT] [default] status
+2025-11-28T12:36:58.876994 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T12:37:11.321937 [INPUT] [default] help
+2025-11-28T12:37:11.322259 [RESPONSE] [default] cmd=help ok=True
+2025-11-28T12:37:17.246148 [INPUT] [default] reset
+2025-11-28T12:37:17.246451 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T12:37:21.442964 [INPUT] [default] nova how are you
+2025-11-28T13:31:02.005724 [INPUT] [default] hey nova how are you
+2025-11-28T13:40:36.755572 [INPUT] [default] hey nova how are you?
+2025-11-28T13:43:23.355377 [INPUT] [default] hey nova how are you
+2025-11-28T13:43:42.161205 [INPUT] [default] help
+2025-11-28T13:43:42.161573 [RESPONSE] [default] cmd=help ok=True
+2025-11-28T13:43:43.547053 [INPUT] [default] boot
+2025-11-28T13:43:43.547290 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T13:43:44.378041 [INPUT] [default] help
+2025-11-28T13:43:44.378253 [RESPONSE] [default] cmd=help ok=True
+2025-11-28T13:43:45.996064 [INPUT] [default] reset
+2025-11-28T13:43:45.996304 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T13:43:46.687977 [INPUT] [default] status
+2025-11-28T13:43:46.688556 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T13:43:48.177386 [INPUT] [default] why
+2025-11-28T13:43:48.177655 [RESPONSE] [default] cmd=why ok=True
+2025-11-28T13:44:34.693088 [INPUT] [default] boot
+2025-11-28T13:44:34.693398 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T13:47:15.031378 [INPUT] [default] hey nova how are you
+2025-11-28T13:47:17.167429 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T13:47:57.097744 [INPUT] [default] just wanted to talk lol
+2025-11-28T13:48:01.112043 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T13:48:13.638708 [INPUT] [default] who are you?
+2025-11-28T13:48:16.151697 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T13:52:00.745675 [INPUT] [default] hey nova how are you?
+2025-11-28T13:52:03.270001 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T13:52:13.527342 [INPUT] [default] just wanted to talk about life
+2025-11-28T13:52:17.084495 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T13:52:50.509229 [INPUT] [default] just curious who are you and what are you?
+2025-11-28T13:52:54.167076 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T13:56:35.796362 [INPUT] [default] help
+2025-11-28T13:56:35.796637 [RESPONSE] [default] cmd=help ok=True
+2025-11-28T13:56:37.816673 [INPUT] [default] status
+2025-11-28T13:56:37.817218 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:00:23.350472 [INPUT] [default] status
+2025-11-28T14:00:23.351240 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:00:24.413376 [INPUT] [default] boot
+2025-11-28T14:00:24.413757 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:06:52.516752 [INPUT] [default] boot
+2025-11-28T14:06:52.517109 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:06:53.642639 [INPUT] [default] status
+2025-11-28T14:06:53.643242 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:07:01.958581 [INPUT] [default] status
+2025-11-28T14:07:01.959170 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:07:04.782540 [INPUT] [default] status
+2025-11-28T14:07:04.783130 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:07:05.700865 [INPUT] [default] reset
+2025-11-28T14:07:05.701101 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T14:07:06.856867 [INPUT] [default] status
+2025-11-28T14:07:06.857372 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:09:00.176496 [INPUT] [default] status
+2025-11-28T14:09:00.177079 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:10:59.771391 [INPUT] [default] status
+2025-11-28T14:10:59.771963 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:11:01.792350 [INPUT] [default] reset
+2025-11-28T14:11:01.792640 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T14:11:05.451312 [INPUT] [default] status
+2025-11-28T14:11:05.451843 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:11:47.756040 [INPUT] [default] status
+2025-11-28T14:11:47.756640 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:11:48.909975 [INPUT] [default] boot
+2025-11-28T14:11:48.910220 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:12:03.019955 [INPUT] [default] hi nova how are you?
+2025-11-28T14:12:06.074159 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T14:12:14.566847 [INPUT] [default] dunno just so many bugs i need to fix
+2025-11-28T14:12:33.988426 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T14:18:53.058078 [INPUT] [default] status
+2025-11-28T14:18:53.058726 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:21:28.946879 [INPUT] [default] reset
+2025-11-28T14:21:28.947161 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T14:21:32.706880 [INPUT] [default] status
+2025-11-28T14:21:32.707555 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:26:33.320791 [INPUT] [default] status
+2025-11-28T14:26:33.321609 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:29:33.744629 [INPUT] [default] status
+2025-11-28T14:29:33.745488 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:37:08.432251 [INPUT] [default] status
+2025-11-28T14:37:08.433028 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:37:09.929156 [INPUT] [default] boot
+2025-11-28T14:37:09.929632 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:37:11.227338 [INPUT] [default] \status
+2025-11-28T14:37:16.709059 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T14:37:18.603992 [INPUT] [default] status
+2025-11-28T14:37:18.604680 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:37:30.260074 [INPUT] [default] reset
+2025-11-28T14:37:30.260472 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T14:37:31.642941 [INPUT] [default] status
+2025-11-28T14:37:31.643666 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:37:32.509341 [INPUT] [default] boot
+2025-11-28T14:37:32.509755 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:41:17.085859 [INPUT] [default] status
+2025-11-28T14:41:17.086459 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:41:18.401842 [INPUT] [default] boot
+2025-11-28T14:41:18.402087 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:41:19.168784 [INPUT] [default] status
+2025-11-28T14:41:19.169328 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:41:21.518193 [INPUT] [default] reset
+2025-11-28T14:41:21.518492 [RESPONSE] [default] cmd=reset ok=True
+2025-11-28T14:41:22.740113 [INPUT] [default] status
+2025-11-28T14:41:22.740700 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:41:25.459228 [INPUT] [default] boot
+2025-11-28T14:41:25.459522 [RESPONSE] [default] cmd=boot ok=True
+2025-11-28T14:41:26.143118 [INPUT] [default] status
+2025-11-28T14:41:26.143602 [RESPONSE] [default] cmd=status ok=True
+2025-11-28T14:41:29.205116 [INPUT] [default] help
+2025-11-28T14:41:29.205393 [RESPONSE] [default] cmd=help ok=True
+2025-11-28T14:41:30.715142 [INPUT] [default] why
+2025-11-28T14:41:30.715393 [RESPONSE] [default] cmd=why ok=True
+2025-11-28T14:41:35.333391 [INPUT] [default] YES YOU WORK LETS GOOOO
+2025-11-28T14:41:37.712226 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T14:45:02.427692 [INPUT] [default] who are you nova?
+2025-11-28T14:45:07.229555 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T14:45:42.388593 [INPUT] [default] where are you getting this info?
+2025-11-28T14:45:48.111202 [RESPONSE] [default] cmd=natural_language ok=True
+2025-11-28T14:50:22.228557 [INPUT] [default] hey nova what's your job in my OS?
+2025-11-28T14:50:28.474372 [RESPONSE] [default] cmd=natural_language ok=True
