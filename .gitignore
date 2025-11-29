@@ -1,0 +1,17 @@
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore logs
+*.log
+
+# Ignore local environment
+.env
+.venv/
+
+# Ignore data memory snapshots
+data/memory/
+data/snapshots/
+
+# But keep the folders
+!.gitkeep
