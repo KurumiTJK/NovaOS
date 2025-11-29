@@ -397,7 +397,261 @@ def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelR
     summary = f"Restored from snapshot {args['file']}."
     extra = {"file": args["file"], "ok": True}
     return _base_response(cmd_name, summary, extra)
+# ---------------------------------------------------------------------
+# v0.4 — Workflow Engine handlers
+# ---------------------------------------------------------------------
 
+def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Start or restart a workflow.
+    Usage:
+        flow id=<workflow_id> steps='[{"title": "..."}]'
+    Or minimal:
+        flow id=mywf
+    """
+    wf_engine = kernel.workflow_engine
+
+    wf_id = None
+    name = None
+    steps_raw = None
+
+    if isinstance(args, dict):
+        wf_id = args.get("id") or args.get("workflow") or args.get("_", [None])[0]
+        name = args.get("name")
+        steps_raw = args.get("steps")
+
+    if not wf_id:
+        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+
+    steps = []
+    if isinstance(steps_raw, str):
+        try:
+            steps = json.loads(steps_raw)
+        except Exception:
+            return _base_response(cmd_name, "Invalid steps JSON.", {"ok": False})
+    elif isinstance(steps_raw, list):
+        steps = steps_raw
+
+    wf = wf_engine.start(workflow_id=wf_id, name=name, steps=steps)
+    summary = f"Started workflow '{wf.id}' with {len(wf.steps)} step(s)."
+    extra = wf.to_dict()
+    return _base_response(cmd_name, summary, extra)
+
+
+def handle_advance(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Advance a workflow by one step.
+    Usage:
+        advance id=<workflow_id>
+    """
+    wf_engine = kernel.workflow_engine
+    wf_id = None
+
+    if isinstance(args, dict):
+        wf_id = args.get("id") or args.get("_", [None])[0]
+
+    if not wf_id:
+        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+
+    wf = wf_engine.advance(wf_id)
+    if not wf:
+        return _base_response(cmd_name, f"No such workflow '{wf_id}'.", {"ok": False})
+
+    summary = f"Advanced workflow '{wf_id}' to step {wf.current_step + 1}."
+    extra = wf.to_dict()
+    return _base_response(cmd_name, summary, extra)
+
+
+def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Pause or halt a workflow.
+    Usage:
+        halt id=<workflow_id> status=paused
+    """
+    wf_engine = kernel.workflow_engine
+    wf_id = None
+    new_status = "paused"
+
+    if isinstance(args, dict):
+        wf_id = args.get("id") or args.get("_", [None])[0]
+        new_status = args.get("status", "paused")
+
+    if not wf_id:
+        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+
+    wf = wf_engine.halt(wf_id, status=new_status)
+    if not wf:
+        return _base_response(cmd_name, f"No such workflow '{wf_id}'.", {"ok": False})
+
+    summary = f"Workflow '{wf_id}' set to status '{new_status}'."
+    return _base_response(cmd_name, summary, wf.to_dict())
+
+
+def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Ask the LLM to generate a workflow spec for a goal.
+    Usage:
+        compose goal="improve cybersecurity"
+    """
+    goal = None
+    if isinstance(args, dict):
+        goal = args.get("goal") or args.get("_", [None])[0]
+
+    if not goal:
+        return _base_response(cmd_name, "compose requires goal=<text>.", {"ok": False})
+
+    prompt = (
+        "Generate a workflow plan as a JSON list of steps. "
+        "Each step must have: title, description. "
+        f"Goal: {goal}"
+    )
+
+    llm_result = kernel.llm_client.complete(
+        system="You generate structured workflow plans in JSON.",
+        user=prompt,
+        session_id=session_id,
+    )
+
+    text = llm_result.get("text", "").strip()
+    try:
+        steps = json.loads(text)
+        summary = f"Generated workflow plan for goal: {goal}"
+        extra = {"steps": steps}
+    except Exception:
+        summary = (
+            "LLM returned non-JSON. Inspect 'raw' field. "
+            "You may need to edit manually."
+        )
+        extra = {"raw": text}
+
+    return _base_response(cmd_name, summary, extra)
+
+
+# ---------------------------------------------------------------------
+# v0.4 — Time Rhythm Engine handlers
+# ---------------------------------------------------------------------
+
+def handle_presence(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show global time-rhythm state:
+    day of week, ISO week, cycle phase(s).
+    """
+    info = kernel.time_rhythm_engine.presence()
+    return _base_response(cmd_name, "Time rhythm presence snapshot.", info)
+
+
+def handle_pulse(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Diagnose workflow health:
+    stalled workflows, counts by status.
+    """
+    wf_summaries = kernel.workflow_engine.summarize_all()
+    info = kernel.time_rhythm_engine.pulse(wf_summaries)
+    return _base_response(cmd_name, "Workflow pulse diagnostics.", info)
+
+
+def handle_align(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Suggest alignment actions based on:
+    - active workflows
+    - stalled workflows
+    - current time phase
+    Basic v0.4 heuristic.
+    """
+    presence = kernel.time_rhythm_engine.presence()
+    wf_summaries = kernel.workflow_engine.summarize_all()
+    pulse = kernel.time_rhythm_engine.pulse(wf_summaries)
+
+    suggestions = []
+
+    # Suggestion 1: Completed or no workflows
+    if not wf_summaries:
+        suggestions.append("No workflows active. Consider starting one with 'flow'.")
+
+    # Suggestion 2: Stalled workflows
+    for stalled in pulse.get("stalled", []):
+        wid = stalled.get("id")
+        suggestions.append(f"Workflow '{wid}' appears stalled. Try 'advance id={wid}'.")
+
+    # Suggestion 3: If on a new week boundary
+    if presence.get("day_of_week") == 1:  # Monday
+        suggestions.append("New week detected. Review weekly goals.")
+
+    extra = {
+        "presence": presence,
+        "pulse": pulse,
+        "suggestions": suggestions,
+    }
+    return _base_response(cmd_name, "Alignment analysis.", extra)
+
+# ---------------------------------------------------------------------
+# v0.4.1 — Reminder Subsystem handlers
+# ---------------------------------------------------------------------
+
+def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Create a reminder.
+    Usage:
+        remind-add title="Check dashboard" when="2025-11-30T09:00:00Z"
+    """
+    title = None
+    when = None
+    repeat = None
+
+    if isinstance(args, dict):
+        title = args.get("title") or args.get("_", [None])[0]
+        when = args.get("when")
+        repeat = args.get("repeat")
+
+    if not title or not when:
+        return _base_response(cmd_name, "Missing title or when.", {"ok": False})
+
+    r = kernel.reminders.add(title=title, when=when, repeat=repeat)
+    return _base_response(cmd_name, f"Reminder '{r.id}' created.", r.to_dict())
+
+
+def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    List reminders.
+    """
+    items = [r.to_dict() for r in kernel.reminders.list()]
+    return _base_response(cmd_name, f"{len(items)} reminder(s).", {"reminders": items})
+
+
+def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Update an existing reminder.
+    Usage:
+        remind-update id=<id> title="New title"
+    """
+    rid = None
+    if isinstance(args, dict):
+        rid = args.get("id") or args.get("_", [None])[0]
+    if not rid:
+        return _base_response(cmd_name, "Missing id.", {"ok": False})
+
+    fields = {k: v for k, v in args.items() if k != "id"}
+    r = kernel.reminders.update(rid, fields)
+    if not r:
+        return _base_response(cmd_name, f"No reminder '{rid}'.", {"ok": False})
+    return _base_response(cmd_name, f"Reminder '{rid}' updated.", r.to_dict())
+
+
+def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Delete a reminder.
+    """
+    rid = None
+    if isinstance(args, dict):
+        rid = args.get("id") or args.get("_", [None])[0]
+
+    if not rid:
+        return _base_response(cmd_name, "Missing id.", {"ok": False})
+
+    ok = kernel.reminders.delete(rid)
+    if not ok:
+        return _base_response(cmd_name, f"No reminder '{rid}'.", {"ok": False})
+    return _base_response(cmd_name, f"Reminder '{rid}' deleted.", {"ok": True})
 
 # ------------------------ Handler registry ------------------------
 
@@ -419,4 +673,19 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_bind_module": handle_bind_module,
     "handle_snapshot": handle_snapshot,
     "handle_restore": handle_restore,
+        # v0.4 Workflow
+    "handle_flow": handle_flow,
+    "handle_advance": handle_advance,
+    "handle_halt": handle_halt,
+    "handle_compose": handle_compose,
+
+    # v0.4 Time Rhythm
+    "handle_presence": handle_presence,
+    "handle_pulse": handle_pulse,
+    "handle_align": handle_align,
+        "handle_remind_add": handle_remind_add,
+    "handle_remind_list": handle_remind_list,
+    "handle_remind_update": handle_remind_update,
+    "handle_remind_delete": handle_remind_delete,
+
 }

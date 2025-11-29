@@ -21,7 +21,9 @@ class SyscommandRouter:
         # Normalize any incoming registry into a dict
         self.commands: Dict[str, Dict[str, Any]] = self._normalize_commands(commands)
         # Central handler table from syscommands
+        # Allow dynamic extension of handlers (v0.4 workflow + timerhythm)
         self.handlers: Dict[str, HandlerFn] = dict(syscommands.SYS_HANDLERS)
+        # Later syscommands can register new handlers by updating SYS_HANDLERS
 
     # ----------------- internal helpers -----------------
 

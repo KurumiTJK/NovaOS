@@ -47,6 +47,22 @@ class NovaKernel:
         self.module_registry = nova_registry.ModuleRegistry(config=config)
         self.router = router or SyscommandRouter(self.commands)
 
+        # -------------------------------------------------------------
+        # v0.4: Add TimeRhythmEngine + WorkflowEngine
+        # -------------------------------------------------------------
+        from kernel.time_rhythm import TimeRhythmEngine
+        from kernel.workflow_engine import WorkflowEngine
+        from kernel.reminders_manager import RemindersManager
+
+        # For v0.4, initialize fresh engines each run.
+        # We can wire real persistence later without touching MemoryManager.
+        self.time_rhythm_engine = TimeRhythmEngine()
+        self.workflow_engine = WorkflowEngine()
+
+        # v0.4.1: Reminders subsystem
+        self.reminders = RemindersManager(self.config.data_dir)
+
+
     # ------------------------------------------------------------------
     # Core input handling
     # ------------------------------------------------------------------
@@ -91,6 +107,22 @@ class NovaKernel:
             response = self.router.route(interpreted, kernel=self)
             self.logger.log_response(session_id, interpreted.cmd_name, response.to_dict())
             return response.to_dict()
+        
+        # -------------------------------------------------------------
+        # v0.4.1 — Reminder checking (no background threads)
+        # -------------------------------------------------------------
+        due = self.reminders.check_due()
+        if due:
+            # If multiple are due, combine their messages
+            lines = [f"🔔 Reminder: {r.title} (id={r.id})" for r in due]
+            return {
+                "ok": True,
+                "type": "reminder",
+                "content": {
+                    "command": "reminder-triggered",
+                    "summary": "\n".join(lines),
+                },
+            }
 
         # 3) Fallback: Nova persona
         response = self._handle_natural_language(text, session_id)
@@ -241,6 +273,62 @@ class NovaKernel:
                 raw_text=text,
                 meta=self.commands.get("recall"),
             )
+        # -------------------------------------------------------------
+        # v0.4.1 — Minimal NL → Reminder interpretation
+        # -------------------------------------------------------------
+        if lowered.startswith("remind me"):
+            # naive parse: "remind me to X at TIME"
+            # We accept two simple shapes:
+            #   remind me to <title> at <time>
+            #   remind me <title> at <time>
+            text_no_prefix = text.lower().replace("remind me", "", 1).strip()
+
+            # Best-effort split on common " at "
+            if " at " in text_no_prefix:
+                title_part, when_part = text_no_prefix.split(" at ", 1)
+                title = title_part.strip()
+                when = when_part.strip()
+
+                args = {
+                    "title": title,
+                    "when": when,
+                }
+                return CommandRequest(
+                    cmd_name="remind-add",
+                    args=args,
+                    session_id=session_id,
+                    raw_text=text,
+                    meta=self.commands.get("remind-add"),
+                )
+
+        return None
+                # -------------------------------------------------------------
+        # v0.4.1 — Minimal NL → Reminder interpretation
+        # -------------------------------------------------------------
+        if lowered.startswith("remind me"):
+            # naive parse: "remind me to X at TIME"
+            # We accept two simple shapes:
+            #   remind me to <title> at <time>
+            #   remind me <title> at <time>
+            text_no_prefix = text.lower().replace("remind me", "", 1).strip()
+
+            # Best-effort split on common " at "
+            if " at " in text_no_prefix:
+                title_part, when_part = text_no_prefix.split(" at ", 1)
+                title = title_part.strip()
+                when = when_part.strip()
+
+                args = {
+                    "title": title,
+                    "when": when,
+                }
+                return CommandRequest(
+                    cmd_name="remind-add",
+                    args=args,
+                    session_id=session_id,
+                    raw_text=text,
+                    meta=self.commands.get("remind-add"),
+                )
 
         return None
 
@@ -294,3 +382,16 @@ class NovaKernel:
             error_code=code,
             error_message=message,
         )
+    # ------------------------------------------------------------------
+    # v0.4 kernel state export (for snapshots)
+    # ------------------------------------------------------------------
+    def export_kernel_state(self) -> Dict[str, Any]:
+        """
+        Optional: kernel-level state export.
+        Not yet wired into MemoryManager, but safe to call from snapshot logic.
+        """
+        return {
+            "time_rhythm": getattr(self.time_rhythm_engine, "to_dict", lambda: {})(),
+            "workflows": getattr(self.workflow_engine, "to_dict", lambda: {})(),
+        }
+
