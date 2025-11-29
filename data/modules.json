@@ -1,1 +1,10 @@
-[]
+{
+  "finance": {
+    "name": "Finance Module",
+    "mission": "Track investing",
+    "state": "active",
+    "workflows": [],
+    "routines": [],
+    "bindings": []
+  }
+}

@@ -244,6 +244,38 @@ class ModuleRegistry:
         return True
 
     # --------------------------------------------------------
+    # Backwards-compatible convenience aliases (v0.3)
+    # --------------------------------------------------------
+
+    def forge(
+        self,
+        *,
+        key: str,
+        name: str,
+        mission: str,
+        state: str = "inactive",
+        workflows: Optional[List[dict]] = None,
+        routines: Optional[List[dict]] = None,
+    ) -> ModuleMeta:
+        """Alias for forge_module to match syscommand handlers."""
+        return self.forge_module(
+            key=key,
+            name=name,
+            mission=mission,
+            state=state,
+            workflows=workflows,
+            routines=routines,
+        )
+
+    def dismantle(self, key: str) -> bool:
+        """Alias for dismantle_module to match syscommand handlers."""
+        return self.dismantle_module(key)
+
+    def get(self, key: str) -> Optional[ModuleMeta]:
+        """Alias for inspect_module to match syscommand handlers."""
+        return self.inspect_module(key)
+
+    # --------------------------------------------------------
     # Snapshot support
     # --------------------------------------------------------
 
