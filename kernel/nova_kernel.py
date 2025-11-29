@@ -41,29 +41,42 @@ class NovaKernel:
         self.policy_engine = policy_engine or PolicyEngine(config=config)
         self.logger = logger or KernelLogger(config=config)
 
-        # Command registry + router
-        self.commands = nova_registry.load_commands()  # dynamic commands.json
+        # Command registry + router + modules
+        raw_commands = nova_registry.load_commands(config=self.config)
+        self.commands = self._normalize_commands(raw_commands)
+        self.module_registry = nova_registry.ModuleRegistry(config=config)
         self.router = router or SyscommandRouter(self.commands)
+
+    # ------------------------------------------------------------------
+    # Core input handling
+    # ------------------------------------------------------------------
 
     def handle_input(self, text: str, session_id: str) -> Dict[str, Any]:
         """
         Entry point for all UI input.
         Returns a structured dict suitable for the UI.
+
+        v0.3:
+        1) If first token matches a syscommand -> route directly.
+        2) Else attempt minimal NL → command interpretation (memory only).
+        3) Else fall back to Nova persona (_handle_natural_language).
         """
         self.logger.log_input(session_id, text)
 
         if not text.strip():
             return self._error("EMPTY_INPUT", "No input provided.").to_dict()
 
-        tokens = text.strip().split()
+        stripped = text.strip()
+        tokens = stripped.split()
         cmd_name = tokens[0].lower()
-        args = " ".join(tokens[1:]) if len(tokens) > 1 else ""
+        args_str = " ".join(tokens[1:]) if len(tokens) > 1 else ""
 
-        # v0.2: if the first token matches a command, treat it as a syscommand
+        # 1) Explicit syscommand: first token matches commands.json
         if cmd_name in self.commands:
+            args_dict = self._parse_args(args_str)
             request = CommandRequest(
                 cmd_name=cmd_name,
-                args=args,
+                args=args_dict,
                 session_id=session_id,
                 raw_text=text,
                 meta=self.commands.get(cmd_name),
@@ -71,11 +84,165 @@ class NovaKernel:
             response = self.router.route(request, kernel=self)
             self.logger.log_response(session_id, cmd_name, response.to_dict())
             return response.to_dict()
-        else:
-            # Natural language: persona / interpretation route
-            response = self._handle_natural_language(text, session_id)
-            self.logger.log_response(session_id, "natural_language", response.to_dict())
+
+        # 2) NL → command interpretation (memory-only for v0.3)
+        interpreted = self._interpret_nl_to_command(stripped, session_id)
+        if interpreted is not None:
+            response = self.router.route(interpreted, kernel=self)
+            self.logger.log_response(session_id, interpreted.cmd_name, response.to_dict())
             return response.to_dict()
+
+        # 3) Fallback: Nova persona
+        response = self._handle_natural_language(text, session_id)
+        self.logger.log_response(session_id, "natural_language", response.to_dict())
+        return response.to_dict()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _normalize_commands(self, raw: Any) -> Dict[str, Dict[str, Any]]:
+        """
+        Ensure the in-memory command registry is always a dict:
+        { cmd_name: meta_dict }.
+
+        Handles:
+        - dict: already in desired shape.
+        - list-of-dicts v0.2 formats.
+        This mirrors nova_registry._normalize_commands but is defensive
+        in case anything upstream returns an unexpected shape.
+        """
+        if isinstance(raw, dict):
+            return raw
+
+        normalized: Dict[str, Dict[str, Any]] = {}
+        if isinstance(raw, list):
+            for entry in raw:
+                if not isinstance(entry, dict):
+                    continue
+                name = entry.get("name") or entry.get("command") or entry.get("cmd")
+                if name:
+                    meta = {
+                        k: v
+                        for k, v in entry.items()
+                        if k not in ("name", "command", "cmd")
+                    }
+                    normalized[name] = meta
+                    continue
+                if len(entry) == 1:
+                    k, v = next(iter(entry.items()))
+                    if isinstance(v, dict):
+                        normalized[k] = v
+                        continue
+        return normalized
+
+    def _parse_args(self, args_str: str) -> Dict[str, Any]:
+        """
+        Minimal v0.3 argument parser.
+
+        - Supports key=value pairs (quoted via shell-style rules).
+        - Bare tokens are collected under "_" as a list.
+        """
+        import shlex
+
+        result: Dict[str, Any] = {}
+        if not args_str:
+            return result
+
+        try:
+            parts = shlex.split(args_str)
+        except ValueError:
+            parts = args_str.split()
+
+        for part in parts:
+            if "=" in part:
+                key, value = part.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if not key:
+                    continue
+                if value.isdigit():
+                    result[key] = int(value)
+                else:
+                    result[key] = value
+            else:
+                result.setdefault("_", []).append(part)
+        return result
+
+    def _interpret_nl_to_command(self, text: str, session_id: str) -> CommandRequest | None:
+        """
+        Minimal NL → command interpreter for v0.3.
+
+        Only handles memory-related patterns for now.
+        Everything else falls through to persona.
+        """
+        lowered = text.lower()
+
+        # Pattern 1: "remember this for <tag>: <payload>"
+        if lowered.startswith("remember"):
+            mem_type = "semantic"
+            tags = ["general"]
+
+            if "for finance" in lowered:
+                tags = ["finance"]
+            elif "for real estate" in lowered:
+                tags = ["real_estate"]
+            elif "for health" in lowered:
+                tags = ["health"]
+
+            if "as procedural" in lowered:
+                mem_type = "procedural"
+            elif "as episodic" in lowered or "log this" in lowered:
+                mem_type = "episodic"
+
+            if ":" in text:
+                payload = text.split(":", 1)[1].strip()
+            else:
+                payload = text.strip()
+
+            args = {
+                "payload": payload,
+                "type": mem_type,
+                "tags": tags,
+            }
+            return CommandRequest(
+                cmd_name="store",
+                args=args,
+                session_id=session_id,
+                raw_text=text,
+                meta=self.commands.get("store"),
+            )
+
+        # Pattern 2: "show my <tag> memories" / "recall my <tag> memories"
+        if "memories" in lowered or "memory" in lowered:
+            mem_type = None
+            tags = None
+
+            if "finance" in lowered:
+                tags = ["finance"]
+            elif "real estate" in lowered:
+                tags = ["real_estate"]
+            elif "health" in lowered:
+                tags = ["health"]
+
+            args: Dict[str, Any] = {}
+            if mem_type:
+                args["type"] = mem_type
+            if tags:
+                args["tags"] = tags
+
+            if not args:
+                return None
+
+            return CommandRequest(
+                cmd_name="recall",
+                args=args,
+                session_id=session_id,
+                raw_text=text,
+                meta=self.commands.get("recall"),
+            )
+
+        return None
 
     def _build_system_prompt(self, context: dict | None = None) -> str:
         """
@@ -98,7 +265,7 @@ class NovaKernel:
                 parts.append(f"\n\n[Time Rhythm]\n{time_rhythm}")
 
         return "\n".join(parts)
-    
+
     def _handle_natural_language(self, text: str, session_id: str) -> CommandResponse:
         # Get whatever your ContextManager returns (likely a dict)
         ctx = self.context_manager.get_context(session_id)

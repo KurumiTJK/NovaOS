@@ -23,5 +23,68 @@
     "handler": "handle_help",
     "category": "core",
     "description": "List all syscommands"
+  },
+
+  "store": {
+    "handler": "handle_store",
+    "category": "memory",
+    "description": "Store a memory item (semantic/procedural/episodic) with tags."
+  },
+  "recall": {
+    "handler": "handle_recall",
+    "category": "memory",
+    "description": "Recall memory items filtered by type and/or tags."
+  },
+  "forget": {
+    "handler": "handle_forget",
+    "category": "memory",
+    "description": "Forget memory items by id, tag, or type."
+  },
+  "trace": {
+    "handler": "handle_trace",
+    "category": "memory",
+    "description": "Show lineage/trace info for a memory item."
+  },
+  "bind": {
+    "handler": "handle_bind",
+    "category": "memory",
+    "description": "Bind multiple memory items into a cluster."
+  },
+
+  "map": {
+    "handler": "handle_map",
+    "category": "modules",
+    "description": "List all registered modules."
+  },
+  "forge": {
+    "handler": "handle_forge",
+    "category": "modules",
+    "description": "Forge (create) a new module with mission and state."
+  },
+  "dismantle": {
+    "handler": "handle_dismantle",
+    "category": "modules",
+    "description": "Dismantle (delete) a module."
+  },
+  "inspect": {
+    "handler": "handle_inspect",
+    "category": "modules",
+    "description": "Inspect a module's metadata and bindings."
+  },
+  "bind-module": {
+    "handler": "handle_bind_module",
+    "category": "modules",
+    "description": "Bind two modules for cross-domain interaction."
+  },
+
+  "snapshot": {
+    "handler": "handle_snapshot",
+    "category": "system",
+    "description": "Create a snapshot of core OS state."
+  },
+  "restore": {
+    "handler": "handle_restore",
+    "category": "system",
+    "description": "Restore OS state from a snapshot."
   }
 }
