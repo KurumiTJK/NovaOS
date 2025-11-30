@@ -1,48 +1,5 @@
 {
   "version": "0.3",
   "next_id": 4,
-  "items": [
-    {
-      "id": 1,
-      "type": "semantic",
-      "tags": [
-        "general"
-      ],
-      "payload": "test memory",
-      "timestamp": "2025-11-29T09:26:04.772323+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default"
-      },
-      "cluster_id": null
-    },
-    {
-      "id": 2,
-      "type": "semantic",
-      "tags": [
-        "finance"
-      ],
-      "payload": "NVDA C2 checklist",
-      "timestamp": "2025-11-29T09:26:44.312645+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default"
-      },
-      "cluster_id": null
-    },
-    {
-      "id": 3,
-      "type": "semantic",
-      "tags": [
-        "finance"
-      ],
-      "payload": "test memory",
-      "timestamp": "2025-11-29T09:39:41.643721+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default"
-      },
-      "cluster_id": null
-    }
-  ]
+  "items": []
 }
