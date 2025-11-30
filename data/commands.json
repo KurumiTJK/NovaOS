@@ -108,6 +108,17 @@
     "category": "workflow",
     "description": "Use the LLM to generate a workflow plan."
   },
+  "workflow-delete": {
+    "handler": "handle_workflow_delete",
+    "category": "workflow",
+    "description": "Delete a workflow by id.",
+    "args": ["id"]
+  },
+  "workflow-list": {
+    "handler": "handle_workflow_list",
+    "category": "workflow",
+    "description": "List all workflows."
+  },
 
   "presence": {
     "handler": "handle_presence",

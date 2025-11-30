@@ -210,6 +210,41 @@ class NovaKernel:
         Everything else falls through to persona.
         """
         lowered = text.lower()
+        
+        # -------------------------------------------------------------
+        # v0.4.4 — NL → workflow-list
+        # Patterns like:
+        #   "list workflows"
+        #   "show workflows"
+        # -------------------------------------------------------------
+        if lowered.strip() in ("list workflows", "show workflows", "what workflows do i have"):
+            return CommandRequest(
+                cmd_name="workflow-list",
+                args={},
+                session_id=session_id,
+                raw_text=text,
+                meta=self.commands.get("workflow-list"),
+            )
+               
+       # -------------------------------------------------------------
+        # v0.4.4 — NL → workflow-delete
+        # Patterns like:
+        #   "delete workflow 3"
+        #   "remove workflow 10"
+        # -------------------------------------------------------------
+        import re
+
+        m = re.match(r"^(delete|remove)\s+workflow\s+(\d+)\b", lowered)
+        if m:
+            wid = int(m.group(2))
+            args = {"id": wid}
+            return CommandRequest(
+                cmd_name="workflow-delete",
+                args=args,
+                session_id=session_id,
+                raw_text=text,
+                meta=self.commands.get("workflow-delete"),
+            )
 
         # Pattern 1: "remember this for <tag>: <payload>"
         if lowered.startswith("remember"):

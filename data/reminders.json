@@ -2,7 +2,7 @@
   "rem-20251130021622597235": {
     "id": "rem-20251130021622597235",
     "title": "Ping",
-    "when": "2025-11-29T03:05:30Z",
+    "when": "2025-11-29T03:05:30+00:00",
     "timezone": "UTC",
     "repeat": null,
     "status": "triggered",
@@ -11,10 +11,10 @@
   "rem-20251130021823779259": {
     "id": "rem-20251130021823779259",
     "title": "to stretch",
-    "when": "9am",
+    "when": "2025-11-30T09:00:00+00:00",
     "timezone": "UTC",
     "repeat": null,
-    "status": "pending",
+    "status": "triggered",
     "created_at": "2025-11-30T02:18:23.779277+00:00"
   },
   "rem-20251130024331015444": {

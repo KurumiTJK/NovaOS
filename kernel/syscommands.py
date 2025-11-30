@@ -486,16 +486,106 @@ def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     summary = f"Workflow '{wf_id}' set to status '{new_status}'."
     return _base_response(cmd_name, summary, wf.to_dict())
 
+def handle_workflow_delete(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Hard-delete a workflow from kernel.workflow_engine by id.
+
+    Usage:
+        workflow-delete id=<workflow_id>
+
+    This operates purely on the in-memory WorkflowEngine state.
+    Persistence is handled via snapshot/restore, not direct files.
+    """
+    wf_engine = kernel.workflow_engine
+
+    wf_id = None
+    if isinstance(args, dict):
+        wf_id = args.get("id") or args.get("_", [None])[0]
+
+    if not wf_id:
+        return _base_response(
+            cmd_name,
+            "You need to specify a workflow id to delete. Example: workflow-delete id=3.",
+            {"ok": False},
+        )
+
+    wf_id_str = str(wf_id)
+
+    existing = wf_engine.get(wf_id_str)
+    if not existing:
+        return _base_response(
+            cmd_name,
+            f"I couldn’t find a workflow with id {wf_id_str}.",
+            {"ok": False},
+        )
+
+    deleted = wf_engine.delete(wf_id_str)
+    if not deleted:
+        return _base_response(
+            cmd_name,
+            f"Workflow '{wf_id_str}' was found but could not be deleted.",
+            {"ok": False},
+        )
+
+    name = existing.name or wf_id_str
+    summary = f"Deleted workflow '{wf_id_str}' – \"{name}\"."
+    extra = {
+        "ok": True,
+        "id": wf_id_str,
+        "workflow": existing.to_dict(),
+    }
+    return _base_response(cmd_name, summary, extra)
+
+def handle_workflow_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    List all workflows currently tracked in kernel.workflow_engine.
+
+    Uses the in-memory WorkflowEngine state (snapshot-friendly),
+    no direct file access.
+    """
+    wf_engine = kernel.workflow_engine
+    summaries = wf_engine.summarize_all()  # list[dict] via WorkflowEngine._summary_dict
+
+    if not summaries:
+        return _base_response(
+            cmd_name,
+            "There are no workflows yet.",
+            {"ok": False, "count": 0, "workflows": []},
+        )
+
+    lines = [f"Workflows ({len(summaries)}):"]
+    for wf in summaries:
+        wid = wf.get("id")
+        name = wf.get("name") or f"Workflow {wid}"
+        status = wf.get("status", "unknown")
+        active_title = wf.get("active_step_title") or ""
+        if active_title:
+            lines.append(f"- {wid}: \"{name}\" [{status}] → {active_title}")
+        else:
+            lines.append(f"- {wid}: \"{name}\" [{status}]")
+
+    summary = "\n".join(lines)
+    extra = {
+        "ok": True,
+        "count": len(summaries),
+        "workflows": summaries,
+    }
+    return _base_response(cmd_name, summary, extra)
 
 def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
     Ask the LLM to generate a workflow spec for a goal.
+
     Usage:
         compose goal="improve cybersecurity"
+        compose id="wf-1" goal="improve cybersecurity"   # v0.4.4: also creates a workflow
     """
     goal = None
+    wf_id = None
+
     if isinstance(args, dict):
         goal = args.get("goal") or args.get("_", [None])[0]
+        wf_id = args.get("id") or args.get("workflow")
 
     if not goal:
         return _base_response(cmd_name, "compose requires goal=<text>.", {"ok": False})
@@ -513,17 +603,42 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
     )
 
     text = llm_result.get("text", "").strip()
+
     try:
         steps = json.loads(text)
-        summary = f"Generated workflow plan for goal: {goal}"
-        extra = {"steps": steps}
     except Exception:
         summary = (
             "LLM returned non-JSON. Inspect 'raw' field. "
             "You may need to edit manually."
         )
         extra = {"raw": text}
+        return _base_response(cmd_name, summary, extra)
 
+    # If no id is provided, keep legacy behavior: just show the plan.
+    if not wf_id:
+        summary = f"Generated workflow plan for goal: {goal}"
+        extra = {"steps": steps}
+        return _base_response(cmd_name, summary, extra)
+
+    # v0.4.4: if id is provided, also create a real workflow in the engine.
+    wf_engine = kernel.workflow_engine
+    wf_id_str = str(wf_id)
+
+    wf = wf_engine.start(
+        workflow_id=wf_id_str,
+        name=str(goal),
+        steps=steps,
+        meta={
+            "source": "compose",
+            "session_id": session_id,
+        },
+    )
+
+    summary = f"Created workflow '{wf.id}' with {len(wf.steps)} steps for goal: {goal}."
+    extra = {
+        "workflow": wf.to_dict(),
+        "steps_count": len(wf.steps),
+    }
     return _base_response(cmd_name, summary, extra)
 
 
@@ -700,5 +815,8 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_remind_list": handle_remind_list,
     "handle_remind_update": handle_remind_update,
     "handle_remind_delete": handle_remind_delete,
+        # v0.4.4 Workflow delete
+    "handle_workflow_delete": handle_workflow_delete,
+    "handle_workflow_list": handle_workflow_list,
 
 }
