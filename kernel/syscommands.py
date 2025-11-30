@@ -556,26 +556,39 @@ def handle_align(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     - active workflows
     - stalled workflows
     - current time phase
-    Basic v0.4 heuristic.
+    v0.4 refined heuristic.
     """
     presence = kernel.time_rhythm_engine.presence()
     wf_summaries = kernel.workflow_engine.summarize_all()
     pulse = kernel.time_rhythm_engine.pulse(wf_summaries)
 
-    suggestions = []
+    suggestions: list[str] = []
 
-    # Suggestion 1: Completed or no workflows
+    # 1) No workflows at all
     if not wf_summaries:
-        suggestions.append("No workflows active. Consider starting one with 'flow'.")
+        suggestions.append("No workflows active. Consider starting one with 'flow' for today's focus.")
+    else:
+        # 2) Active workflows: highlight current steps
+        active_wfs = [wf for wf in wf_summaries if wf.get("status") in ("active", "pending")]
+        if active_wfs:
+            top = active_wfs[0]  # simple v0.4: just pick the first
+            step_title = top.get("active_step_title") or "(unnamed step)"
+            suggestions.append(
+                f"Focus workflow: '{top.get('name')}'. Current step: {step_title}."
+            )
 
-    # Suggestion 2: Stalled workflows
+        # 3) All completed
+        if all(wf.get("status") == "completed" for wf in wf_summaries):
+            suggestions.append("All workflows are completed. Define a new one aligned to your next 30–60 day goal.")
+
+    # 4) Stalled workflows
     for stalled in pulse.get("stalled", []):
         wid = stalled.get("id")
-        suggestions.append(f"Workflow '{wid}' appears stalled. Try 'advance id={wid}'.")
+        suggestions.append(f"Workflow '{wid}' appears stalled. Try 'advance id={wid}' or 'halt id={wid}' to reset.")
 
-    # Suggestion 3: If on a new week boundary
+    # 5) Week boundary hint
     if presence.get("day_of_week") == 1:  # Monday
-        suggestions.append("New week detected. Review weekly goals.")
+        suggestions.append("New week detected. Review weekly goals and align workflows to this week's top 1–3 outcomes.")
 
     extra = {
         "presence": presence,

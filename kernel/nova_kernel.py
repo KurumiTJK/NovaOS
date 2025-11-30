@@ -113,21 +113,22 @@ class NovaKernel:
         # -------------------------------------------------------------
         due = self.reminders.check_due()
         if due:
-            # If multiple are due, combine their messages
-            lines = [f"🔔 Reminder: {r.title} (id={r.id})" for r in due]
+            lines = []
+            items = []
+            for r in due:
+                line = f"🔔 Reminder: {r.title}  (when={r.when}, id={r.id})"
+                lines.append(line)
+                items.append(r.to_dict())
+
             return {
                 "ok": True,
                 "type": "reminder",
                 "content": {
                     "command": "reminder-triggered",
                     "summary": "\n".join(lines),
+                    "items": items,
                 },
             }
-
-        # 3) Fallback: Nova persona
-        response = self._handle_natural_language(text, session_id)
-        self.logger.log_response(session_id, "natural_language", response.to_dict())
-        return response.to_dict()
 
     # ------------------------------------------------------------------
     # Internal helpers
