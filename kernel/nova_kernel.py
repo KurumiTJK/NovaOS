@@ -302,35 +302,6 @@ class NovaKernel:
                 )
 
         return None
-                # -------------------------------------------------------------
-        # v0.4.1 — Minimal NL → Reminder interpretation
-        # -------------------------------------------------------------
-        if lowered.startswith("remind me"):
-            # naive parse: "remind me to X at TIME"
-            # We accept two simple shapes:
-            #   remind me to <title> at <time>
-            #   remind me <title> at <time>
-            text_no_prefix = text.lower().replace("remind me", "", 1).strip()
-
-            # Best-effort split on common " at "
-            if " at " in text_no_prefix:
-                title_part, when_part = text_no_prefix.split(" at ", 1)
-                title = title_part.strip()
-                when = when_part.strip()
-
-                args = {
-                    "title": title,
-                    "when": when,
-                }
-                return CommandRequest(
-                    cmd_name="remind-add",
-                    args=args,
-                    session_id=session_id,
-                    raw_text=text,
-                    meta=self.commands.get("remind-add"),
-                )
-
-        return None
 
     def _build_system_prompt(self, context: dict | None = None) -> str:
         """

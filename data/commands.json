@@ -86,5 +86,63 @@
     "handler": "handle_restore",
     "category": "system",
     "description": "Restore OS state from a snapshot."
+  },
+
+  "flow": {
+    "handler": "handle_flow",
+    "category": "workflow",
+    "description": "Start or restart a workflow."
+  },
+  "advance": {
+    "handler": "handle_advance",
+    "category": "workflow",
+    "description": "Advance a workflow to the next step."
+  },
+  "halt": {
+    "handler": "handle_halt",
+    "category": "workflow",
+    "description": "Pause or halt a workflow."
+  },
+  "compose": {
+    "handler": "handle_compose",
+    "category": "workflow",
+    "description": "Use the LLM to generate a workflow plan."
+  },
+
+  "presence": {
+    "handler": "handle_presence",
+    "category": "timerhythm",
+    "description": "Show time rhythm presence snapshot."
+  },
+  "pulse": {
+    "handler": "handle_pulse",
+    "category": "timerhythm",
+    "description": "Workflow pulse diagnostics."
+  },
+  "align": {
+    "handler": "handle_align",
+    "category": "timerhythm",
+    "description": "Alignment suggestions based on time + workflows."
+  },
+
+  "remind-add": {
+    "handler": "handle_remind_add",
+    "category": "reminders",
+    "description": "Create a reminder."
+  },
+  "remind-list": {
+    "handler": "handle_remind_list",
+    "category": "reminders",
+    "description": "List reminders."
+  },
+  "remind-update": {
+    "handler": "handle_remind_update",
+    "category": "reminders",
+    "description": "Update a reminder."
+  },
+  "remind-delete": {
+    "handler": "handle_remind_delete",
+    "category": "reminders",
+    "description": "Delete a reminder."
   }
 }
