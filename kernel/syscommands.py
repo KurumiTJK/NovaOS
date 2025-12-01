@@ -7,7 +7,6 @@ from .formatting import OutputFormatter as F
 
 KernelResponse = CommandResponse
 
-# kernel/syscommands.py (add near top, after imports)
 
 def _llm_with_policy(
     *,
@@ -1502,23 +1501,22 @@ def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta):
             summary="Great. Generating full command spec..."
         )
 
-
     # ----------------------------
     # Stage: final — LLM call
     # ----------------------------
     if stage == "final":
         # Build natural-language prompt for the LLM
         prompt = f"""
-Please generate a JSON spec for a NovaOS command with the following attributes:
+    Please generate a JSON spec for a NovaOS command with the following attributes:
 
-name: {state.get("name")}
-kind: {state.get("kind")}
-chain_enabled: {state.get("chain_enabled")}
-chain_list: {state.get("chain_list")}
-linked_module: {state.get("linked_module")}
-description: {state.get("description")}
+    name: {state.get("name")}
+    kind: {state.get("kind")}
+    chain_enabled: {state.get("chain_enabled")}
+    chain_list: {state.get("chain_list")}
+    linked_module: {state.get("linked_module")}
+    description: {state.get("description")}
 
-Return ONLY valid JSON.
+    Return ONLY valid JSON.
         """
 
         llm_output = kernel.llm_client.chat(
@@ -1650,7 +1648,26 @@ def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     - Return one aggregated summary
     """
 
-    steps = meta.get("steps") or args.get("steps")
+    # Prefer explicit steps from metadata or args
+    steps = meta.get("steps") if isinstance(meta, dict) else None
+    if not steps and isinstance(args, dict):
+        steps = args.get("steps")
+
+    # Fallback: derive steps from chain_list (wizard v0.5.2)
+    if (not steps or not isinstance(steps, list)) and isinstance(meta, dict):
+        chain_list = meta.get("chain_list")
+        if isinstance(chain_list, list) and chain_list:
+            # Normalize: "help" -> {"command": "help"}
+            steps = []
+            for c in chain_list:
+                if isinstance(c, str):
+                    steps.append({"command": c})
+                elif isinstance(c, dict) and "command" in c:
+                    steps.append(c)
+                else:
+                    # Skip unusable entries
+                    continue
+
     if not steps or not isinstance(steps, list):
         return _base_response(
             cmd_name,
