@@ -80,6 +80,41 @@ def load_commands(config: Config | None = None) -> Dict[str, Dict[str, Any]]:
 
     return normalized
 
+# ------------------------------------------------------------
+# Custom Commands loader (v0.5)
+# ------------------------------------------------------------
+def load_custom_commands(config: Config | None = None) -> Dict[str, Dict[str, Any]]:
+    """
+    Load commands_custom.json from config.data_dir.
+    Returns a dict: {cmd_name: meta_dict}
+    """
+    if config is None:
+        raise ValueError("load_custom_commands() requires a Config instance.")
+
+    path = config.data_dir / "commands_custom.json"
+    raw = _load_json(path, fallback={})
+
+    if not isinstance(raw, dict):
+        return {}
+
+    # Ensure every entry is a dict
+    normalized = {}
+    for name, meta in raw.items():
+        if isinstance(meta, dict):
+            normalized[name] = meta
+
+    return normalized
+
+
+def save_custom_commands(config: Config, commands: Dict[str, Dict[str, Any]]):
+    """
+    Persist the given custom command registry to commands_custom.json.
+    """
+    path = config.data_dir / "commands_custom.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(commands, f, indent=2, ensure_ascii=False)
 
 # ------------------------------------------------------------
 # Module metadata
@@ -394,6 +429,48 @@ def info():
             return None
 
         return module
+
+# ------------------------------------------------------------
+# Custom Command Registry (v0.5)
+# ------------------------------------------------------------
+
+class CustomCommandRegistry:
+    """
+    Reads/writes custom commands (prompt + macro).
+    Integrated with nova_registry, but separate from module registry.
+    """
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.file = config.data_dir / "commands_custom.json"
+        self._commands = load_custom_commands(config)
+
+    # Public API
+    def list(self) -> Dict[str, Dict[str, Any]]:
+        return dict(self._commands)
+
+    def get(self, name: str) -> Optional[Dict[str, Any]]:
+        return self._commands.get(name)
+
+    def add(self, name: str, meta: Dict[str, Any]):
+        self._commands[name] = meta
+        save_custom_commands(self.config, self._commands)
+
+    def remove(self, name: str) -> bool:
+        if name in self._commands:
+            del self._commands[name]
+            save_custom_commands(self.config, self._commands)
+            return True
+        return False
+
+    def toggle(self, name: str) -> bool:
+        cmd = self._commands.get(name)
+        if not cmd:
+            return False
+        enabled = cmd.get("enabled", True)
+        cmd["enabled"] = not enabled
+        save_custom_commands(self.config, self._commands)
+        return True
 
     # --------------------------------------------------------
     # Backwards-compatible convenience aliases (v0.3)

@@ -1,0 +1,11 @@
+{
+  "name": "analyze_code",
+  "description": "Analyze code for bugs and style.",
+  "kind": "prompt",
+  "handler": "handle_prompt_command",
+  "prompt_template": "...",
+  "input_mapping": {
+    "code": "full_input"
+  },
+  "enabled": true
+}

@@ -11,6 +11,7 @@ from .context_manager import ContextManager
 from .memory_manager import MemoryManager
 from .policy_engine import PolicyEngine
 from .logger import KernelLogger
+from kernel.interpretation_engine import InterpretationEngine
 
 
 class NovaKernel:
@@ -44,6 +45,9 @@ class NovaKernel:
         # Command registry + router + modules
         raw_commands = nova_registry.load_commands(config=self.config)
         self.commands = self._normalize_commands(raw_commands)
+        # v0.5 — Custom Commands
+        self.custom_registry = nova_registry.CustomCommandRegistry(self.config)
+        self.custom_commands = self.custom_registry.list()
         self.module_registry = nova_registry.ModuleRegistry(config=config)
         self.router = router or SyscommandRouter(self.commands)
 
@@ -65,6 +69,10 @@ class NovaKernel:
         # v0.4.5: Persona Fallback
         from persona.nova_persona import NovaPersona
         self.persona = NovaPersona(self.llm_client)
+
+        # v0.5 — Interpretation Engine
+        custom_cmds = nova_registry.load_custom_commands(config=self.config)  # we will define this later
+        self.interpreter = InterpretationEngine(self.commands, custom_cmds)
 
     # ------------------------------------------------------------------
     # Core input handling
@@ -89,6 +97,16 @@ class NovaKernel:
         tokens = stripped.split()
         cmd_name = tokens[0].lower()
         args_str = " ".join(tokens[1:]) if len(tokens) > 1 else ""
+
+        # -------------------------------------------------------------
+        # v0.5 — Full NL → Command Interpreter
+        # -------------------------------------------------------------
+        interpreted_req = self.interpreter.interpret(stripped, session_id)
+        if interpreted_req is not None:
+            response = self.router.route(interpreted_req, kernel=self)
+            self.logger.log_response(session_id, interpreted_req.cmd_name, response.to_dict())
+            return response.to_dict()
+        
 
         # 1) Explicit syscommand: first token matches commands.json
         if cmd_name in self.commands:

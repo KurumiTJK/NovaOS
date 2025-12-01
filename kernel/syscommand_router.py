@@ -96,6 +96,13 @@ class SyscommandRouter:
                     error_message=f"Invalid command metadata for '{request.cmd_name}'.",
                 )
 
+        # 🔹 v0.5: fallback to request.meta for custom commands
+        if (not meta or not isinstance(meta, dict)) and getattr(request, "meta", None):
+            meta = request.meta
+            # Optional: cache it so future calls don't rely on request.meta
+            if isinstance(meta, dict):
+                self.commands[request.cmd_name] = meta
+
         if not meta or not isinstance(meta, dict):
             return CommandResponse(
                 ok=False,
@@ -113,10 +120,9 @@ class SyscommandRouter:
                 command=request.cmd_name,
                 summary=f"No handler for command '{request.cmd_name}'",
                 error_code="NO_HANDLER",
-                error_message=f"No handler for command '{request.cmd_name}'",
+                error_message=f"No handler for '{request.cmd_name}'",
             )
 
-        # Context is still sourced from ContextManager
         context = kernel.context_manager.get_context(request.session_id)
 
         try:

@@ -155,5 +155,56 @@
     "handler": "handle_remind_delete",
     "category": "reminders",
     "description": "Delete a reminder."
+  },
+
+  "command-add": {
+    "handler": "handle_command_add",
+    "category": "commands",
+    "description": "Add a new custom command (prompt or macro)."
+  },
+  "command-list": {
+    "handler": "handle_command_list",
+    "category": "commands",
+    "description": "List core and custom commands."
+  },
+  "command-inspect": {
+    "handler": "handle_command_inspect",
+    "category": "commands",
+    "description": "Inspect a custom command's metadata."
+  },
+  "command-remove": {
+    "handler": "handle_command_remove",
+    "category": "commands",
+    "description": "Remove a custom command by name."
+  },
+  "command-toggle": {
+    "handler": "handle_command_toggle",
+    "category": "commands",
+    "description": "Enable or disable a custom command."
+  }  ,
+  "interpret": {
+    "handler": "handle_interpret",
+    "category": "interpretation",
+    "description": "Explain what an input means and what you are trying to do."
+  },
+  "derive": {
+    "handler": "handle_derive",
+    "category": "interpretation",
+    "description": "Break a topic down into first principles."
+  },
+  "synthesize": {
+    "handler": "handle_synthesize",
+    "category": "interpretation",
+    "description": "Integrate ideas into a coherent structure."
+  },
+  "frame": {
+    "handler": "handle_frame",
+    "category": "interpretation",
+    "description": "Reframe the problem or direction."
+  },
+  "forecast": {
+    "handler": "handle_forecast",
+    "category": "interpretation",
+    "description": "Generate plausible future outcomes based on the current state."
   }
 }

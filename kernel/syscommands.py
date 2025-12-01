@@ -7,6 +7,58 @@ from .formatting import OutputFormatter as F
 
 KernelResponse = CommandResponse
 
+# kernel/syscommands.py (add near top, after imports)
+
+def _llm_with_policy(
+    *,
+    kernel,
+    session_id: str,
+    system: str,
+    user: str,
+    meta: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    """
+    v0.5 - Centralized LLM call with optional PolicyEngine hooks.
+
+    - Pre-LLM: kernel.policy_engine.pre_llm(...) can adjust/deny the prompt.
+    - Post-LLM: kernel.policy_engine.post_llm(...) can validate/sanitize the result.
+    - Falls back to plain llm_client.complete() if no policy engine is present.
+    """
+    policy = getattr(kernel, "policy_engine", None)
+
+    # ---- Pre-LLM filter (optional) ----
+    if policy and hasattr(policy, "pre_llm"):
+        try:
+            system, user = policy.pre_llm(
+                system=system,
+                user=user,
+                session_id=session_id,
+                meta=meta or {},
+            )
+        except Exception:
+            # Fail-safe: ignore policy errors, continue with original prompts
+            pass
+
+    # ---- Core LLM call ----
+    result = kernel.llm_client.complete(
+        system=system,
+        user=user,
+        session_id=session_id,
+    )
+
+    # ---- Post-LLM validation (optional) ----
+    if policy and hasattr(policy, "post_llm"):
+        try:
+            result = policy.post_llm(
+                response=result,
+                session_id=session_id,
+                meta=meta or {},
+            )
+        except Exception:
+            # Fail-safe: ignore policy errors
+            pass
+
+    return result
 
 def _base_response(
     cmd_name: str,
@@ -21,6 +73,250 @@ def _base_response(
         type=cmd_name,
     )
 
+# ---------------------------------------------------------------------
+# v0.5 — Interpretation Commands
+# ---------------------------------------------------------------------
+
+def _extract_input_arg(args: Any) -> str:
+    """
+    Small helper to extract the main input string for interpretation commands.
+    Supports:
+      - args["input"]
+      - args["_"][0]
+      - args["full_input"]
+    """
+    if isinstance(args, dict):
+        if "input" in args and isinstance(args["input"], str):
+            return args["input"]
+        if "_" in args and isinstance(args["_"], list) and args["_"]:
+            return str(args["_"][0])
+        if "full_input" in args and isinstance(args["full_input"], str):
+            return args["full_input"]
+    return ""
+
+
+def handle_interpret(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Explain what the given text means in a clear, structured way.
+    """
+    text = _extract_input_arg(args)
+    if not text:
+        return _base_response(cmd_name, "Nothing to interpret (no input provided).", {"ok": False})
+
+    system = (
+        "You are the Interpretation Engine of NovaOS. "
+        "Your job is to read the user's input and explain:\n"
+        "1) What it means\n"
+        "2) What the user is probably trying to do or ask\n"
+        "3) Any hidden assumptions or ambiguities\n"
+        "Be concise but structured."
+    )
+    user = text
+
+    result = _llm_with_policy(
+        kernel=kernel,
+        session_id=session_id,
+        system=system,
+        user=user,
+        meta={"command": "interpret"},
+    )
+
+    out = result.get("text", "").strip()
+    summary = F.header("Interpretation") + out
+    return _base_response(cmd_name, summary, {"result": out})
+
+
+def handle_derive(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Break a topic down into first principles.
+    """
+    text = _extract_input_arg(args)
+    if not text:
+        return _base_response(cmd_name, "Nothing to derive (no input provided).", {"ok": False})
+
+    system = (
+        "You are the First Principles Engine of NovaOS. "
+        "Given the user's topic or question, you must:\n"
+        "- Identify core assumptions\n"
+        "- Reduce it to first principles\n"
+        "- Rebuild the reasoning from those basics\n"
+        "Return a structured breakdown."
+    )
+    user = text
+
+    result = _llm_with_policy(
+        kernel=kernel,
+        session_id=session_id,
+        system=system,
+        user=user,
+        meta={"command": "derive"},
+    )
+
+    out = result.get("text", "").strip()
+    summary = F.header("First Principles Derivation") + out
+    return _base_response(cmd_name, summary, {"result": out})
+
+
+def handle_synthesize(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Integrate several ideas into a coherent structure.
+    """
+    text = _extract_input_arg(args)
+    if not text:
+        return _base_response(cmd_name, "Nothing to synthesize (no input provided).", {"ok": False})
+
+    system = (
+        "You are the Synthesis Engine of NovaOS. "
+        "The user is giving you multiple ideas, notes, or signals. "
+        "Your job:\n"
+        "- Identify the main themes\n"
+        "- Group related ideas\n"
+        "- Produce a coherent, high-level structure\n"
+        "- Highlight tensions or trade-offs"
+    )
+    user = text
+
+    result = _llm_with_policy(
+        kernel=kernel,
+        session_id=session_id,
+        system=system,
+        user=user,
+        meta={"command": "synthesize"},
+    )
+
+    out = result.get("text", "").strip()
+    summary = F.header("Synthesis") + out
+    return _base_response(cmd_name, summary, {"result": out})
+
+
+def handle_frame(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Reframe a problem or direction.
+    """
+    text = _extract_input_arg(args)
+    if not text:
+        return _base_response(cmd_name, "Nothing to frame (no input provided).", {"ok": False})
+
+    system = (
+        "You are the Framing Engine of NovaOS. "
+        "The user is stuck in one perspective. "
+        "Your job:\n"
+        "- Identify the current frame\n"
+        "- Offer 2–3 alternative frames (e.g., risk vs opportunity, short vs long term)\n"
+        "- For each frame, briefly say what changes in decisions."
+    )
+    user = text
+
+    result = _llm_with_policy(
+        kernel=kernel,
+        session_id=session_id,
+        system=system,
+        user=user,
+        meta={"command": "frame"},
+    )
+
+    out = result.get("text", "").strip()
+    summary = F.header("Reframing") + out
+    return _base_response(cmd_name, summary, {"result": out})
+
+
+def handle_forecast(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Generate plausible future outcomes based on current state.
+    """
+    text = _extract_input_arg(args)
+    if not text:
+        return _base_response(cmd_name, "Nothing to forecast (no input provided).", {"ok": False})
+
+    system = (
+        "You are the Forecast Engine of NovaOS. "
+        "Given the user's situation or plan, you must:\n"
+        "- Identify key variables and uncertainties\n"
+        "- Sketch 2–3 plausible future paths (e.g., base, upside, downside)\n"
+        "- For each path, note leading indicators the user can watch."
+    )
+    user = text
+
+    result = _llm_with_policy(
+        kernel=kernel,
+        session_id=session_id,
+        system=system,
+        user=user,
+        meta={"command": "forecast"},
+    )
+
+    out = result.get("text", "").strip()
+    summary = F.header("Forecast") + out
+    return _base_response(cmd_name, summary, {"result": out})
+
+
+
+# ---------------------------------------------------------------------
+# v0.5 — Prompt Command Executor
+# ---------------------------------------------------------------------
+
+def handle_prompt_command(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Execute a prompt-based custom command.
+    Schema (commands_custom.json):
+      {
+        "name": "analyze_code",
+        "kind": "prompt",
+        "prompt_template": "... {{full_input}} ...",
+        "input_mapping": {"full_input": "full_input"}
+      }
+
+    Behavior:
+    - Extract template vars from args
+    - Render template
+    - Send to LLM
+    - Optionally trigger post_actions
+    """
+
+    # Safety: require prompt_template
+    template = meta.get("prompt_template")
+    if not template:
+        return _base_response(
+            cmd_name,
+            f"Custom command '{cmd_name}' missing prompt_template.",
+            {"ok": False}
+        )
+
+    # Extract input vars from args using meta["input_mapping"]
+    input_map = meta.get("input_mapping", {})
+    rendered_vars = {}
+
+    for var, source in input_map.items():
+        if source == "full_input":
+            rendered_vars[var] = args.get("full_input", "")
+        elif source in args:
+            rendered_vars[var] = args[source]
+        else:
+            rendered_vars[var] = ""
+
+    # Render the template manually (simple replace)
+    prompt = template
+    for var, val in rendered_vars.items():
+        placeholder = "{{" + var + "}}"
+        prompt = prompt.replace(placeholder, str(val))
+
+    # LLM call
+    llm_result = kernel.llm_client.complete(
+        system="You are executing a NovaOS custom prompt command.",
+        user=prompt,
+        session_id=session_id
+    )
+    output_text = llm_result.get("text", "")
+
+    # placeholder: post-actions (v0.5 later step)
+    # TODO: implement module/workflow triggers
+
+    summary = (
+        F.header(f"Custom command: {cmd_name}") +
+        output_text.strip()
+    )
+
+    return _base_response(cmd_name, summary, {"result": output_text})
 
 # -------------------- Core v0.1 / v0.2 handlers --------------------
 
@@ -893,6 +1189,96 @@ def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> K
     )
     return _base_response(cmd_name, summary, {"ok": True})
 
+def handle_command_list(cmd_name, args, session_id, context, kernel, meta):
+    custom = kernel.custom_registry.list()
+    core = kernel.commands
+
+    formatted_core = []
+    formatted_custom = []
+
+    for name, m in core.items():
+        formatted_core.append(F.item(name, "core", m.get("description", "")))
+
+    for name, m in custom.items():
+        status = "enabled" if m.get("enabled", True) else "disabled"
+        kind = m.get("kind", "prompt")
+        formatted_custom.append(F.item(name, f"{kind} ({status})", m.get("description", "")))
+
+    summary = (
+        F.header("Commands") +
+        F.subheader("Core Commands") +
+        F.list(formatted_core) +
+        F.subheader("Custom Commands") +
+        F.list(formatted_custom)
+    )
+
+    return _base_response(cmd_name, summary, {"custom": custom, "core": core})
+
+def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta):
+    name = None
+    if isinstance(args, dict):
+        name = args.get("name") or args.get("_", [None])[0]
+
+    if not name:
+        return _base_response(cmd_name, "Usage: command-inspect name=<cmd>", {"ok": False})
+
+    entry = kernel.custom_registry.get(name)
+    if not entry:
+        return _base_response(cmd_name, f"No custom command '{name}'.", {"ok": False})
+
+    pretty = json.dumps(entry, indent=2, ensure_ascii=False)
+    summary = F.header(f"Inspect: {name}") + f"\n```json\n{pretty}\n```"
+    return _base_response(cmd_name, summary, {"command": entry})
+
+def handle_command_add(cmd_name, args, session_id, context, kernel, meta):
+    """
+    Add a new custom command.
+    Required: name, kind, prompt_template.
+    'args' must contain the full metadata (already produced by the interpreter).
+    """
+    if not isinstance(args, dict):
+        return _base_response(cmd_name, "command-add requires JSON metadata.", {"ok": False})
+
+    name = args.get("name")
+    if not name:
+        return _base_response(cmd_name, "Missing required field: name", {"ok": False})
+
+    kernel.custom_registry.add(name, args)
+
+    summary = F.header("Custom Command Added") + f"'{name}' created."
+    return _base_response(cmd_name, summary, args)
+
+def handle_command_remove(cmd_name, args, session_id, context, kernel, meta):
+    name = None
+    if isinstance(args, dict):
+        name = args.get("name") or args.get("_", [None])[0]
+
+    if not name:
+        return _base_response(cmd_name, "Usage: command-remove name=<cmd>", {"ok": False})
+
+    ok = kernel.custom_registry.remove(name)
+    if not ok:
+        return _base_response(cmd_name, f"No such custom command '{name}'.", {"ok": False})
+
+    summary = F.header("Custom Command Removed") + f"'{name}' removed."
+    return _base_response(cmd_name, summary, {"ok": True})
+
+def handle_command_toggle(cmd_name, args, session_id, context, kernel, meta):
+    name = None
+    if isinstance(args, dict):
+        name = args.get("name") or args.get("_", [None])[0]
+
+    if not name:
+        return _base_response(cmd_name, "Usage: command-toggle name=<cmd>", {"ok": False})
+
+    ok = kernel.custom_registry.toggle(name)
+    if not ok:
+        return _base_response(cmd_name, f"No such custom command '{name}'.", {"ok": False})
+
+    status = "enabled" if kernel.custom_registry.get(name).get("enabled", True) else "disabled"
+    summary = F.header("Custom Command Toggled") + f"'{name}' → {status}"
+    return _base_response(cmd_name, summary, {"name": name, "status": status})
+
 
 # ------------------------ Handler registry ------------------------
 
@@ -936,4 +1322,19 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     # v0.4.4 Workflow delete
     "handle_workflow_delete": handle_workflow_delete,
     "handle_workflow_list": handle_workflow_list,
+    # v0.5 Custom Commands
+    "handle_prompt_command": handle_prompt_command,
+    "handle_command_add": handle_command_add,
+    "handle_command_list": handle_command_list,
+    "handle_command_inspect": handle_command_inspect,
+    "handle_command_remove": handle_command_remove,
+    "handle_command_toggle": handle_command_toggle,
+        # v0.5 Interpretation
+    "handle_interpret": handle_interpret,
+    "handle_derive": handle_derive,
+    "handle_synthesize": handle_synthesize,
+    "handle_frame": handle_frame,
+    "handle_forecast": handle_forecast,
+
+
 }
