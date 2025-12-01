@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any, Callable
 
 from .command_types import CommandResponse
+from .formatting import OutputFormatter as F
 
 KernelResponse = CommandResponse
 
@@ -42,7 +43,20 @@ def handle_status(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
     mem_health = kernel.memory_manager.get_health()
     modules = kernel.context_manager.get_module_summary()
     ctx = kernel.context_manager.get_context(session_id)
-    summary = "System status snapshot."
+
+    # Presentation-only: pretty status summary
+    if hasattr(modules, "__len__"):
+        modules_count = len(modules)
+    else:
+        modules_count = 0
+
+    summary_lines = [
+        F.key_value("Booted", ctx.get("booted", False)),
+        F.key_value("Modules loaded", modules_count),
+        F.key_value("Memory health", mem_health),
+    ]
+    summary = F.header("NovaOS Status") + "\n".join(summary_lines)
+
     extra = {
         "memory_health": mem_health,
         "modules": modules,
@@ -53,15 +67,23 @@ def handle_status(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
 
 def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     cmds = []
+    formatted = []
     for name, info in kernel.commands.items():
-        cmds.append(
-            {
-                "name": name,
-                "category": info.get("category", "misc"),
-                "description": info.get("description", ""),
-            }
+        entry = {
+            "name": name,
+            "category": info.get("category", "misc"),
+            "description": info.get("description", ""),
+        }
+        cmds.append(entry)
+        formatted.append(
+            F.item(
+                id=name,
+                label=entry["category"],
+                details=entry["description"],
+            )
         )
-    summary = "Available syscommands (dynamic registry)."
+
+    summary = F.header("Available syscommands") + F.list(formatted)
     extra = {"commands": cmds}
     return _base_response(cmd_name, summary, extra)
 
@@ -130,15 +152,27 @@ def handle_recall(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
 
     items = mm.recall(mem_type=mem_type, tags=tags, limit=limit)
     if not items:
-        summary = "No matching memories found."
+        summary = F.header("No matching memories found.")
         extra = {"items": []}
     else:
-        lines = [f"Found {len(items)} memory item(s):"]
+        formatted_items = []
         for item in items[:5]:
-            lines.append(f"- #{item.id} [{item.type}] tags={item.tags} :: {item.payload[:80]}")
+            tag_str = ", ".join(item.tags) if item.tags else "none"
+            payload_str = item.payload
+            formatted_items.append(
+                F.item(
+                    id=item.id,
+                    label=f"{item.type} (tags: {tag_str})",
+                    details=f"\"{payload_str}\"",
+                )
+            )
+
+        header = F.header(f"Found {len(items)} memories")
+        body = F.list(formatted_items)
         if len(items) > 5:
-            lines.append(f"...and {len(items) - 5} more.")
-        summary = "\n".join(lines)
+            body += f"\n…and {len(items) - 5} more."
+
+        summary = header + body
         extra = {"items": [item.__dict__ for item in items]}
 
     return _base_response(cmd_name, summary, extra)
@@ -170,7 +204,11 @@ def handle_forget(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
         mem_type = args.get("type")
 
     removed = mm.forget(ids=ids, tags=tags, mem_type=mem_type)
-    summary = f"Forgot {removed} memory item(s)." if removed else "No memories matched the forget filters."
+    summary = (
+        f"Forgot {removed} memory item(s)."
+        if removed
+        else "No memories matched the forget filters."
+    )
     extra = {"removed": removed}
     return _base_response(cmd_name, summary, extra)
 
@@ -232,13 +270,19 @@ def handle_map(cmd_name, args, session_id, context, kernel, meta) -> KernelRespo
     mr = kernel.module_registry
     mods = mr.list_modules()
     if not mods:
-        summary = "No modules registered."
+        summary = F.header("No modules registered.")
         extra = {"modules": []}
     else:
-        lines = ["Registered modules:"]
+        formatted = []
         for m in mods:
-            lines.append(f"- {m.key} ({m.state}) :: {m.mission}")
-        summary = "\n".join(lines)
+            formatted.append(
+                F.item(
+                    id=m.key,
+                    label=m.state,
+                    details=m.mission,
+                )
+            )
+        summary = F.header(f"Modules ({len(mods)})") + F.list(formatted)
         extra = {"modules": [m.__dict__ for m in mods]}
     return _base_response(cmd_name, summary, extra)
 
@@ -397,9 +441,12 @@ def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelR
     summary = f"Restored from snapshot {args['file']}."
     extra = {"file": args["file"], "ok": True}
     return _base_response(cmd_name, summary, extra)
+
+
 # ---------------------------------------------------------------------
 # v0.4 — Workflow Engine handlers
 # ---------------------------------------------------------------------
+
 
 def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
@@ -486,6 +533,7 @@ def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     summary = f"Workflow '{wf_id}' set to status '{new_status}'."
     return _base_response(cmd_name, summary, wf.to_dict())
 
+
 def handle_workflow_delete(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
     Hard-delete a workflow from kernel.workflow_engine by id.
@@ -528,13 +576,17 @@ def handle_workflow_delete(cmd_name, args, session_id, context, kernel, meta) ->
         )
 
     name = existing.name or wf_id_str
-    summary = f"Deleted workflow '{wf_id_str}' – \"{name}\"."
+    summary = (
+        F.header("Workflow deleted") +
+        F.item(wf_id_str, name)
+    )
     extra = {
         "ok": True,
         "id": wf_id_str,
         "workflow": existing.to_dict(),
     }
     return _base_response(cmd_name, summary, extra)
+
 
 def handle_workflow_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
@@ -547,30 +599,32 @@ def handle_workflow_list(cmd_name, args, session_id, context, kernel, meta) -> K
     summaries = wf_engine.summarize_all()  # list[dict] via WorkflowEngine._summary_dict
 
     if not summaries:
+        summary = F.header("There are no workflows yet.")
         return _base_response(
             cmd_name,
-            "There are no workflows yet.",
+            summary,
             {"ok": False, "count": 0, "workflows": []},
         )
 
-    lines = [f"Workflows ({len(summaries)}):"]
+    formatted = []
     for wf in summaries:
         wid = wf.get("id")
         name = wf.get("name") or f"Workflow {wid}"
         status = wf.get("status", "unknown")
         active_title = wf.get("active_step_title") or ""
+        details = status
         if active_title:
-            lines.append(f"- {wid}: \"{name}\" [{status}] → {active_title}")
-        else:
-            lines.append(f"- {wid}: \"{name}\" [{status}]")
+            details = f"{status} → {active_title}"
+        formatted.append(F.item(wid, name, details))
 
-    summary = "\n".join(lines)
+    summary = F.header(f"Workflows ({len(summaries)})") + F.list(formatted)
     extra = {
         "ok": True,
         "count": len(summaries),
         "workflows": summaries,
     }
     return _base_response(cmd_name, summary, extra)
+
 
 def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
@@ -614,9 +668,19 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         extra = {"raw": text}
         return _base_response(cmd_name, summary, extra)
 
-    # If no id is provided, keep legacy behavior: just show the plan.
+    # v0.4.6: build a human-readable steps block (dynamic step count)
+    formatted_steps = []
+    for idx, step in enumerate(steps, start=1):
+        title = step.get("title", f"Step {idx}")
+        desc = step.get("description", "")
+        formatted_steps.append(F.item(idx, title, desc))
+
+    steps_block = F.list(formatted_steps)
+
+    # If no id is provided, keep behavior: just show the plan (but now pretty)
     if not wf_id:
-        summary = f"Generated workflow plan for goal: {goal}"
+        header = F.header(f"Workflow plan for: {goal} ({len(steps)} steps)")
+        summary = header + steps_block
         extra = {"steps": steps}
         return _base_response(cmd_name, summary, extra)
 
@@ -634,7 +698,10 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         },
     )
 
-    summary = f"Created workflow '{wf.id}' with {len(wf.steps)} steps for goal: {goal}."
+    header = F.header(
+        f"Created workflow '{wf.id}' for goal: {goal} ({len(wf.steps)} steps)"
+    )
+    summary = header + steps_block
     extra = {
         "workflow": wf.to_dict(),
         "steps_count": len(wf.steps),
@@ -646,13 +713,15 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
 # v0.4 — Time Rhythm Engine handlers
 # ---------------------------------------------------------------------
 
+
 def handle_presence(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
     Show global time-rhythm state:
     day of week, ISO week, cycle phase(s).
     """
     info = kernel.time_rhythm_engine.presence()
-    return _base_response(cmd_name, "Time rhythm presence snapshot.", info)
+    summary = F.header("Time rhythm presence snapshot.")
+    return _base_response(cmd_name, summary, info)
 
 
 def handle_pulse(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -662,7 +731,8 @@ def handle_pulse(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     """
     wf_summaries = kernel.workflow_engine.summarize_all()
     info = kernel.time_rhythm_engine.pulse(wf_summaries)
-    return _base_response(cmd_name, "Workflow pulse diagnostics.", info)
+    summary = F.header("Workflow pulse diagnostics.")
+    return _base_response(cmd_name, summary, info)
 
 
 def handle_align(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -710,11 +780,14 @@ def handle_align(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
         "pulse": pulse,
         "suggestions": suggestions,
     }
-    return _base_response(cmd_name, "Alignment analysis.", extra)
+    summary = F.header("Alignment analysis.")
+    return _base_response(cmd_name, summary, extra)
+
 
 # ---------------------------------------------------------------------
 # v0.4.1 — Reminder Subsystem handlers
 # ---------------------------------------------------------------------
+
 
 def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
@@ -735,7 +808,19 @@ def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> Kern
         return _base_response(cmd_name, "Missing title or when.", {"ok": False})
 
     r = kernel.reminders.add(title=title, when=when, repeat=repeat)
-    return _base_response(cmd_name, f"Reminder '{r.id}' created.", r.to_dict())
+    data = r.to_dict()
+    rid = data.get("id", "?")
+    when_str = data.get("when", when)
+    title_str = data.get("title", title)
+
+    summary = (
+        F.header("Reminder added") +
+        f"I’ll remind you at {when_str}:\n    \"{title_str}\""
+    )
+
+    # keep id in extra exactly as before
+    data.setdefault("id", rid)
+    return _base_response(cmd_name, summary, data)
 
 
 def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -743,7 +828,20 @@ def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> Ker
     List reminders.
     """
     items = [r.to_dict() for r in kernel.reminders.list()]
-    return _base_response(cmd_name, f"{len(items)} reminder(s).", {"reminders": items})
+
+    if not items:
+        summary = F.header("No active reminders.")
+        return _base_response(cmd_name, summary, {"reminders": []})
+
+    formatted = []
+    for r in items:
+        rid = r.get("id", "?")
+        when = r.get("when", "?")
+        title = r.get("title", "")
+        formatted.append(F.item(rid, when, f"\"{title}\""))
+
+    summary = F.header(f"Active reminders ({len(items)})") + F.list(formatted)
+    return _base_response(cmd_name, summary, {"reminders": items})
 
 
 def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -762,7 +860,16 @@ def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> K
     r = kernel.reminders.update(rid, fields)
     if not r:
         return _base_response(cmd_name, f"No reminder '{rid}'.", {"ok": False})
-    return _base_response(cmd_name, f"Reminder '{rid}' updated.", r.to_dict())
+
+    data = r.to_dict()
+    title = data.get("title", fields.get("title", ""))
+    when = data.get("when", fields.get("when", "?"))
+
+    summary = (
+        F.header("Reminder updated") +
+        f"#{data.get('id', rid)} — {when}\n    \"{title}\""
+    )
+    return _base_response(cmd_name, summary, data)
 
 
 def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -779,9 +886,16 @@ def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> K
     ok = kernel.reminders.delete(rid)
     if not ok:
         return _base_response(cmd_name, f"No reminder '{rid}'.", {"ok": False})
-    return _base_response(cmd_name, f"Reminder '{rid}' deleted.", {"ok": True})
+
+    summary = (
+        F.header("Reminder deleted") +
+        F.item(rid, "removed")
+    )
+    return _base_response(cmd_name, summary, {"ok": True})
+
 
 # ------------------------ Handler registry ------------------------
+
 
 SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_why": handle_why,
@@ -801,7 +915,8 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_bind_module": handle_bind_module,
     "handle_snapshot": handle_snapshot,
     "handle_restore": handle_restore,
-        # v0.4 Workflow
+
+    # v0.4 Workflow
     "handle_flow": handle_flow,
     "handle_advance": handle_advance,
     "handle_halt": handle_halt,
@@ -811,12 +926,14 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_presence": handle_presence,
     "handle_pulse": handle_pulse,
     "handle_align": handle_align,
-        "handle_remind_add": handle_remind_add,
+
+    # v0.4.1 Reminders
+    "handle_remind_add": handle_remind_add,
     "handle_remind_list": handle_remind_list,
     "handle_remind_update": handle_remind_update,
     "handle_remind_delete": handle_remind_delete,
-        # v0.4.4 Workflow delete
+
+    # v0.4.4 Workflow delete
     "handle_workflow_delete": handle_workflow_delete,
     "handle_workflow_list": handle_workflow_list,
-
 }

@@ -30,6 +30,13 @@ class CommandResponse:
     error_message: Optional[str] = None
     type: str = field(default="syscommand")
 
+    def pretty(self) -> str:
+        """
+        v0.4.6: Unified interface for UI-facing formatted output.
+        The UI already uses `summary` as the human-readable field.
+        """
+        return self.summary
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Adapter so the UI can keep expecting the old dict shape.

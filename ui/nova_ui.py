@@ -1,6 +1,8 @@
 # ui/nova_ui.py
 import tkinter as tk
 from tkinter import scrolledtext
+from pprint import pformat  # for nicer debug output
+
 
 class NovaApp:
     def __init__(self, kernel, config):
@@ -8,6 +10,9 @@ class NovaApp:
         self.config = config
         self.root = tk.Tk()
         self.root.title("NovaOS Desktop")
+
+        # v0.4.6: debug mode flag (default OFF = clean UX)
+        self.debug_mode = tk.BooleanVar(value=False)
 
         self._build_layout()
 
@@ -25,6 +30,16 @@ class NovaApp:
         self.entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
         self.entry.bind("<Return>", self._on_submit)
 
+        # Debug checkbox (right side)
+        debug_checkbox = tk.Checkbutton(
+            input_frame,
+            text="Debug",
+            variable=self.debug_mode,
+            onvalue=True,
+            offvalue=False,
+        )
+        debug_checkbox.pack(side=tk.RIGHT)
+
         send_btn = tk.Button(input_frame, text="Send", command=self._on_submit)
         send_btn.pack(side=tk.RIGHT)
 
@@ -40,6 +55,15 @@ class NovaApp:
         self._render_kernel_response(response)
 
     def _render_kernel_response(self, response: dict):
+        """
+        v0.4.6 — Global Command Output Cleanup + Debug Mode
+
+        Default:
+            - Only display the human-facing `summary` string.
+        Debug mode:
+            - Also display all other fields in `content` (items, workflows, reminders, etc.)
+              in a readable, pretty-printed block.
+        """
         # Error handling
         if not response.get("ok", False):
             self._append_text(
@@ -50,45 +74,23 @@ class NovaApp:
         content = response.get("content", {})
         summary = content.get("summary", "")
 
-        # Always print summary line first
-        self._append_text(f"Nova: {summary}\n")
+        # ✅ Always show the formatted summary first
+        if summary:
+            self._append_text(f"Nova: {summary}\n")
+        else:
+            self._append_text("Nova: (no summary)\n")
 
-        # ---- EXTRA FIELDS RENDERING ----
-        # (Everything except summary/command/type)
+        # 🐛 Debug: show underlying content data (except summary)
+        if self.debug_mode.get():
+            debug_lines = []
+            for key, value in content.items():
+                if key == "summary":
+                    continue
+                debug_lines.append(f"{key}:\n{pformat(value)}")
 
-        for key, value in content.items():
-            if key in ("summary", "command", "type"):
-                continue  # skip internal fields
-
-            # HELP COMMAND → commands list
-            if key == "commands" and isinstance(value, list):
-                self._append_text("\nSyscommands:\n")
-                for cmd in sorted(value, key=lambda c: c.get("name", "")):
-                    name = cmd.get("name", "")
-                    desc = cmd.get("description", "")
-                    cat = cmd.get("category", "misc")
-                    self._append_text(f"  • {name} [{cat}] — {desc}\n")
-                continue
-
-            # STATUS COMMAND → memory_health + modules
-            if key == "memory_health" and isinstance(value, dict):
-                self._append_text("\nMemory Health:\n")
-                for mkey, mval in value.items():
-                    self._append_text(f"  • {mkey}: {mval}\n")
-                continue
-
-            if key == "modules" and isinstance(value, list):
-                self._append_text("\nModules:\n")
-                if not value:
-                    self._append_text("  • (no modules registered)\n")
-                else:
-                    for module in value:
-                        name = module.get("name", "(unnamed)")
-                        self._append_text(f"  • {name}\n")
-                continue
-
-            # Catch-all for any future fields
-            self._append_text(f"\n{key}:\n{value}\n")
+            if debug_lines:
+                self._append_text("\n[DEBUG]\n")
+                self._append_text("\n\n".join(debug_lines) + "\n")
 
     def _append_text(self, text: str):
         self.output.insert(tk.END, text)
