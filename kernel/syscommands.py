@@ -1537,8 +1537,31 @@ Return ONLY valid JSON.
                 summary=f"LLM JSON parse error: {e}\nRaw:\n{llm_output}"
             )
 
-        # Save to registry
-        kernel.custom_registry.save(spec)
+        # Ensure the spec has a usable command name
+        import re
+
+        name = spec.get("name") or state.get("name")
+
+        if not name:
+            # Derive a simple slug from the description
+            desc = (state.get("description") or "").strip()
+            if not desc:
+                base = "custom macro"
+            else:
+                base = desc.lower()
+
+            # Turn "this is a test macro" -> "this-is-a-test-macro"
+            slug = re.sub(r"[^a-z0-9]+", "-", base).strip("-")
+            if not slug:
+                slug = "custom-command"
+
+            name = slug
+
+        # Write the resolved name back into the spec
+        spec["name"] = name
+
+        # Save to registry using existing CustomCommandRegistry API
+        kernel.custom_registry.add(name, spec)
 
         # Cleanup
         if session_id in interp.pending_custom_commands:
@@ -1549,16 +1572,6 @@ Return ONLY valid JSON.
             command="command-wizard",
             summary=f"Custom command **{spec.get('name')}** created successfully!"
         )
-
-    # ----------------------------
-    # Unknown stage (should not occur)
-    # ----------------------------
-    return CommandResponse(
-        ok=False,
-        command="command-wizard",
-        summary="Wizard reached an unknown state."
-    )
-
 
 def handle_command_add(cmd_name, args, session_id, context, kernel, meta):
     """

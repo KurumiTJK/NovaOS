@@ -1,1 +1,16 @@
-{}
+{
+  "this-is-a-test-macro": {
+    "name": "this-is-a-test-macro",
+    "kind": "macro",
+    "chain_enabled": true,
+    "chain_list": [
+      "help",
+      "status"
+    ],
+    "linked_module": null,
+    "description": "this is a test macro",
+    "enabled": true,
+    "handler": "handle_macro",
+    "steps": []
+  }
+}
