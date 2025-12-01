@@ -1,48 +1,5 @@
 {
   "version": "0.3",
-  "next_id": 7,
-  "items": [
-    {
-      "id": 4,
-      "type": "semantic",
-      "tags": [
-        "finance"
-      ],
-      "payload": "test memory",
-      "timestamp": "2025-12-01T04:25:20.213119+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default"
-      },
-      "cluster_id": null
-    },
-    {
-      "id": 5,
-      "type": "semantic",
-      "tags": [
-        "finance"
-      ],
-      "payload": "NVDA C2 checklist",
-      "timestamp": "2025-12-01T04:28:09.175304+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default"
-      },
-      "cluster_id": null
-    },
-    {
-      "id": 6,
-      "type": "semantic",
-      "tags": [
-        "cyber"
-      ],
-      "payload": "Daily cyber routine idea",
-      "timestamp": "2025-12-01T04:28:21.882762+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default"
-      },
-      "cluster_id": null
-    }
-  ]
+  "next_id": 13,
+  "items": []
 }
