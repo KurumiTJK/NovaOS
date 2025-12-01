@@ -33,6 +33,45 @@ def _load_json(path: Path, fallback: Any) -> Any:
     except Exception:
         return fallback
 
+# ------------------------------------------------------------
+# v0.5.2 — Custom command normalization (prompt + macro)
+# ------------------------------------------------------------
+def _normalize_custom_command(name: str, meta: dict | None) -> dict:
+    """
+    Ensure every custom command has:
+      - name
+      - kind ("prompt" or "macro")
+      - handler (handle_prompt_command / handle_macro)
+      - sane defaults for prompt/macro fields.
+    """
+    meta = dict(meta or {})
+    meta.setdefault("name", name)
+
+    # kind: prompt or macro
+    kind = meta.get("kind") or "prompt"
+    if kind not in ("prompt", "macro"):
+        kind = "prompt"
+    meta["kind"] = kind
+
+    # enabled default
+    if "enabled" not in meta:
+        meta["enabled"] = True
+
+    if kind == "prompt":
+        # Prompt commands are handled by handle_prompt_command
+        meta.setdefault("handler", "handle_prompt_command")
+        meta.setdefault("prompt_template", "{{full_input}}")
+        if not isinstance(meta.get("input_mapping"), dict):
+            meta["input_mapping"] = {"full_input": "full_input"}
+
+    elif kind == "macro":
+        # Macro commands are handled by handle_macro
+        meta.setdefault("handler", "handle_macro")
+        steps = meta.get("steps")
+        if not isinstance(steps, list):
+            meta["steps"] = []
+
+    return meta
 
 # ------------------------------------------------------------
 # Commands loader (v0.3)
@@ -97,11 +136,11 @@ def load_custom_commands(config: Config | None = None) -> Dict[str, Dict[str, An
     if not isinstance(raw, dict):
         return {}
 
-    # Ensure every entry is a dict
-    normalized = {}
+    # Ensure every entry is a dict and normalized (prompt + macro)
+    normalized: Dict[str, Dict[str, Any]] = {}
     for name, meta in raw.items():
         if isinstance(meta, dict):
-            normalized[name] = meta
+            normalized[name] = _normalize_custom_command(name, meta)
 
     return normalized
 
@@ -311,8 +350,19 @@ def info():
     # Public API
     # --------------------------------------------------------
 
-    def list_modules(self) -> List[ModuleMeta]:
-        return list(self._modules.values())
+    def list(self) -> Dict[str, Dict[str, Any]]:
+        return {
+            key: {
+                "name": meta.name,
+                "mission": meta.mission,
+                "state": meta.state,
+                "workflows": meta.workflows,
+                "routines": meta.routines,
+                "bindings": meta.bindings,
+                "file_path": meta.file_path,
+            }
+            for key, meta in self._modules.items()
+        }
 
     def forge_module(
         self,
@@ -394,85 +444,6 @@ def info():
         return True
 
     # --------------------------------------------------------
-    # Runtime dynamic import (v0.4.3)
-    # --------------------------------------------------------
-
-    def load_module_runtime(self, key: str):
-        """
-        Dynamically import the Python module for the given key, if any.
-
-        Returns:
-            - Imported module object on success.
-            - None if no module or file not found.
-
-        Usage example:
-            mod = kernel.module_registry.load_module_runtime("finance")
-            if mod and hasattr(mod, "main"):
-                result = mod.main()
-        """
-        meta = self._modules.get(key)
-        if not meta or not meta.file_path:
-            return None
-
-        full_path = self.root_dir / meta.file_path
-        if not full_path.exists():
-            return None
-
-        spec = importlib.util.spec_from_file_location(key, full_path)
-        if spec is None or spec.loader is None:
-            return None
-
-        module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(module)
-        except Exception:
-            return None
-
-        return module
-
-# ------------------------------------------------------------
-# Custom Command Registry (v0.5)
-# ------------------------------------------------------------
-
-class CustomCommandRegistry:
-    """
-    Reads/writes custom commands (prompt + macro).
-    Integrated with nova_registry, but separate from module registry.
-    """
-
-    def __init__(self, config: Config):
-        self.config = config
-        self.file = config.data_dir / "commands_custom.json"
-        self._commands = load_custom_commands(config)
-
-    # Public API
-    def list(self) -> Dict[str, Dict[str, Any]]:
-        return dict(self._commands)
-
-    def get(self, name: str) -> Optional[Dict[str, Any]]:
-        return self._commands.get(name)
-
-    def add(self, name: str, meta: Dict[str, Any]):
-        self._commands[name] = meta
-        save_custom_commands(self.config, self._commands)
-
-    def remove(self, name: str) -> bool:
-        if name in self._commands:
-            del self._commands[name]
-            save_custom_commands(self.config, self._commands)
-            return True
-        return False
-
-    def toggle(self, name: str) -> bool:
-        cmd = self._commands.get(name)
-        if not cmd:
-            return False
-        enabled = cmd.get("enabled", True)
-        cmd["enabled"] = not enabled
-        save_custom_commands(self.config, self._commands)
-        return True
-
-    # --------------------------------------------------------
     # Backwards-compatible convenience aliases (v0.3)
     # --------------------------------------------------------
 
@@ -538,3 +509,92 @@ class CustomCommandRegistry:
             if isinstance(val, dict)
         }
         self._save()
+
+    # --------------------------------------------------------
+    # Runtime dynamic import (v0.4.3)
+    # --------------------------------------------------------
+
+    def load_module_runtime(self, key: str):
+        """
+        Dynamically import the Python module for the given key, if any.
+
+        Returns:
+            - Imported module object on success.
+            - None if no module or file not found.
+
+        Usage example:
+            mod = kernel.module_registry.load_module_runtime("finance")
+            if mod and hasattr(mod, "main"):
+                result = mod.main()
+        """
+        meta = self._modules.get(key)
+        if not meta or not meta.file_path:
+            return None
+
+        full_path = self.root_dir / meta.file_path
+        if not full_path.exists():
+            return None
+
+        spec = importlib.util.spec_from_file_location(key, full_path)
+        if spec is None or spec.loader is None:
+            return None
+
+        module = importlib.util.module_from_spec(spec)
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            return None
+
+        return module
+
+# ------------------------------------------------------------
+# Custom Command Registry (v0.5)
+# ------------------------------------------------------------
+
+class CustomCommandRegistry:
+    """
+    Reads/writes custom commands (prompt + macro).
+    Integrated with nova_registry, but separate from module registry.
+    """
+
+    def __init__(self, config: Config):
+        self.config = config
+        self.file = config.data_dir / "commands_custom.json"
+        self._commands = load_custom_commands(config)
+
+    # Public API
+    def list(self) -> Dict[str, Dict[str, Any]]:
+        return dict(self._commands)
+
+    def get(self, name: str) -> Optional[Dict[str, Any]]:
+        meta = self._commands.get(name)
+        if meta is None:
+            return None
+
+        # Re-normalize in case it was edited on disk or missing fields
+        norm = _normalize_custom_command(name, meta)
+        self._commands[name] = norm
+        save_custom_commands(self.config, self._commands)
+        return norm
+
+    def add(self, name: str, meta: Dict[str, Any]):
+        norm = _normalize_custom_command(name, meta)
+        self._commands[name] = norm
+        save_custom_commands(self.config, self._commands)
+
+    def remove(self, name: str) -> bool:
+        if name in self._commands:
+            del self._commands[name]
+            save_custom_commands(self.config, self._commands)
+            return True
+        return False
+
+    def toggle(self, name: str) -> bool:
+        cmd = self._commands.get(name)
+        if not cmd:
+            return False
+        enabled = cmd.get("enabled", True)
+        cmd["enabled"] = not enabled
+        save_custom_commands(self.config, self._commands)
+        return True
+

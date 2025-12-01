@@ -86,11 +86,6 @@ class NovaKernel:
         """
         Entry point for all UI input.
         Returns a structured dict suitable for the UI.
-
-        v0.3:
-        1) If first token matches a syscommand -> route directly.
-        2) Else attempt minimal NL → command interpretation (memory only).
-        3) Else fall back to Nova persona (_handle_natural_language).
         """
         self.logger.log_input(session_id, text)
 
@@ -107,10 +102,17 @@ class NovaKernel:
         # -------------------------------------------------------------
         interpreted_req = self.interpreter.interpret(stripped, session_id)
         if interpreted_req is not None:
+            # v0.5.2 — attach metadata for custom commands (prompt + macro)
+            if interpreted_req.meta is None:
+                meta = self.custom_registry.get(interpreted_req.cmd_name)
+                if meta is None:
+                    # fall back to built-in commands metadata, just in case
+                    meta = self.commands.get(interpreted_req.cmd_name)
+                interpreted_req.meta = meta
+
             response = self.router.route(interpreted_req, kernel=self)
             self.logger.log_response(session_id, interpreted_req.cmd_name, response.to_dict())
             return response.to_dict()
-        
 
         # 1) Explicit syscommand: first token matches commands.json
         if cmd_name in self.commands:
@@ -132,7 +134,7 @@ class NovaKernel:
             response = self.router.route(interpreted, kernel=self)
             self.logger.log_response(session_id, interpreted.cmd_name, response.to_dict())
             return response.to_dict()
-        
+
         # -------------------------------------------------------------
         # v0.4.1 — Reminder checking (no background threads)
         # -------------------------------------------------------------

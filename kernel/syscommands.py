@@ -1551,6 +1551,91 @@ def handle_command_toggle(cmd_name, args, session_id, context, kernel, meta):
     summary = F.header("Custom Command Toggled") + f"'{name}' → {status}"
     return _base_response(cmd_name, summary, {"name": name, "status": status})
 
+# ---------------------------------------------------------------------
+# v0.5.2 — Macro Command Executor
+# ---------------------------------------------------------------------
+
+def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Execute a macro command that chains multiple syscommands together.
+
+    Expected metadata schema in commands_custom.json:
+    {
+        "name": "nova morning routine",
+        "kind": "macro",
+        "steps": [
+            {"command": "setenv", "args": {"mode": "deep_work"}},
+            {"command": "nova start cyber"},
+            {"command": "nova meals"},
+            ...
+        ]
+    }
+
+    Behavior:
+    - Iterate through each step
+    - Build a synthetic CommandRequest
+    - Route through the syscommand router
+    - Collect summaries
+    - Return one aggregated summary
+    """
+
+    steps = meta.get("steps") or args.get("steps")
+    if not steps or not isinstance(steps, list):
+        return _base_response(
+            cmd_name,
+            f"Macro '{cmd_name}' has no steps defined.",
+            {"ok": False}
+        )
+
+    router = kernel.router  # safe: NovaKernel stores router reference
+    results = []
+    failures = 0
+
+    for idx, step in enumerate(steps, start=1):
+        # Normalize step
+        if isinstance(step, str):
+            step_cmd = step
+            step_args = {}
+        elif isinstance(step, dict):
+            step_cmd = step.get("command")
+            step_args = step.get("args") or {}
+        else:
+            results.append(f"[Step {idx}] Invalid step format.")
+            failures += 1
+            continue
+
+        if not step_cmd:
+            results.append(f"[Step {idx}] Missing command name.")
+            failures += 1
+            continue
+
+        # Build synthetic CommandRequest
+        from .command_types import CommandRequest
+        synthetic = CommandRequest(
+            cmd_name=step_cmd,
+            args=step_args if isinstance(step_args, dict) else {},
+            session_id=session_id,
+            raw_text=f"{cmd_name} → {step_cmd}",
+            meta=None,
+        )
+
+        # Execute via router
+        resp = router.route(synthetic, kernel)
+        ok = resp.ok
+        results.append(
+            f"[{idx}] {step_cmd}: "
+            + ("OK" if ok else f"ERROR: {resp.summary}")
+        )
+
+        if not ok:
+            failures += 1
+
+    # Build final summary
+    body = "\n".join(results)
+    status = "completed" if failures == 0 else f"completed with {failures} error(s)"
+    final = F.header(f"Macro '{cmd_name}' {status}") + body
+
+    return _base_response(cmd_name, final, {"steps": len(steps), "failures": failures})
 
 # ------------------------ Handler registry ------------------------
 
@@ -1612,6 +1697,7 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_env": handle_env,
     "handle_setenv": handle_setenv,
     "handle_mode": handle_mode,
+    "handle_macro": handle_macro,
 
 
 }
