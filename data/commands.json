@@ -88,6 +88,22 @@
     "description": "Restore OS state from a snapshot."
   },
 
+  "env": {
+    "handler": "handle_env",
+    "category": "system",
+    "description": "Show current environment state (mode, debug, verbosity)."
+  },
+  "setenv": {
+    "handler": "handle_setenv",
+    "category": "system",
+    "description": "Set environment keys, e.g. debug=true or verbosity=verbose."
+  },
+  "mode": {
+    "handler": "handle_mode",
+    "category": "system",
+    "description": "Set NovaOS mode: normal, deep_work, reflection, or debug."
+  },
+
   "flow": {
     "handler": "handle_flow",
     "category": "workflow",
@@ -181,7 +197,13 @@
     "handler": "handle_command_toggle",
     "category": "commands",
     "description": "Enable or disable a custom command."
-  }  ,
+  },
+  "command-wizard": {
+    "handler": "handle_command_wizard",
+    "category": "system",
+    "description": "Create a custom command from natural language."
+
+  },
   "interpret": {
     "handler": "handle_interpret",
     "category": "interpretation",

@@ -35,43 +35,47 @@ class NovaKernel:
     ):
         self.config = config
 
-        # Dependencies (decoupled but with sensible defaults)
+        # ---------------- Core dependencies ----------------
+        # (These MUST be set before handle_input is ever called)
         self.llm_client = llm_client or LLMClient()
         self.context_manager = context_manager or ContextManager(config=config)
         self.memory_manager = memory_manager or MemoryManager(config=config)
         self.policy_engine = policy_engine or PolicyEngine(config=config)
         self.logger = logger or KernelLogger(config=config)
 
-        # Command registry + router + modules
+        # ---------------- Environment State (v0.5.1) ----------------
+        # Safe even if nothing uses it yet.
+        self.env_state: Dict[str, Any] = {
+            "mode": "normal",
+            "debug": False,
+            "verbosity": "normal",
+        }
+
+        # ---------------- Command registry + router ----------------
         raw_commands = nova_registry.load_commands(config=self.config)
         self.commands = self._normalize_commands(raw_commands)
+
         # v0.5 — Custom Commands
         self.custom_registry = nova_registry.CustomCommandRegistry(self.config)
         self.custom_commands = self.custom_registry.list()
         self.module_registry = nova_registry.ModuleRegistry(config=config)
         self.router = router or SyscommandRouter(self.commands)
 
-        # -------------------------------------------------------------
-        # v0.4: Add TimeRhythmEngine + WorkflowEngine
-        # -------------------------------------------------------------
+        # ---------------- TimeRhythm / Workflows / Reminders ----------------
         from kernel.time_rhythm import TimeRhythmEngine
         from kernel.workflow_engine import WorkflowEngine
         from kernel.reminders_manager import RemindersManager
 
-        # For v0.4, initialize fresh engines each run.
-        # We can wire real persistence later without touching MemoryManager.
         self.time_rhythm_engine = TimeRhythmEngine()
         self.workflow_engine = WorkflowEngine()
-
-        # v0.4.1: Reminders subsystem
         self.reminders = RemindersManager(self.config.data_dir)
 
-        # v0.4.5: Persona Fallback
+        # ---------------- Persona fallback ----------------
         from persona.nova_persona import NovaPersona
         self.persona = NovaPersona(self.llm_client)
 
-        # v0.5 — Interpretation Engine
-        custom_cmds = nova_registry.load_custom_commands(config=self.config)  # we will define this later
+        # ---------------- Interpretation Engine (v0.5) ----------------
+        custom_cmds = nova_registry.load_custom_commands(config=self.config)
         self.interpreter = InterpretationEngine(self.commands, custom_cmds)
 
     # ------------------------------------------------------------------
@@ -152,14 +156,36 @@ class NovaKernel:
             }
         
         # -------------------------------------------------------------
-        # v0.4.5 — Persona fallback (RESTORED)
+        # v0.4.5 — Persona fallback (RESTORED) + v0.5.1 Policy hooks
         # -------------------------------------------------------------
         self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
 
+        policy_meta = {
+            "session_id": session_id,
+            "source": "persona_fallback",
+            "env": getattr(self, "env_state", None),
+        }
+
+        # Pre-LLM sanitization before sending user text into persona/LLM
+        safe_input = stripped
+        if self.policy_engine is not None:
+            try:
+                safe_input = self.policy_engine.pre_llm(stripped, policy_meta)
+            except Exception as e:
+                self.logger.log_error(session_id, f"policy.pre_llm error (persona): {e}")
+
+        # Persona LLM call
         reply = self.persona.generate_response(
-            stripped,
+            safe_input,
             session_id=session_id
         )
+
+        # Post-LLM correction/stabilization
+        if self.policy_engine is not None:
+            try:
+                reply = self.policy_engine.post_llm(reply, policy_meta)
+            except Exception as e:
+                self.logger.log_error(session_id, f"policy.post_llm error (persona): {e}")
 
         # Double-guard: never send an empty summary to the UI
         if not reply or not str(reply).strip():
@@ -412,23 +438,52 @@ class NovaKernel:
         return "\n".join(parts)
 
     def _handle_natural_language(self, text: str, session_id: str) -> CommandResponse:
+        """
+        Natural language handler routed through the LLM with policy enforcement.
+        """
         # Get whatever your ContextManager returns (likely a dict)
         ctx = self.context_manager.get_context(session_id)
 
         # Build system prompt via persona fallback
         system_prompt = self._build_system_prompt(ctx)
 
+        # Policy metadata (can be extended later with more context/env)
+        policy_meta = {
+            "session_id": session_id,
+            "source": "kernel_nl",
+            "env": getattr(self, "env_state", None),
+        }
+
+        # ------------------ Policy: pre-LLM ------------------
+        safe_user_text = text
+        if self.policy_engine is not None:
+            try:
+                safe_user_text = self.policy_engine.pre_llm(text, policy_meta)
+            except Exception as e:
+                # Fail-open but log; never crash the kernel on policy failure
+                self.logger.log_error(session_id, f"policy.pre_llm error: {e}")
+
         # Call LLM using persona + context
         llm_result = self.llm_client.complete(
             system=system_prompt,
-            user=text,
+            user=safe_user_text,
             session_id=session_id,
         )
+
+        raw_output = llm_result.get("text", "")
+
+        # ------------------ Policy: post-LLM ------------------
+        final_output = raw_output
+        if self.policy_engine is not None:
+            try:
+                final_output = self.policy_engine.post_llm(raw_output, policy_meta)
+            except Exception as e:
+                self.logger.log_error(session_id, f"policy.post_llm error: {e}")
 
         return CommandResponse(
             ok=True,
             command="natural_language",
-            summary=llm_result["text"],
+            summary=final_output,
         )
 
     def _error(self, code: str, message: str) -> CommandResponse:
@@ -439,6 +494,29 @@ class NovaKernel:
             error_code=code,
             error_message=message,
         )
+    
+    # ------------------------------------------------------------------
+    # v0.5.1 — Environment State Helpers
+    # ------------------------------------------------------------------
+    def get_env(self, key: str, default=None):
+        return self.env_state.get(key, default)
+
+    def set_env(self, key: str, value: Any):
+        # type coercion: bool/int if possible
+        lowered = str(value).lower()
+
+        if lowered in ("true", "false"):
+            value = lowered == "true"
+        else:
+            # try int
+            try:
+                value = int(value)
+            except ValueError:
+                pass
+
+        self.env_state[key] = value
+        return value
+
     # ------------------------------------------------------------------
     # v0.4 kernel state export (for snapshots)
     # ------------------------------------------------------------------

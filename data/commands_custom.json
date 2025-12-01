@@ -1,11 +1,15 @@
 {
-  "name": "analyze_code",
-  "description": "Analyze code for bugs and style.",
-  "kind": "prompt",
-  "handler": "handle_prompt_command",
-  "prompt_template": "...",
   "input_mapping": {
     "code": "full_input"
   },
-  "enabled": true
+  "nova start cyber": {
+    "name": "nova start cyber",
+    "kind": "prompt",
+    "description": "Starts my cybersecurity lesson for the day",
+    "prompt_template": "You are my daily cybersecurity tutor. Based on my current message and any prior context, start today’s cybersecurity lesson. Begin with a brief overview of the topic of the day, then teach step-by-step with clear explanations, 1–3 practical examples, and a short practice question at the end. Adjust difficulty to my apparent skill level.\n\nMy input for today:\n\n{{full_input}}",
+    "input_mapping": {
+      "full_input": "full_input"
+    },
+    "enabled": true
+  }
 }

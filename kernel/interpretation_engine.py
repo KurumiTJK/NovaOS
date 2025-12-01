@@ -25,6 +25,7 @@ class InterpretationEngine:
     def __init__(self, commands: Dict[str, Dict[str, Any]], custom_commands: Dict[str, Any]):
         self.commands = commands                  # normalized core registry
         self.custom = custom_commands or {}       # prompt + macro commands
+        self.pending_custom_commands: Dict[str, Dict[str, Any]] = {}
 
     # ---------------------------------------------------------
     # Public API
@@ -51,8 +52,13 @@ class InterpretationEngine:
         env_cmd = self._match_env_and_mode(lowered, text, session_id)
         if env_cmd:
             return env_cmd
+        
+        # 5. Custom-command creation intent (v0.5.1)
+        info = self._detect_custom_command_creation(lowered)
+        if info:
+            return self._begin_custom_command_wizard(session_id, info, text)
 
-        # 5. Not interpretable → None → Kernel routes to persona
+        # 6. Not interpretable → None → Kernel routes to persona
         return None
 
     # ---------------------------------------------------------
@@ -166,3 +172,66 @@ class InterpretationEngine:
                 meta=self.commands.get("env"),
             )
         return None
+
+    # ---------------------------------------------------------
+    # 5) Custom Command Creation (v0.5.1)
+    # ---------------------------------------------------------
+    def _detect_custom_command_creation(self, lowered: str) -> Optional[Dict[str, Any]]:
+        """
+        Detect patterns like:
+        "create a command ..."
+        "make a command ..."
+        "add a command ..."
+
+        Returns dict with extracted command name OR None.
+        """
+        import re
+
+        # Simple universal trigger
+        if not (
+            lowered.startswith("create a command") or
+            lowered.startswith("make a command") or
+            lowered.startswith("add a command")
+        ):
+            return None
+
+        # Try to extract "called X" or "named X"
+        m = re.search(r"(called|named)\s+([a-z0-9\-\_ ]+)", lowered)
+        if m:
+            name = m.group(2).strip()
+            return {"intent": "create_command", "name": name}
+
+        # If we can't detect name, we'll ask for it later in the wizard
+        return {"intent": "create_command", "name": None}
+    
+    def _begin_custom_command_wizard(self, session_id: str, info: Dict[str, Any], raw: str) -> CommandRequest:
+        """
+        Initialize the wizard state and return a CommandRequest that triggers
+        the wizard handler (command-wizard).
+        """
+        name = info.get("name")
+
+        # Save wizard state
+        self.pending_custom_commands[session_id] = {
+            "stage": "start",
+            "name": name,
+            "kind": None,
+            "linked_module": None,
+            "description": None,
+            "original_text": raw,
+        }
+
+        # Arguments for the wizard handler
+        args = {
+            "wizard_action": "start",
+            "name": name or "",
+            "original_text": raw,
+        }
+
+        return CommandRequest(
+            cmd_name="command-wizard",
+            args=args,
+            session_id=session_id,
+            raw_text=raw,
+            meta={"handler": "handle_command_wizard"},
+        )

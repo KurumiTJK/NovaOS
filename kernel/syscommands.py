@@ -18,47 +18,44 @@ def _llm_with_policy(
     meta: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
-    v0.5 - Centralized LLM call with optional PolicyEngine hooks.
+    v0.5.1 - Centralized LLM call with PolicyEngine hooks.
 
-    - Pre-LLM: kernel.policy_engine.pre_llm(...) can adjust/deny the prompt.
-    - Post-LLM: kernel.policy_engine.post_llm(...) can validate/sanitize the result.
-    - Falls back to plain llm_client.complete() if no policy engine is present.
+    - Pre-LLM: policy.pre_llm(user_text, meta) → sanitized user text.
+    - Post-LLM: policy.post_llm(output_text, meta) → normalized text.
+    - Returns a dict with at least {"text": <final_text>}.
     """
     policy = getattr(kernel, "policy_engine", None)
+    meta_full: Dict[str, Any] = dict(meta or {})
+    meta_full.setdefault("session_id", session_id)
+    meta_full.setdefault("source", meta_full.get("command", "syscommand"))
 
-    # ---- Pre-LLM filter (optional) ----
+    # ---- Pre-LLM on the user text only ----
+    safe_user = user
     if policy and hasattr(policy, "pre_llm"):
         try:
-            system, user = policy.pre_llm(
-                system=system,
-                user=user,
-                session_id=session_id,
-                meta=meta or {},
-            )
+            safe_user = policy.pre_llm(user, meta_full)
         except Exception:
-            # Fail-safe: ignore policy errors, continue with original prompts
-            pass
+            # Fail-safe: ignore policy errors, continue with original user text
+            safe_user = user
 
     # ---- Core LLM call ----
     result = kernel.llm_client.complete(
         system=system,
-        user=user,
+        user=safe_user,
         session_id=session_id,
     )
 
-    # ---- Post-LLM validation (optional) ----
+    raw_text = result.get("text", "")
+
+    # ---- Post-LLM normalization on the output text ----
+    final_text = raw_text
     if policy and hasattr(policy, "post_llm"):
         try:
-            result = policy.post_llm(
-                response=result,
-                session_id=session_id,
-                meta=meta or {},
-            )
+            final_text = policy.post_llm(raw_text, meta_full)
         except Exception:
-            # Fail-safe: ignore policy errors
-            pass
+            final_text = raw_text
 
-    return result
+    return {"text": final_text}
 
 def _base_response(
     cmd_name: str,
@@ -389,6 +386,125 @@ def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     summary = "Session context reset. Modules and workflows reloaded from disk."
     return _base_response(cmd_name, summary)
 
+# ---------------------------------------------------------------------
+# v0.5.1 — Environment / Mode handlers
+# ---------------------------------------------------------------------
+
+def handle_env(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show current environment state (mode, debug, verbosity, etc.).
+    """
+    env = getattr(kernel, "env_state", {})
+
+    # Fallback if env_state is missing
+    if not isinstance(env, dict):
+        env = {}
+
+    lines = []
+    for k, v in env.items():
+        lines.append(F.key_value(k, v))
+
+    if not lines:
+        summary = F.header("Environment state") + "No environment keys set."
+    else:
+        summary = F.header("Environment state") + "\n".join(lines)
+
+    extra = {"env": env}
+    return _base_response(cmd_name, summary, extra)
+
+
+def handle_setenv(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Set one or more environment keys.
+    Usage examples:
+        setenv mode=deep_work
+        setenv debug=true verbosity=verbose
+    """
+    if not isinstance(args, dict) or not args:
+        return _base_response(
+            cmd_name,
+            "Usage: setenv key=value [other_key=other_value] …",
+            {"ok": False},
+        )
+
+    # Ignore positional "_" bucket
+    updates = {}
+    for key, value in args.items():
+        if key == "_":
+            continue
+        # Use kernel.set_env if available to get consistent coercion
+        if hasattr(kernel, "set_env"):
+            new_val = kernel.set_env(key, value)
+        else:
+            new_val = value
+            if not hasattr(kernel, "env_state") or not isinstance(kernel.env_state, dict):
+                kernel.env_state = {}
+            kernel.env_state[key] = new_val
+        updates[key] = new_val
+
+    if not updates:
+        return _base_response(
+            cmd_name,
+            "No valid key=value pairs provided.",
+            {"ok": False},
+        )
+
+    lines = [F.key_value(k, v) for k, v in updates.items()]
+    summary = F.header("Environment updated") + "\n".join(lines)
+    extra = {"updated": updates}
+    return _base_response(cmd_name, summary, extra)
+
+
+def handle_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Set the current NovaOS mode.
+    Allowed: normal | deep_work | reflection | debug
+
+    Usage:
+        mode deep_work
+        mode mode=reflection
+    """
+    allowed = {"normal", "deep_work", "reflection", "debug"}
+    desired = None
+
+    if isinstance(args, dict):
+        # Prefer explicit mode=<name>
+        raw = args.get("mode")
+        if isinstance(raw, str):
+            desired = raw.strip().lower()
+        # Fallback: first positional argument
+        if not desired:
+            positional = args.get("_")
+            if isinstance(positional, list) and positional:
+                desired = str(positional[0]).strip().lower()
+
+    if not desired:
+        return _base_response(
+            cmd_name,
+            f"Usage: mode <name> where name is one of {', '.join(sorted(allowed))}.",
+            {"ok": False},
+        )
+
+    if desired not in allowed:
+        return _base_response(
+            cmd_name,
+            f"Invalid mode '{desired}'. Allowed: {', '.join(sorted(allowed))}.",
+            {"ok": False, "requested": desired},
+        )
+
+    # Update kernel env_state in a consistent way
+    if hasattr(kernel, "set_env"):
+        kernel.set_env("mode", desired)
+    else:
+        if not hasattr(kernel, "env_state") or not isinstance(kernel.env_state, dict):
+            kernel.env_state = {}
+        kernel.env_state["mode"] = desired
+
+    current_env = getattr(kernel, "env_state", {})
+    lines = [F.key_value("mode", desired)]
+    summary = F.header("Mode updated") + "\n".join(lines)
+    extra = {"mode": desired, "env": current_env}
+    return _base_response(cmd_name, summary, extra)
 
 # ------------------------ Memory v0.3 handlers ------------------------
 
@@ -1230,6 +1346,162 @@ def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta):
     summary = F.header(f"Inspect: {name}") + f"\n```json\n{pretty}\n```"
     return _base_response(cmd_name, summary, {"command": entry})
 
+def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta):
+    """
+    v0.5.1 — Custom Command Creation Wizard (single-turn version)
+
+    Triggered by natural language like:
+      "create a command called nova start cyber that starts my cyber lesson"
+
+    Behavior:
+      - Use the original natural language text to generate a JSON spec.
+      - Save it via custom_registry.
+      - Return a summary.
+    """
+    from json import JSONDecodeError
+    import re
+
+    interp = getattr(kernel, "interpreter", None)
+
+    original_text = ""
+    name = None
+
+    if isinstance(args, dict):
+        original_text = args.get("original_text", "") or ""
+        name = args.get("name") or args.get("command_name")
+
+    # If interpreter wizard state exists, merge info from there
+    wizard_state = None
+    if interp is not None and hasattr(interp, "pending_custom_commands"):
+        wizard_state = interp.pending_custom_commands.get(session_id)
+
+    if wizard_state:
+        name = name or wizard_state.get("name")
+        original_text = original_text or wizard_state.get("original_text", "")
+
+    if not original_text:
+        # Fallback: we can't infer a spec without the triggering text
+        msg = (
+            "I couldn't see the original phrase you used to create this command.\n"
+            "Try again with something like:\n"
+            "  \"create a command called nova start cyber that starts my cybersecurity lesson\""
+        )
+        return _base_response(cmd_name, msg, {"ok": False})
+
+    # ----------------- LLM Prompt to generate spec -----------------
+    system = (
+        "You are NovaOS's Custom Command Spec Generator.\n"
+        "Given a natural language description of a command the user wants, "
+        "produce ONLY a compact JSON object with these fields:\n"
+        "  name: string (command name)\n"
+        "  kind: string (\"prompt\" or \"macro\")\n"
+        "  description: string (short human description)\n"
+        "  prompt_template: string (for kind=\"prompt\"; use {{full_input}} where appropriate)\n"
+        "  input_mapping: object mapping template vars to sources (e.g. {\"full_input\": \"full_input\"})\n"
+        "  enabled: boolean\n\n"
+        "Rules:\n"
+        "- Prefer kind=\"prompt\" unless the user explicitly says it's a macro chaining other commands.\n"
+        "- Use the phrase the user gave as the basis for the description.\n"
+        "- If you are unsure about some fields, make reasonable defaults.\n"
+        "- Do not wrap the JSON in any prose or backticks; output raw JSON only."
+    )
+
+    user = original_text
+
+    llm_result = _llm_with_policy(
+        kernel=kernel,
+        session_id=session_id,
+        system=system,
+        user=user,
+        meta={"command": "command-wizard"},
+    )
+
+    raw = llm_result.get("text", "").strip()
+
+    # Sometimes models return ```json ... ```; strip that if present.
+    code_block_match = re.search(r"```json(.*?)```", raw, re.DOTALL | re.IGNORECASE)
+    if code_block_match:
+        raw_json = code_block_match.group(1).strip()
+    else:
+        # Try also plain ``` ... ```
+        code_block_match = re.search(r"```(.*?)```", raw, re.DOTALL)
+        raw_json = code_block_match.group(1).strip() if code_block_match else raw
+
+    try:
+        spec = json.loads(raw_json)
+    except JSONDecodeError:
+        summary = (
+            F.header("Command wizard error") +
+            "The model did not return valid JSON.\n\n"
+            "Raw output:\n" +
+            raw
+        )
+        return _base_response(cmd_name, summary, {"ok": False, "raw": raw})
+
+    # ----------------- Normalize and fill defaults -----------------
+    if not isinstance(spec, dict):
+        return _base_response(
+            cmd_name,
+            "Wizard produced non-object JSON. Inspect 'raw' field.",
+            {"ok": False, "raw": raw_json},
+        )
+
+    # Ensure name
+    cmd_name_str = spec.get("name") or name
+    if not cmd_name_str:
+        return _base_response(
+            cmd_name,
+            "Wizard could not determine a command name. Please specify one explicitly.",
+            {"ok": False, "spec": spec},
+        )
+    spec["name"] = cmd_name_str
+
+    # Default kind
+    kind = spec.get("kind") or "prompt"
+    if kind not in ("prompt", "macro"):
+        kind = "prompt"
+    spec["kind"] = kind
+
+    # Ensure prompt_template for prompt commands
+    if kind == "prompt" and not spec.get("prompt_template"):
+        spec["prompt_template"] = "{{full_input}}"
+
+    # Default input_mapping
+    if "input_mapping" not in spec or not isinstance(spec["input_mapping"], dict):
+        spec["input_mapping"] = {"full_input": "full_input"}
+
+    # Enabled by default
+    if "enabled" not in spec:
+        spec["enabled"] = True
+
+    # ----------------- Persist via custom_registry -----------------
+    kernel.custom_registry.add(cmd_name_str, spec)
+
+    # Refresh interpreter's custom registry so it's available immediately
+    if interp is not None:
+        try:
+            new_custom = kernel.custom_registry.list()
+            interp.custom = new_custom
+        except Exception:
+            # Fail-open: if refresh fails, at least the spec is saved to disk
+            pass
+
+    # Clear wizard state for this session if it exists
+    if interp is not None and hasattr(interp, "pending_custom_commands"):
+        interp.pending_custom_commands.pop(session_id, None)
+
+    pretty = json.dumps(spec, indent=2, ensure_ascii=False)
+    summary = (
+        F.header("Custom Command Created") +
+        f"'{cmd_name_str}' is now available.\n\n" +
+        "Spec:\n```json\n" +
+        pretty +
+        "\n```"
+    )
+
+    return _base_response(cmd_name, summary, {"ok": True, "spec": spec})
+
+
 def handle_command_add(cmd_name, args, session_id, context, kernel, meta):
     """
     Add a new custom command.
@@ -1335,6 +1607,11 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_synthesize": handle_synthesize,
     "handle_frame": handle_frame,
     "handle_forecast": handle_forecast,
+    "handle_command_wizard": handle_command_wizard,
+    # v0.5.1 Environment / Mode
+    "handle_env": handle_env,
+    "handle_setenv": handle_setenv,
+    "handle_mode": handle_mode,
 
 
 }
