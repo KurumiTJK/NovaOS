@@ -2,13 +2,22 @@ class OutputFormatter:
 
     @staticmethod
     def header(text: str) -> str:
+        # Top-level section header
         return f"**{text}**\n"
 
     @staticmethod
     def subheader(text: str) -> str:
-        """Smaller section header used inside larger blocks."""
-        return f"\n### {text}\n\n"
-    
+        """
+        v0.5.2 – Lightweight subheader helper.
+
+        Renders a simple section title with an underline, e.g.:
+
+        Core Commands
+        -------------
+        """
+        line = "-" * len(text)
+        return f"\n{text}\n{line}\n"
+
     @staticmethod
     def item(id, label, details=None):
         base = f"#{id} — {label}"
@@ -26,4 +35,5 @@ class OutputFormatter:
 
     @staticmethod
     def divider():
-        return "―" * 20 + "\n"
+        # Simple horizontal divider
+        return "\n" + ("-" * 40) + "\n"

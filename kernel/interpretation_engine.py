@@ -33,6 +33,22 @@ class InterpretationEngine:
     def interpret(self, text: str, session_id: str) -> Optional[CommandRequest]:
         lowered = text.lower().strip()
 
+        # -------------------------------------------------------------
+        # v0.5.2 — Multi-turn Wizard Override
+        # If the user is already in a wizard session, everything they type
+        # must route to `command-wizard`.
+        # -------------------------------------------------------------
+        if session_id in self.pending_custom_commands:
+            wiz = self.pending_custom_commands[session_id]
+            return CommandRequest(
+                cmd_name="command-wizard",
+                args={"wizard": wiz, "raw_text": text},
+                session_id=session_id,
+                raw_text=text,
+                meta=None,
+            )
+
+
         # 1. Direct match by command name (simple NL like "status please")
         direct = self._match_direct(lowered, text, session_id)
         if direct:
@@ -205,14 +221,10 @@ class InterpretationEngine:
         return {"intent": "create_command", "name": None}
     
     def _begin_custom_command_wizard(self, session_id: str, info: Dict[str, Any], raw: str) -> CommandRequest:
-        """
-        Initialize the wizard state and return a CommandRequest that triggers
-        the wizard handler (command-wizard).
-        """
         name = info.get("name")
 
-        # Save wizard state
-        self.pending_custom_commands[session_id] = {
+        # Build wizard state
+        state = {
             "stage": "start",
             "name": name,
             "kind": None,
@@ -221,11 +233,12 @@ class InterpretationEngine:
             "original_text": raw,
         }
 
-        # Arguments for the wizard handler
+        # Save wizard state
+        self.pending_custom_commands[session_id] = state
+
+        # Pass state directly to the wizard handler
         args = {
-            "wizard_action": "start",
-            "name": name or "",
-            "original_text": raw,
+            "wizard": state,
         }
 
         return CommandRequest(
@@ -235,3 +248,4 @@ class InterpretationEngine:
             raw_text=raw,
             meta={"handler": "handle_command_wizard"},
         )
+

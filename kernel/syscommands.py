@@ -1348,175 +1348,216 @@ def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta):
 
 def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta):
     """
-    v0.5.1 — Custom Command Creation Wizard (single-turn version)
-
-    Triggered by natural language like:
-      "create a command called nova start cyber that starts my cyber lesson"
-
-    Behavior:
-      - Use the original natural language text to generate a JSON spec.
-      - Save it via custom_registry.
-      - Return a summary.
+    v0.5.2 — Multi-step command wizard.
+    Operates as a deterministic state machine.
+    Only final stage uses the LLM to generate the JSON spec.
     """
-    from json import JSONDecodeError
-    import re
+    interp = kernel.interpreter
 
-    interp = getattr(kernel, "interpreter", None)
-
-    original_text = ""
-    name = None
-
-    if isinstance(args, dict):
-        original_text = args.get("original_text", "") or ""
-        name = args.get("name") or args.get("command_name")
-
-    # If interpreter wizard state exists, merge info from there
-    wizard_state = None
-    if interp is not None and hasattr(interp, "pending_custom_commands"):
-        wizard_state = interp.pending_custom_commands.get(session_id)
-
-    if wizard_state:
-        name = name or wizard_state.get("name")
-        original_text = original_text or wizard_state.get("original_text", "")
-
-    if not original_text:
-        # Fallback: we can't infer a spec without the triggering text
-        msg = (
-            "I couldn't see the original phrase you used to create this command.\n"
-            "Try again with something like:\n"
-            "  \"create a command called nova start cyber that starts my cybersecurity lesson\""
-        )
-        return _base_response(cmd_name, msg, {"ok": False})
-
-    # ----------------- LLM Prompt to generate spec -----------------
-    system = (
-        "You are NovaOS's Custom Command Spec Generator.\n"
-        "Given a natural language description of a command the user wants, "
-        "produce ONLY a compact JSON object with these fields:\n"
-        "  name: string (command name)\n"
-        "  kind: string (\"prompt\" or \"macro\")\n"
-        "  description: string (short human description)\n"
-        "  prompt_template: string (for kind=\"prompt\"; use {{full_input}} where appropriate)\n"
-        "  input_mapping: object mapping template vars to sources (e.g. {\"full_input\": \"full_input\"})\n"
-        "  enabled: boolean\n"
-        "  steps: for kind=\"macro\" ONLY, an array of step objects.\n"
-        "    Each step object must have:\n"
-        "      command: string (the command name to invoke)\n"
-        "      args: object (optional; omit if no arguments are needed)\n\n"
-        "Rules:\n"
-        "- Prefer kind=\"prompt\" unless the user explicitly says it's a macro chaining other commands.\n"
-        "- If kind=\"macro\", you MUST include a non-empty \"steps\" array.\n"
-        "- For phrases like \"runs help then status\", convert that into:\n"
-        "    steps: [{\"command\": \"help\"}, {\"command\": \"status\"}]\n"
-        "- Use the phrase the user gave as the basis for the description.\n"
-        "- If you are unsure about some fields, make reasonable defaults.\n"
-        "- Do not wrap the JSON in any prose or backticks; output raw JSON only."
-    )
-
-    user = original_text
-
-    llm_result = _llm_with_policy(
-        kernel=kernel,
-        session_id=session_id,
-        system=system,
-        user=user,
-        meta={"command": "command-wizard"},
-    )
-
-    raw = llm_result.get("text", "").strip()
-
-    # Sometimes models return ```json ... ```; strip that if present.
-    code_block_match = re.search(r"```json(.*?)```", raw, re.DOTALL | re.IGNORECASE)
-    if code_block_match:
-        raw_json = code_block_match.group(1).strip()
+    # Try to get wizard state either from args or from interpreter
+    state = {}
+    if isinstance(args, dict) and "wizard" in args:
+        state = args["wizard"] or {}
     else:
-        # Try also plain ``` ... ```
-        code_block_match = re.search(r"```(.*?)```", raw, re.DOTALL)
-        raw_json = code_block_match.group(1).strip() if code_block_match else raw
+        state = interp.pending_custom_commands.get(session_id, {}) or {}
 
-    try:
-        spec = json.loads(raw_json)
-    except JSONDecodeError:
-        summary = (
-            F.header("Command wizard error") +
-            "The model did not return valid JSON.\n\n"
-            "Raw output:\n" +
-            raw
-        )
-        return _base_response(cmd_name, summary, {"ok": False, "raw": raw})
+    stage = state.get("stage", "start")
 
-    # ----------------- Normalize and fill defaults -----------------
-    if not isinstance(spec, dict):
-        return _base_response(
-            cmd_name,
-            "Wizard produced non-object JSON. Inspect 'raw' field.",
-            {"ok": False, "raw": raw_json},
+    # ----------------------------
+    # Stage: start → ask_kind
+    # ----------------------------
+    if stage == "start":
+        state["stage"] = "ask_kind"
+        interp.pending_custom_commands[session_id] = state
+        return CommandResponse(
+            ok=True,
+            command="command-wizard",
+            summary="Do you want to create a **prompt command** or a **macro command**?",
         )
 
-    # Ensure name
-    cmd_name_str = spec.get("name") or name
-    if not cmd_name_str:
-        return _base_response(
-            cmd_name,
-            "Wizard could not determine a command name. Please specify one explicitly.",
-            {"ok": False, "spec": spec},
-        )
-    spec["name"] = cmd_name_str
-
-    # Default kind
-    kind = spec.get("kind") or "prompt"
-    if kind not in ("prompt", "macro"):
-        kind = "prompt"
-    
-    # If it's a macro, ensure steps exist
-    if kind == "macro":
-        steps = spec.get("steps")
-        if not isinstance(steps, list) or not steps:
-            return _base_response(
-                cmd_name,
-                "Wizard created a macro but did not generate any steps.\n"
-                "Try describing it like: \"create a command called macro-smoke that runs help then status\".",
-                {"ok": False, "spec": spec},
+    # ----------------------------
+    # Stage: ask_kind
+    # ----------------------------
+    if stage == "ask_kind":
+        # Safe universal user text extractor for wizard
+        user_text = ""
+        if isinstance(args, dict):
+            user_text = args.get("raw_text", "") or context.get("raw_text", "") or ""
+        user = user_text.lower().strip()
+        if "prompt" in user:
+            state["kind"] = "prompt"
+            state["stage"] = "ask_description"
+        elif "macro" in user:
+            state["kind"] = "macro"
+            state["stage"] = "ask_chain"
+        else:
+            return CommandResponse(
+                ok=True,
+                command="command-wizard",
+                summary="Please answer: **prompt** or **macro**?"
             )
 
-    # Ensure prompt_template for prompt commands
-    if kind == "prompt" and not spec.get("prompt_template"):
-        spec["prompt_template"] = "{{full_input}}"
+        interp.pending_custom_commands[session_id] = state
+        if state["kind"] == "prompt":
+            return CommandResponse(
+                ok=True,
+                command="command-wizard",
+                summary="Write a description for this command."
+            )
+        else:
+            return CommandResponse(
+                ok=True,
+                command="command-wizard",
+                summary="Do you want this macro to chain multiple commands? (yes/no)"
+            )
 
-    # Default input_mapping
-    if "input_mapping" not in spec or not isinstance(spec["input_mapping"], dict):
-        spec["input_mapping"] = {"full_input": "full_input"}
+    # ----------------------------
+    # Stage: ask_chain
+    # ----------------------------
+    if stage == "ask_chain":
+        # Safe universal user text extractor for wizard
+        user_text = ""
+        if isinstance(args, dict):
+            user_text = args.get("raw_text", "") or context.get("raw_text", "") or ""
+        user = user_text.lower().strip()
+        if user.startswith("y"):
+            state["chain_enabled"] = True
+            state["stage"] = "ask_chain_items"
+            interp.pending_custom_commands[session_id] = state
+            return CommandResponse(
+                ok=True,
+                command="command-wizard",
+                summary="Which commands should this macro run? (comma-separated)"
+            )
+        elif user.startswith("n"):
+            state["chain_enabled"] = False
+            state["chain_list"] = []
+            state["stage"] = "ask_module"
+            interp.pending_custom_commands[session_id] = state
+            return CommandResponse(
+                ok=True,
+                command="command-wizard",
+                summary="Link this command to a module? If yes, type module name; otherwise type 'no'."
+            )
+        else:
+            return CommandResponse(
+                ok=True,
+                command="command-wizard",
+                summary="Please answer yes or no."
+            )
 
-    # Enabled by default
-    if "enabled" not in spec:
-        spec["enabled"] = True
+    # ----------------------------
+    # Stage: ask_chain_items
+    # ----------------------------
+    if stage == "ask_chain_items":
+        user_text = ""
+        if isinstance(args, dict):
+            user_text = args.get("raw_text", "") or context.get("raw_text", "") or ""
+        items = [c.strip() for c in user_text.split(",") if c.strip()]
+        state["chain_list"] = items
+        state["stage"] = "ask_module"
+        interp.pending_custom_commands[session_id] = state
+        return CommandResponse(
+            ok=True,
+            command="command-wizard",
+            summary="Link this command to a module? If yes, type module name; otherwise type 'no'."
+        )
 
-    # ----------------- Persist via custom_registry -----------------
-    kernel.custom_registry.add(cmd_name_str, spec)
+    # ----------------------------
+    # Stage: ask_module
+    # ----------------------------
+    if stage == "ask_module":
+        # Safe universal user text extractor for wizard
+        user_text = ""
+        if isinstance(args, dict):
+            user_text = args.get("raw_text", "") or context.get("raw_text", "") or ""
+        user = user_text.lower().strip()
+        if user == "no":
+            state["linked_module"] = None
+        else:
+            state["linked_module"] = user
 
-    # Refresh interpreter's custom registry so it's available immediately
-    if interp is not None:
+        state["stage"] = "ask_description"
+        interp.pending_custom_commands[session_id] = state
+        return CommandResponse(
+            ok=True,
+            command="command-wizard",
+            summary="Write a short description for this command."
+        )
+
+    # ----------------------------
+    # Stage: ask_description
+    # ----------------------------
+    if stage == "ask_description":
+        user_text = ""
+        if isinstance(args, dict):
+            user_text = args.get("raw_text", "") or context.get("raw_text", "") or ""
+        state["description"] = user_text.strip()
+        state["stage"] = "final"
+        interp.pending_custom_commands[session_id] = state
+
+        return CommandResponse(
+            ok=True,
+            command="command-wizard",
+            summary="Great. Generating full command spec..."
+        )
+
+
+    # ----------------------------
+    # Stage: final — LLM call
+    # ----------------------------
+    if stage == "final":
+        # Build natural-language prompt for the LLM
+        prompt = f"""
+Please generate a JSON spec for a NovaOS command with the following attributes:
+
+name: {state.get("name")}
+kind: {state.get("kind")}
+chain_enabled: {state.get("chain_enabled")}
+chain_list: {state.get("chain_list")}
+linked_module: {state.get("linked_module")}
+description: {state.get("description")}
+
+Return ONLY valid JSON.
+        """
+
+        llm_output = kernel.llm_client.chat(
+            system_prompt="Generate JSON for a NovaOS command.",
+            messages=[{"role": "user", "content": prompt}],
+            model="gpt-5.1"
+        )
+
+        import json
         try:
-            new_custom = kernel.custom_registry.list()
-            interp.custom = new_custom
-        except Exception:
-            # Fail-open: if refresh fails, at least the spec is saved to disk
-            pass
+            spec = json.loads(llm_output)
+        except Exception as e:
+            return CommandResponse(
+                ok=False,
+                command="command-wizard",
+                summary=f"LLM JSON parse error: {e}\nRaw:\n{llm_output}"
+            )
 
-    # Clear wizard state for this session if it exists
-    if interp is not None and hasattr(interp, "pending_custom_commands"):
-        interp.pending_custom_commands.pop(session_id, None)
+        # Save to registry
+        kernel.custom_registry.save(spec)
 
-    pretty = json.dumps(spec, indent=2, ensure_ascii=False)
-    summary = (
-        F.header("Custom Command Created") +
-        f"'{cmd_name_str}' is now available.\n\n" +
-        "Spec:\n```json\n" +
-        pretty +
-        "\n```"
+        # Cleanup
+        if session_id in interp.pending_custom_commands:
+            del interp.pending_custom_commands[session_id]
+
+        return CommandResponse(
+            ok=True,
+            command="command-wizard",
+            summary=f"Custom command **{spec.get('name')}** created successfully!"
+        )
+
+    # ----------------------------
+    # Unknown stage (should not occur)
+    # ----------------------------
+    return CommandResponse(
+        ok=False,
+        command="command-wizard",
+        summary="Wizard reached an unknown state."
     )
-
-    return _base_response(cmd_name, summary, {"ok": True, "spec": spec})
 
 
 def handle_command_add(cmd_name, args, session_id, context, kernel, meta):
@@ -1627,7 +1668,7 @@ def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
             continue
 
         # Build synthetic CommandRequest
-        from .command_types import CommandRequest
+        from .command_types import CommandRequest, CommandResponse
         synthetic = CommandRequest(
             cmd_name=step_cmd,
             args=step_args if isinstance(step_args, dict) else {},
