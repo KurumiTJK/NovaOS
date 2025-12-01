@@ -5,6 +5,11 @@ class OutputFormatter:
         return f"**{text}**\n"
 
     @staticmethod
+    def subheader(text: str) -> str:
+        """Smaller section header used inside larger blocks."""
+        return f"\n### {text}\n\n"
+    
+    @staticmethod
     def item(id, label, details=None):
         base = f"#{id} — {label}"
         if details:

@@ -1398,9 +1398,16 @@ def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta):
         "  description: string (short human description)\n"
         "  prompt_template: string (for kind=\"prompt\"; use {{full_input}} where appropriate)\n"
         "  input_mapping: object mapping template vars to sources (e.g. {\"full_input\": \"full_input\"})\n"
-        "  enabled: boolean\n\n"
+        "  enabled: boolean\n"
+        "  steps: for kind=\"macro\" ONLY, an array of step objects.\n"
+        "    Each step object must have:\n"
+        "      command: string (the command name to invoke)\n"
+        "      args: object (optional; omit if no arguments are needed)\n\n"
         "Rules:\n"
         "- Prefer kind=\"prompt\" unless the user explicitly says it's a macro chaining other commands.\n"
+        "- If kind=\"macro\", you MUST include a non-empty \"steps\" array.\n"
+        "- For phrases like \"runs help then status\", convert that into:\n"
+        "    steps: [{\"command\": \"help\"}, {\"command\": \"status\"}]\n"
         "- Use the phrase the user gave as the basis for the description.\n"
         "- If you are unsure about some fields, make reasonable defaults.\n"
         "- Do not wrap the JSON in any prose or backticks; output raw JSON only."
@@ -1460,7 +1467,17 @@ def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta):
     kind = spec.get("kind") or "prompt"
     if kind not in ("prompt", "macro"):
         kind = "prompt"
-    spec["kind"] = kind
+    
+    # If it's a macro, ensure steps exist
+    if kind == "macro":
+        steps = spec.get("steps")
+        if not isinstance(steps, list) or not steps:
+            return _base_response(
+                cmd_name,
+                "Wizard created a macro but did not generate any steps.\n"
+                "Try describing it like: \"create a command called macro-smoke that runs help then status\".",
+                {"ok": False, "spec": spec},
+            )
 
     # Ensure prompt_template for prompt commands
     if kind == "prompt" and not spec.get("prompt_template"):

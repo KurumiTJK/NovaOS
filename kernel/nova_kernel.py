@@ -98,23 +98,9 @@ class NovaKernel:
         args_str = " ".join(tokens[1:]) if len(tokens) > 1 else ""
 
         # -------------------------------------------------------------
-        # v0.5 — Full NL → Command Interpreter
-        # -------------------------------------------------------------
-        interpreted_req = self.interpreter.interpret(stripped, session_id)
-        if interpreted_req is not None:
-            # v0.5.2 — attach metadata for custom commands (prompt + macro)
-            if interpreted_req.meta is None:
-                meta = self.custom_registry.get(interpreted_req.cmd_name)
-                if meta is None:
-                    # fall back to built-in commands metadata, just in case
-                    meta = self.commands.get(interpreted_req.cmd_name)
-                interpreted_req.meta = meta
-
-            response = self.router.route(interpreted_req, kernel=self)
-            self.logger.log_response(session_id, interpreted_req.cmd_name, response.to_dict())
-            return response.to_dict()
-
         # 1) Explicit syscommand: first token matches commands.json
+        #    (takes precedence over interpretation)
+        # -------------------------------------------------------------
         if cmd_name in self.commands:
             args_dict = self._parse_args(args_str)
             request = CommandRequest(
@@ -128,7 +114,25 @@ class NovaKernel:
             self.logger.log_response(session_id, cmd_name, response.to_dict())
             return response.to_dict()
 
-        # 2) NL → command interpretation (memory-only for v0.3)
+        # -------------------------------------------------------------
+        # 2) v0.5 — Full NL → Command Interpreter (custom + macros)
+        # -------------------------------------------------------------
+        interpreted_req = self.interpreter.interpret(stripped, session_id)
+        if interpreted_req is not None:
+            # v0.5.2 — attach metadata for custom commands (prompt + macro)
+            if interpreted_req.meta is None:
+                meta = self.custom_registry.get(interpreted_req.cmd_name)
+                if meta is None:
+                    meta = self.commands.get(interpreted_req.cmd_name)
+                interpreted_req.meta = meta
+
+            response = self.router.route(interpreted_req, kernel=self)
+            self.logger.log_response(session_id, interpreted_req.cmd_name, response.to_dict())
+            return response.to_dict()
+
+        # -------------------------------------------------------------
+        # 3) Legacy NL → command interpretation (v0.3 helper)
+        # -------------------------------------------------------------
         interpreted = self._interpret_nl_to_command(stripped, session_id)
         if interpreted is not None:
             response = self.router.route(interpreted, kernel=self)
@@ -136,7 +140,7 @@ class NovaKernel:
             return response.to_dict()
 
         # -------------------------------------------------------------
-        # v0.4.1 — Reminder checking (no background threads)
+        # 4) v0.4.1 — Reminder checking (no background threads)
         # -------------------------------------------------------------
         due = self.reminders.check_due()
         if due:
@@ -155,8 +159,7 @@ class NovaKernel:
                     "summary": "\n".join(lines),
                     "items": items,
                 },
-            }
-        
+            }     
         # -------------------------------------------------------------
         # v0.4.5 — Persona fallback (RESTORED) + v0.5.1 Policy hooks
         # -------------------------------------------------------------
