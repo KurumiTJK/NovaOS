@@ -62,6 +62,9 @@ class NovaKernel:
         # v0.4.1: Reminders subsystem
         self.reminders = RemindersManager(self.config.data_dir)
 
+        # v0.4.5: Persona Fallback
+        from persona.nova_persona import NovaPersona
+        self.persona = NovaPersona(self.llm_client)
 
     # ------------------------------------------------------------------
     # Core input handling
@@ -129,6 +132,35 @@ class NovaKernel:
                     "items": items,
                 },
             }
+        
+        # -------------------------------------------------------------
+        # v0.4.5 — Persona fallback (RESTORED)
+        # -------------------------------------------------------------
+        self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
+
+        reply = self.persona.generate_response(
+            stripped,
+            session_id=session_id
+        )
+
+        # Double-guard: never send an empty summary to the UI
+        if not reply or not str(reply).strip():
+            reply = "(kernel-fallback) I heard you, but couldn’t generate a response. Can you rephrase that?"
+
+        response_dict = {
+            "ok": True,
+            "command": "persona",
+            "summary": reply,
+            # Mirror the reminder / other-command shape by also providing `content.summary`
+            "content": {
+                "command": "persona",
+                "summary": reply,
+            },
+            "meta": {"source": "persona_fallback"},
+        }
+
+        self.logger.log_response(session_id, "persona", response_dict)
+        return response_dict
 
     # ------------------------------------------------------------------
     # Internal helpers

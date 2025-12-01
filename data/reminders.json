@@ -41,7 +41,7 @@
     "when": "2025-11-30T21:00:00+00:00",
     "timezone": "UTC",
     "repeat": null,
-    "status": "pending",
+    "status": "triggered",
     "created_at": "2025-11-30T02:43:40.134506+00:00"
   }
 }

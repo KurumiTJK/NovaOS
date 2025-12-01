@@ -1,4 +1,6 @@
-# persona/nova_persona.py
+from typing import Any, Dict, Optional
+
+from backend.llm_client import LLMClient
 
 BASE_SYSTEM_PROMPT = """
 You are Nova, an AI operating system persona running on top of a stateless LLM backend.
@@ -42,3 +44,39 @@ Tone:
 
 Always think like an operating system copilot, not a casual chat model.
 """
+
+
+class NovaPersona:
+    """
+    Thin wrapper around the LLM client that applies the Nova persona system prompt.
+
+    v0.4.5: Used by NovaKernel as the non-command conversation fallback.
+    """
+
+    def __init__(self, llm_client: LLMClient, system_prompt: Optional[str] = None) -> None:
+        self.llm_client = llm_client
+        self.system_prompt = system_prompt or BASE_SYSTEM_PROMPT
+
+    def generate_response(self, text: str, session_id: str) -> str:
+        """
+        Generate a conversational reply using the Nova persona prompt.
+        """
+        # Call the LLM using the same shape you used in handle_compose
+        result: Dict[str, Any] = self.llm_client.complete(
+            system=self.system_prompt,
+            user=text,
+            session_id=session_id,
+        )
+
+        # Your LLM client uses .get("text"), same as compose
+        raw = result.get("text")
+        if raw is None:
+            # Debug fallback if structure ever changes
+            return f"(persona-fallback) I heard: {text}"
+
+        reply = str(raw).strip()
+        if not reply:
+            # Never allow empty reply
+            return f"(persona-empty) I heard: {text}"
+
+        return reply
