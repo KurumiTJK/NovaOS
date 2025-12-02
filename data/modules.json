@@ -1,11 +1,1 @@
-{
-  "finance": {
-    "name": "Finance Module",
-    "mission": "Track investing",
-    "state": "active",
-    "workflows": [],
-    "routines": [],
-    "bindings": [],
-    "file_path": "modules\\finance_module.py"
-  }
-}
+{}
