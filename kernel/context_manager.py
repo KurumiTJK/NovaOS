@@ -10,7 +10,7 @@ class ContextManager:
         self._sessions: Dict[str, Dict[str, Any]] = {}  # Stores session data
 
         # Path to the modules file
-        self.modules_file = self.config.data_dir / "modules.json"
+        self.modules_file = Path(self.config.data_dir) / "modules.json"
         self.memory_file = self.config.data_dir / "memory.json"  # New memory file for storing session data
         self._ensure_files()
 

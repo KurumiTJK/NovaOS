@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NovaOS Web</title>
+
+  <!-- Viewport / no zoom -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- Dark theme color for status bars -->
+  <meta name="theme-color" content="#000000">
+
+  <!-- iOS PWA fullscreen -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icon.png">
+
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/manifest.json">
+
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    /* Reset */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      min-height: 100%;
+      background: #000000;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      overscroll-behavior: none;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      color: #ffffff;
+    }
+
+    /* App container – full height, uses safe areas */
+    .app {
+      flex: 1;
+      max-width: 720px;
+      display: flex;
+      flex-direction: column;
+      padding-top: calc(12px + env(safe-area-inset-top));
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+      padding-left: 12px;
+      padding-right: 12px;
+      background: #000000;
+    }
+
+    /* Top bar (minimal like ChatGPT) */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-inline: 4px;
+      margin-bottom: 8px;
+    }
+
+    .header-title {
+      font-size: 1rem;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .header-sub {
+      font-size: 0.75rem;
+      opacity: 0.5;
+    }
+
+    /* Chat area – full remaining height */
+    .chat {
+      flex: 1;
+      overflow-y: auto;
+      padding-top: 4px;
+      padding-bottom: 8px;
+    }
+
+    /* A single message row (Nova or user) */
+    .msg-row {
+      display: flex;
+      margin: 4px 0;
+      gap: 8px;
+    }
+
+    .msg-row.nova {
+      justify-content: flex-start;
+    }
+
+    .msg-row.user {
+      justify-content: flex-end;
+    }
+
+    .bubble {
+      margin: 0;
+      padding: 8px 12px;
+      border-radius: 18px;
+      max-width: 80%;
+      font-size: 15px;
+      line-height: 1.4;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      position: relative;
+    }
+
+    /* Nova bubble: left, dark grey */
+    .bubble.nova {
+      background: #222326;
+    }
+
+    /* User bubble: right, slightly lighter */
+    .bubble.user {
+      background: #343541;
+    }
+
+    /* Avatar for Nova (uses your PNG) */
+    .nova-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-image: url("nova-avatar.png");  /* No need for /static */
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+    align-self: flex-start;
+    }
+
+
+
+    /* Input bar at bottom – pill style like ChatGPT */
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      padding-inline: 4px;
+    }
+
+    .input-shell {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      background: #101012;
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+
+    .input-shell input {
+      flex: 1;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #ffffff;
+      font-size: 16px; /* avoids zoom */
+    }
+
+    .input-shell input::placeholder {
+      color: #8e8e99;
+    }
+
+    .send-button {
+      border: none;
+      outline: none;
+      border-radius: 999px;
+      background: #3b82f6;
+      color: #ffffff;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 8px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .send-button:active {
+      transform: translateY(1px);
+      opacity: 0.9;
+    }
+
+    /* Typing indicator – subtle text under last message */
+    .typing-indicator {
+      font-style: italic;
+      color: #a0a0c0;
+      font-size: 0.8rem;
+      margin: 4px 8px;
+    }
+
+    /* Timestamp for each message */
+    .timestamp {
+      font-size: 0.75rem;
+      color: #888888;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    @media (max-width: 500px) {
+      .app {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div>
+        <div class="header-title">NovaOS</div>
+        <div class="header-sub">Linked to your desktop kernel</div>
+      </div>
+    </div>
+
+    <div id="chat" class="chat"></div>
+
+    <div class="input-row">
+      <div class="input-shell">
+        <input id="input" type="text" autocomplete="off" placeholder="Talk to Nova..." />
+      </div>
+      <button id="send" class="send-button">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const chatEl = document.getElementById("chat");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+
+    function formatTime(date) {
+      const h = date.getHours();
+      const m = String(date.getMinutes()).padStart(2, "0");
+      return `${h}:${m}`;
+    }
+
+    function addBubble(text, who) {
+      const row = document.createElement("div");
+      row.className = "msg-row " + who;
+
+      // Nova avatar on the left
+      if (who === "nova") {
+        const avatar = document.createElement("div");
+        avatar.className = "nova-avatar";
+        row.appendChild(avatar);
+      }
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble " + who;
+      bubble.textContent = text;
+
+      const timestamp = document.createElement("div");
+      timestamp.className = "timestamp";
+      timestamp.textContent = formatTime(new Date());
+      bubble.appendChild(timestamp);
+
+      row.appendChild(bubble);
+      chatEl.appendChild(row);
+
+      // Optional: auto-scroll
+      // chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    // Turn kernel JSON into human-readable text
+    function formatNovaResponse(data) {
+      if (!data) return "[empty response]";
+
+      // Persona / NL summary
+      if (typeof data.summary === "string") {
+        return data.summary;
+      }
+
+      // Common pattern: { content: { summary: "..." } }
+      if (data.content) {
+        if (typeof data.content === "string") return data.content;
+        if (typeof data.content.summary === "string") return data.content.summary;
+
+        // Help: list commands
+        if (data.type === "help" && Array.isArray(data.content.commands)) {
+          const lines = data.content.commands.map(c =>
+            `#${c.name} — ${c.description}`
+          );
+          return lines.join("\n");
+        }
+      }
+
+      // Fallback – pretty JSON
+      return JSON.stringify(data, null, 2);
+    }
+
+    async function sendMessage() {
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      inputEl.value = "";
+      addBubble(text, "user");
+
+      const typing = document.createElement("div");
+      typing.className = "typing-indicator";
+      typing.textContent = "Nova is thinking…";
+      chatEl.appendChild(typing);
+
+      try {
+        const res = await fetch("/nova", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, session_id: "iphone" })
+        });
+
+        const data = await res.json();
+        typing.remove();
+
+        const reply = formatNovaResponse(data);
+        addBubble(reply, "nova");
+      } catch (e) {
+        typing.remove();
+        addBubble("Network error: " + e.message, "nova");
+      }
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+</body>
+</html>
