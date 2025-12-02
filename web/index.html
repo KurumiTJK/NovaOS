@@ -135,56 +135,49 @@
     align-self: flex-start;
     }
 
-
-
-    /* Input bar at bottom – pill style like ChatGPT */
+    /* Bigger bottom bar */
     .input-row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-top: 8px;
-      padding-inline: 4px;
+      gap: 12px;
+      margin-top: 12px;
+      padding: 12px 4px; /* Increased padding */
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
     }
 
+    /* Make input container taller */
     .input-shell {
       flex: 1;
       display: flex;
       align-items: center;
       background: #101012;
       border-radius: 999px;
-      padding: 6px 10px;
+      padding: 14px 18px; /* Bigger pill height */
     }
 
+    /* Make actual input text area taller & bigger text */
     .input-shell input {
       flex: 1;
       border: none;
       outline: none;
       background: transparent;
       color: #ffffff;
-      font-size: 16px; /* avoids zoom */
+      font-size: 18px;       /* Larger text */
+      padding: 6px 0;        /* Taller input feel */
     }
 
-    .input-shell input::placeholder {
-      color: #8e8e99;
-    }
+/* Make Send button bigger */
+.send-button {
+  border: none;
+  outline: none;
+  border-radius: 999px;
+  background: #3b82f6;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 12px 20px;    /* Bigger button */
+}
 
-    .send-button {
-      border: none;
-      outline: none;
-      border-radius: 999px;
-      background: #3b82f6;
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: 600;
-      padding: 8px 14px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .send-button:active {
-      transform: translateY(1px);
-      opacity: 0.9;
-    }
 
     /* Typing indicator – subtle text under last message */
     .typing-indicator {
