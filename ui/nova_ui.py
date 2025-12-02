@@ -228,6 +228,9 @@ class NovaApp:
         - Padding
         - Max-width via wraplength
         - Vertical spacing between messages
+
+        New behavior:
+        - Never auto-scroll. Your scroll position is preserved.
         """
         # Container row for alignment
         row = tk.Frame(self.chat_frame, bg=self.BG_CHAT)
@@ -280,7 +283,6 @@ class NovaApp:
         header_label.pack(anchor="w")
 
         # Main text label
-        # Use wraplength to simulate ChatGPT max line width
         text_label = tk.Label(
             bubble,
             text=text,
@@ -293,16 +295,15 @@ class NovaApp:
         )
         text_label.pack(anchor="w", pady=(2, 0))
 
-        # For debug blocks, prefer monospace and smaller font
         if is_debug:
             text_label.configure(
                 font=("Consolas", 9),
                 justify="left",
             )
 
-        # Auto-scroll to bottom
+        # Just re-layout; do NOT change scroll position
         self.chat_canvas.update_idletasks()
-        self.chat_canvas.yview_moveto(1.0)
+        # ❌ no self.chat_canvas.yview_moveto(1.0)
 
     # ------------------------------------------------------------------
     # Main loop
