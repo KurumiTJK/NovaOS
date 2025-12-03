@@ -46,14 +46,21 @@ class IntentPatterns:
     """
     
     # ===== STATUS / SYSTEM =====
+    # NOTE: Bare "status" removed - requires #status at top level
+    # Only natural language phrases trigger NL routing
     STATUS_PATTERNS = [
-        (r"\b(status|how('s| is| are) (nova|novaos|the system|everything)|system (status|check))\b", "status", None, 0.9),
+        (r"\bhow('s| is| are) (nova|novaos|the system|everything)\b", "status", None, 0.9),
+        (r"\bsystem (status|check)\b", "status", None, 0.9),
         (r"\b(what('s| is) (my|the) status)\b", "status", None, 0.85),
     ]
     
     # ===== HELP =====
+    # NOTE: Bare "help" removed - requires #help at top level
+    # Only natural language phrases trigger NL routing
     HELP_PATTERNS = [
-        (r"\b(help|what can you do|show( me)? commands|available commands)\b", "help", None, 0.9),
+        (r"\bwhat can you do\b", "help", None, 0.9),
+        (r"\bshow( me)? commands\b", "help", None, 0.9),
+        (r"\bavailable commands\b", "help", None, 0.9),
         (r"\b(how do i|how to)\b.*\?", "help", None, 0.6),
     ]
     
@@ -85,7 +92,7 @@ class IntentPatterns:
     WORKFLOW_PATTERNS = [
         (r"\b(start|begin|run)( the)? workflow\s+['\"]?(.+?)['\"]?\b", "flow", "_extract_workflow_name", 0.9),
         (r"\b(show|list)( my)? workflows\b", "workflow-list", None, 0.9),
-        (r"\bnext( step)?\b", "advance", None, 0.8),
+        (r"\bnext step\b", "advance", None, 0.8),  # Requires "next step", not just "next"
         (r"\b(advance|continue)( the)? workflow\b", "advance", None, 0.85),
         (r"\b(stop|pause|halt)( the)? workflow\b", "halt", None, 0.85),
         (r"\bcreate( a)? workflow\b", "compose", None, 0.8),

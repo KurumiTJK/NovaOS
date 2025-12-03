@@ -486,12 +486,43 @@ _section_menu_state: Dict[str, str] = {}  # session_id -> active_section
 
 def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
-    v0.6 — Sectioned help command.
+    v0.6 — Help command showing only the 12 section summaries.
     
     Usage:
-        #help              (show all sections)
-        #help section=memory  (show specific section)
+        #help              (show section list)
+        #help section=memory  (show specific section's commands)
     """
+    # Section summaries - one line each
+    SECTION_SUMMARIES = {
+        "core": "Kernel philosophy, OS identity, and high-level control",
+        "memory": "Storing, recalling, drifting, and managing memories",
+        "continuity": "Preferences, projects, and long-term context",
+        "human_state": "Stress, capacity, biology, and state tracking",
+        "modules": "Creating, inspecting, binding, and removing modules",
+        "identity": "Identity traits, snapshots, and restoration",
+        "system": "Environment, modes, snapshots, and model info",
+        "workflow": "Starting, advancing, halting, and listing workflows",
+        "timerhythm": "Presence, pulse diagnostics, and alignment",
+        "reminders": "Creating, listing, updating, and deleting reminders",
+        "commands": "Managing custom commands and macros",
+        "interpretation": "Interpret, derive, synthesize, and forecast ideas",
+    }
+    
+    SECTION_ORDER = [
+        "core",
+        "memory",
+        "continuity",
+        "human_state",
+        "modules",
+        "identity",
+        "system",
+        "workflow",
+        "timerhythm",
+        "reminders",
+        "commands",
+        "interpretation",
+    ]
+    
     # Check if specific section requested
     target_section = None
     if isinstance(args, dict):
@@ -502,7 +533,7 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
     lines = []
     
     if target_section:
-        # Show specific section
+        # Show specific section's commands
         section = get_section(target_section)
         if not section:
             return _base_response(
@@ -517,40 +548,22 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         
         for i, cmd in enumerate(section.commands, 1):
             lines.append(f"{i}) {cmd.name}")
-            lines.append(f"   Description: {cmd.description}")
-            lines.append(f"   Example: {cmd.example}")
+            lines.append(f"   {cmd.description}")
             lines.append("")
         
-        lines.append(f"Tip: Type #{target_section} to enter this section's menu.")
+        lines.append(f"Type #{target_section} to enter this section's menu.")
     else:
-        # Show all sections
-        lines.append("NovaOS Commands")
-        lines.append("=" * 50)
+        # Show section list only (no individual commands)
+        lines.append("NovaOS Sections")
+        lines.append("Choose a section to explore its commands (e.g., #core, #memory).")
         lines.append("")
         
-        for section in SECTION_DEFS:
-            lines.append(f"[{section.title}]")
-            lines.append(f"{section.description}")
-            lines.append("")
-            
-            for i, cmd in enumerate(section.commands, 1):
-                lines.append(f"{i}) {cmd.name}")
-                lines.append(f"   Description: {cmd.description}")
-                lines.append(f"   Example: {cmd.example}")
-                lines.append("")
-            
-            lines.append("-" * 50)
-            lines.append("")
-        
-        # Section menu tip
-        lines.append("Section Menus:")
-        section_list = ", ".join(f"#{s.key}" for s in SECTION_DEFS)
-        lines.append(f"  {section_list}")
-        lines.append("")
-        lines.append("Type a section command (e.g., #memory) to see its menu.")
+        for name in SECTION_ORDER:
+            desc = SECTION_SUMMARIES.get(name, "")
+            lines.append(f"{name} — {desc}")
     
     summary = "\n".join(lines)
-    return _base_response(cmd_name, summary, {"sections": [s.key for s in SECTION_DEFS]})
+    return _base_response(cmd_name, summary, {"sections": SECTION_ORDER})
 
 
 def _handle_section_menu(section_key: str, cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
