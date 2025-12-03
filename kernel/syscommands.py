@@ -941,15 +941,26 @@ def handle_forget(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
     mem_type = None
 
     if isinstance(args, dict):
-        if "ids" in args:
-            raw_ids = args["ids"]
+        # Accept both "id" (singular) and "ids" (plural)
+        raw_ids = args.get("ids") or args.get("id")
+        
+        # Also check for bare arguments (e.g., #forget 13)
+        if raw_ids is None and "_" in args and args["_"]:
+            raw_ids = args["_"][0]
+        
+        if raw_ids is not None:
             if isinstance(raw_ids, int):
                 ids = [raw_ids]
             elif isinstance(raw_ids, str):
-                ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip()]
+                # Handle comma-separated or single value
+                ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip().isdigit()]
             else:
                 # assume iterable
-                ids = [int(x) for x in raw_ids]
+                try:
+                    ids = [int(x) for x in raw_ids]
+                except (ValueError, TypeError):
+                    ids = None
+        
         if "tags" in args:
             raw_tags = args["tags"]
             if isinstance(raw_tags, str):
@@ -1001,13 +1012,17 @@ def handle_bind(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     mm = kernel.memory_manager
     ids: Any = []
     if isinstance(args, dict):
-        raw_ids = args.get("ids") or []
+        # Accept both "id" (singular) and "ids" (plural)
+        raw_ids = args.get("ids") or args.get("id") or []
         if isinstance(raw_ids, int):
             ids = [raw_ids]
         elif isinstance(raw_ids, str):
-            ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip()]
+            ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip().isdigit()]
         else:
-            ids = [int(x) for x in raw_ids]
+            try:
+                ids = [int(x) for x in raw_ids]
+            except (ValueError, TypeError):
+                ids = []
     if not ids:
         return _base_response(cmd_name, "No memory IDs provided for binding.", {"ok": False})
 

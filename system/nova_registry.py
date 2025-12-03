@@ -475,6 +475,10 @@ def info():
         """Alias for inspect_module to match syscommand handlers."""
         return self.inspect_module(key)
 
+    def list_modules(self) -> List[ModuleMeta]:
+        """Return a list of all registered modules."""
+        return list(self._modules.values())
+
     # --------------------------------------------------------
     # Snapshot support
     # --------------------------------------------------------
