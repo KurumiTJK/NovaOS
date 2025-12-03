@@ -50,6 +50,71 @@
     "category": "memory",
     "description": "Bind multiple memory items into a cluster."
   },
+  "memory-stats": {
+    "handler": "handle_memory_stats",
+    "category": "memory",
+    "description": "Show detailed memory statistics."
+  },
+  "memory-salience": {
+    "handler": "handle_memory_salience",
+    "category": "memory",
+    "description": "Update the salience (importance) of a memory item."
+  },
+  "memory-status": {
+    "handler": "handle_memory_status",
+    "category": "memory",
+    "description": "Update the status of a memory item (active, stale, archived)."
+  },
+  "memory-important": {
+    "handler": "handle_memory_high_salience",
+    "category": "memory",
+    "description": "List high-importance memories."
+  },
+  "memory-decay": {
+    "handler": "handle_memory_decay",
+    "category": "memory",
+    "description": "Run decay analysis on memories (apply=true to commit changes)."
+  },
+  "memory-drift": {
+    "handler": "handle_memory_drift",
+    "category": "memory",
+    "description": "Detect drifted/stale memories."
+  },
+  "memory-reconfirm": {
+    "handler": "handle_memory_reconfirm",
+    "category": "memory",
+    "description": "Re-confirm a memory (restore to active status)."
+  },
+  "memory-stale": {
+    "handler": "handle_memory_stale",
+    "category": "memory",
+    "description": "List stale memories."
+  },
+  "memory-archive-stale": {
+    "handler": "handle_memory_archive_stale",
+    "category": "memory",
+    "description": "Archive all stale memories."
+  },
+  "decay-preview": {
+    "handler": "handle_decay_preview",
+    "category": "memory",
+    "description": "Preview decay trajectory for a memory type."
+  },
+  "memory-policy": {
+    "handler": "handle_memory_policy",
+    "category": "memory",
+    "description": "Show memory policy configuration."
+  },
+  "memory-policy-test": {
+    "handler": "handle_memory_policy_test",
+    "category": "memory",
+    "description": "Test memory policy pre-store validation."
+  },
+  "memory-mode-filter": {
+    "handler": "handle_memory_mode_filter",
+    "category": "memory",
+    "description": "Show memory recall filters for current or specified mode."
+  },
 
   "map": {
     "handler": "handle_map",
@@ -77,6 +142,37 @@
     "description": "Bind two modules for cross-domain interaction."
   },
 
+  "identity-show": {
+    "handler": "handle_identity_show",
+    "category": "identity",
+    "description": "Show current identity profile."
+  },
+  "identity-set": {
+    "handler": "handle_identity_set",
+    "category": "identity",
+    "description": "Set identity traits (name, goals, values, roles, etc.)."
+  },
+  "identity-snapshot": {
+    "handler": "handle_identity_snapshot",
+    "category": "identity",
+    "description": "Create a snapshot of current identity."
+  },
+  "identity-history": {
+    "handler": "handle_identity_history",
+    "category": "identity",
+    "description": "Show identity version history."
+  },
+  "identity-restore": {
+    "handler": "handle_identity_restore",
+    "category": "identity",
+    "description": "Restore identity from a historical snapshot."
+  },
+  "identity-clear-history": {
+    "handler": "handle_identity_clear_history",
+    "category": "identity",
+    "description": "Clear identity history."
+  },
+
   "snapshot": {
     "handler": "handle_snapshot",
     "category": "system",
@@ -102,6 +198,11 @@
     "handler": "handle_mode",
     "category": "system",
     "description": "Set NovaOS mode: normal, deep_work, reflection, or debug."
+  },
+  "model-info": {
+    "handler": "handle_model_info",
+    "category": "system",
+    "description": "Show model routing information and available tiers."
   },
 
   "flow": {

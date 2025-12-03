@@ -17,16 +17,31 @@ def _llm_with_policy(
     meta: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """
-    v0.5.1 - Centralized LLM call with PolicyEngine hooks.
+    v0.5.3 - Centralized LLM call with PolicyEngine hooks and ModelRouter.
 
+    - Model selection via kernel.get_model() based on command and input
     - Pre-LLM: policy.pre_llm(user_text, meta) → sanitized user text.
     - Post-LLM: policy.post_llm(output_text, meta) → normalized text.
-    - Returns a dict with at least {"text": <final_text>}.
+    - Returns a dict with at least {"text": <final_text>, "model": <model_id>}.
     """
     policy = getattr(kernel, "policy_engine", None)
     meta_full: Dict[str, Any] = dict(meta or {})
     meta_full.setdefault("session_id", session_id)
     meta_full.setdefault("source", meta_full.get("command", "syscommand"))
+
+    # ---- v0.5.3: Model routing ----
+    command = meta_full.get("command", "default")
+    think_mode = meta_full.get("think", False)
+    explicit_model = meta_full.get("model")
+    
+    model = None
+    if hasattr(kernel, "get_model"):
+        model = kernel.get_model(
+            command=command,
+            input_text=user,
+            think=think_mode,
+            explicit_model=explicit_model,
+        )
 
     # ---- Pre-LLM on the user text only ----
     safe_user = user
@@ -37,11 +52,16 @@ def _llm_with_policy(
             # Fail-safe: ignore policy errors, continue with original user text
             safe_user = user
 
-    # ---- Core LLM call ----
+    # ---- Core LLM call (with routed model) ----
+    llm_kwargs = {}
+    if model:
+        llm_kwargs["model"] = model
+        
     result = kernel.llm_client.complete(
         system=system,
         user=safe_user,
         session_id=session_id,
+        **llm_kwargs,
     )
 
     raw_text = result.get("text", "")
@@ -54,7 +74,7 @@ def _llm_with_policy(
         except Exception:
             final_text = raw_text
 
-    return {"text": final_text}
+    return {"text": final_text, "model": model}
 
 def _base_response(
     cmd_name: str,
@@ -304,15 +324,88 @@ def handle_prompt_command(cmd_name, args, session_id, context, kernel, meta) -> 
     )
     output_text = llm_result.get("text", "")
 
-    # placeholder: post-actions (v0.5 later step)
-    # TODO: implement module/workflow triggers
+    # -------------------------------------------------------------------------
+    # v0.5.1 — Post-Actions Executor
+    # -------------------------------------------------------------------------
+    # Schema:
+    # {
+    #   "type": "syscommand",
+    #   "command": "store",
+    #   "args_mode": "pass_input" | "pass_result" | "pass_both",
+    #   "args": { "type": "episodic", "tags": ["reflection"] },
+    #   "silent": false
+    # }
+    # -------------------------------------------------------------------------
+    post_action_summaries: list[str] = []
+    post_actions = meta.get("post_actions") or []
 
-    summary = (
-        F.header(f"Custom command: {cmd_name}") +
-        output_text.strip()
-    )
+    for idx, action in enumerate(post_actions):
+        if not isinstance(action, dict):
+            continue
 
-    return _base_response(cmd_name, summary, {"result": output_text})
+        action_type = action.get("type")
+        if action_type != "syscommand":
+            # Future: support "workflow", "module" types
+            continue
+
+        target_cmd = action.get("command")
+        if not target_cmd:
+            continue
+
+        args_mode = action.get("args_mode", "pass_result")
+        base_args = dict(action.get("args") or {})
+        silent = action.get("silent", False)
+
+        # Build payload based on args_mode
+        user_input = args.get("full_input", "")
+        llm_output = output_text.strip()
+
+        if args_mode == "pass_input":
+            base_args.setdefault("payload", user_input)
+        elif args_mode == "pass_result":
+            base_args.setdefault("payload", llm_output)
+        elif args_mode == "pass_both":
+            base_args.setdefault("input", user_input)
+            base_args.setdefault("result", llm_output)
+            # For commands like 'store', also set payload to combined
+            if "payload" not in base_args:
+                base_args["payload"] = f"Input: {user_input}\nResult: {llm_output}"
+
+        # Build synthetic CommandRequest
+        from .command_types import CommandRequest as CR
+        synthetic_request = CR(
+            cmd_name=target_cmd,
+            args=base_args,
+            session_id=session_id,
+            raw_text=f"[post-action:{idx}] {target_cmd}",
+            meta=None,
+        )
+
+        # Route through kernel's router
+        try:
+            result = kernel.router.route(synthetic_request, kernel)
+            if not silent:
+                status = "OK" if result.ok else "FAIL"
+                post_action_summaries.append(f"  → [{target_cmd}] {status}: {result.summary[:80]}")
+        except Exception as e:
+            if not silent:
+                post_action_summaries.append(f"  → [{target_cmd}] ERROR: {e}")
+
+    # -------------------------------------------------------------------------
+    # Build final summary
+    # -------------------------------------------------------------------------
+    summary_parts = [
+        F.header(f"Custom command: {cmd_name}"),
+        output_text.strip(),
+    ]
+
+    if post_action_summaries:
+        summary_parts.append("\n" + F.subheader("Post-Actions"))
+        summary_parts.extend(post_action_summaries)
+
+    summary = "\n".join(summary_parts)
+
+    return _base_response(cmd_name, summary, {"result": output_text, "post_actions_run": len(post_action_summaries)})
 
 # -------------------- Core v0.1 / v0.2 handlers --------------------
 
@@ -499,11 +592,81 @@ def handle_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
             kernel.env_state = {}
         kernel.env_state["mode"] = desired
 
+    # v0.5.7: Sync memory policy mode
+    if hasattr(kernel, "memory_policy"):
+        kernel.memory_policy.set_mode(desired)
+
     current_env = getattr(kernel, "env_state", {})
     lines = [F.key_value("mode", desired)]
     summary = F.header("Mode updated") + "\n".join(lines)
     extra = {"mode": desired, "env": current_env}
     return _base_response(cmd_name, summary, extra)
+
+
+# ---------------------------------------------------------------------
+# v0.5.3 — Model Routing Commands
+# ---------------------------------------------------------------------
+
+def handle_model_info(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show information about available model tiers and current routing behavior.
+    
+    Usage:
+        model-info
+        model-info command=derive  (show what model would be used for a command)
+    """
+    # Get model info from kernel
+    if not hasattr(kernel, "get_model_info"):
+        return _base_response(
+            cmd_name,
+            "Model routing not available.",
+            {"ok": False},
+        )
+
+    info = kernel.get_model_info()
+    tiers = info.get("tiers", {})
+    current_mode = info.get("current_mode", "normal")
+
+    # Check if user wants to test routing for a specific command
+    test_command = None
+    test_input = ""
+    if isinstance(args, dict):
+        test_command = args.get("command") or args.get("cmd")
+        test_input = args.get("input", "")
+
+    lines = []
+    lines.append(F.key_value("Current mode", current_mode))
+    lines.append("")
+
+    # Show tiers
+    for tier_name, tier_info in tiers.items():
+        model_id = tier_info.get("model_id", "?")
+        desc = tier_info.get("description", "")
+        max_chars = tier_info.get("max_input_chars", 0)
+        lines.append(f"  {tier_name.upper()}: {model_id}")
+        lines.append(f"      {desc}")
+        lines.append(f"      Max input: {max_chars:,} chars")
+        lines.append("")
+
+    # If testing a specific command
+    if test_command and hasattr(kernel, "get_model"):
+        routed_model = kernel.get_model(
+            command=test_command,
+            input_text=test_input,
+        )
+        lines.append(F.key_value(f"Model for '{test_command}'", routed_model))
+
+    summary = F.header("Model Routing Info") + "\n".join(lines)
+    extra = {
+        "tiers": tiers,
+        "current_mode": current_mode,
+    }
+    if test_command:
+        extra["test_command"] = test_command
+        extra["routed_model"] = routed_model
+
+    return _base_response(cmd_name, summary, extra)
+
 
 # ------------------------ Memory v0.3 handlers ------------------------
 
@@ -671,6 +834,837 @@ def handle_bind(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     summary = f"Bound memories {ids} into cluster {cluster_id}."
     extra = {"cluster_id": cluster_id, "ids": ids}
     return _base_response(cmd_name, summary, extra)
+
+
+# ---------------------------------------------------------------------
+# v0.5.4 — Enhanced Memory Commands
+# ---------------------------------------------------------------------
+
+def handle_memory_stats(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show detailed memory statistics.
+    
+    Usage:
+        memory-stats
+    """
+    mm = kernel.memory_manager
+    
+    # Get health/stats
+    if hasattr(mm, "get_stats"):
+        stats = mm.get_stats()
+    else:
+        stats = {"health": mm.get_health()}
+    
+    health = stats.get("health", {})
+    
+    lines = [
+        F.key_value("Total memories", health.get("total", 0)),
+        "",
+        "By Type:",
+        F.key_value("  Semantic", health.get("semantic_entries", 0)),
+        F.key_value("  Procedural", health.get("procedural_entries", 0)),
+        F.key_value("  Episodic", health.get("episodic_entries", 0)),
+        "",
+        "By Status:",
+        F.key_value("  Active", health.get("active", "N/A")),
+        F.key_value("  Stale", health.get("stale", "N/A")),
+        F.key_value("  Archived", health.get("archived", "N/A")),
+        "",
+        F.key_value("Unique tags", health.get("unique_tags", "N/A")),
+        F.key_value("Unique modules", health.get("unique_modules", "N/A")),
+    ]
+    
+    summary = F.header("Memory Statistics") + "\n".join(lines)
+    return _base_response(cmd_name, summary, stats)
+
+
+def handle_memory_salience(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Update the salience (importance) of a memory item.
+    
+    Usage:
+        memory-salience id=5 salience=0.9
+    """
+    mm = kernel.memory_manager
+    
+    if not isinstance(args, dict):
+        return _base_response(cmd_name, "Usage: memory-salience id=<id> salience=<0.0-1.0>", {"ok": False})
+    
+    mem_id = args.get("id")
+    salience = args.get("salience")
+    
+    if mem_id is None:
+        return _base_response(cmd_name, "Missing required argument: id", {"ok": False})
+    if salience is None:
+        return _base_response(cmd_name, "Missing required argument: salience", {"ok": False})
+    
+    try:
+        mem_id = int(mem_id)
+        salience = float(salience)
+    except (ValueError, TypeError):
+        return _base_response(cmd_name, "id must be integer, salience must be float", {"ok": False})
+    
+    if not (0.0 <= salience <= 1.0):
+        return _base_response(cmd_name, "salience must be between 0.0 and 1.0", {"ok": False})
+    
+    if hasattr(mm, "update_salience"):
+        ok = mm.update_salience(mem_id, salience)
+        if ok:
+            summary = f"Updated memory #{mem_id} salience to {salience:.2f}"
+            return _base_response(cmd_name, summary, {"id": mem_id, "salience": salience})
+        else:
+            return _base_response(cmd_name, f"Memory #{mem_id} not found", {"ok": False})
+    else:
+        return _base_response(cmd_name, "Salience updates not supported in this version", {"ok": False})
+
+
+def handle_memory_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Update the status of a memory item.
+    
+    Usage:
+        memory-status id=5 status=stale
+        memory-status id=5 status=archived
+    
+    Valid statuses: active, stale, archived, pending_confirmation
+    """
+    mm = kernel.memory_manager
+    
+    if not isinstance(args, dict):
+        return _base_response(cmd_name, "Usage: memory-status id=<id> status=<status>", {"ok": False})
+    
+    mem_id = args.get("id")
+    status = args.get("status")
+    
+    if mem_id is None:
+        return _base_response(cmd_name, "Missing required argument: id", {"ok": False})
+    if status is None:
+        return _base_response(cmd_name, "Missing required argument: status", {"ok": False})
+    
+    try:
+        mem_id = int(mem_id)
+    except (ValueError, TypeError):
+        return _base_response(cmd_name, "id must be integer", {"ok": False})
+    
+    valid_statuses = {"active", "stale", "archived", "pending_confirmation"}
+    if status not in valid_statuses:
+        return _base_response(
+            cmd_name,
+            f"Invalid status. Valid: {', '.join(sorted(valid_statuses))}",
+            {"ok": False}
+        )
+    
+    if hasattr(mm, "update_status"):
+        ok = mm.update_status(mem_id, status)
+        if ok:
+            summary = f"Updated memory #{mem_id} status to '{status}'"
+            return _base_response(cmd_name, summary, {"id": mem_id, "status": status})
+        else:
+            return _base_response(cmd_name, f"Memory #{mem_id} not found", {"ok": False})
+    else:
+        return _base_response(cmd_name, "Status updates not supported in this version", {"ok": False})
+
+
+def handle_memory_high_salience(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    List high-importance memories.
+    
+    Usage:
+        memory-important
+        memory-important min=0.8 limit=10
+    """
+    mm = kernel.memory_manager
+    
+    min_salience = 0.7
+    limit = 20
+    
+    if isinstance(args, dict):
+        if "min" in args:
+            try:
+                min_salience = float(args["min"])
+            except (ValueError, TypeError):
+                pass
+        if "limit" in args:
+            try:
+                limit = int(args["limit"])
+            except (ValueError, TypeError):
+                pass
+    
+    if hasattr(mm, "get_high_salience"):
+        items = mm.get_high_salience(min_salience=min_salience, limit=limit)
+    else:
+        # Fallback: regular recall
+        items = mm.recall(limit=limit)
+    
+    if not items:
+        summary = f"No memories with salience >= {min_salience:.1f}"
+        return _base_response(cmd_name, summary, {"items": []})
+    
+    formatted = []
+    for item in items[:10]:
+        trace = getattr(item, "trace", {}) or {}
+        salience = trace.get("salience", "?")
+        formatted.append(f"#{item.id} [{item.type}] (salience={salience}) {item.payload[:50]}...")
+    
+    summary = F.header(f"High-Salience Memories ({len(items)})") + "\n".join(formatted)
+    return _base_response(cmd_name, summary, {"count": len(items)})
+
+
+# ---------------------------------------------------------------------
+# v0.5.5 — Identity Profile Commands
+# ---------------------------------------------------------------------
+
+def handle_identity_show(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show current identity profile.
+    
+    Usage:
+        identity-show
+    """
+    im = kernel.identity_manager
+    profile = im.get_current()
+    
+    if not profile:
+        return _base_response(cmd_name, "No identity profile set.", {"profile": None})
+    
+    traits = profile.traits
+    lines = [
+        F.key_value("Profile ID", profile.id),
+        F.key_value("Version", profile.version),
+        F.key_value("Updated", profile.updated_at[:19]),
+        "",
+    ]
+    
+    if traits.name:
+        lines.append(F.key_value("Name", traits.name))
+    
+    if traits.context:
+        lines.append(F.key_value("Context", traits.context))
+    
+    if traits.roles:
+        lines.append(F.key_value("Roles", ", ".join(traits.roles)))
+    
+    if traits.goals:
+        lines.append("")
+        lines.append("Goals:")
+        for goal in traits.goals[:5]:
+            lines.append(f"  • {goal}")
+    
+    if traits.values:
+        lines.append("")
+        lines.append("Values:")
+        for value in traits.values[:5]:
+            lines.append(f"  • {value}")
+    
+    if traits.strengths:
+        lines.append("")
+        lines.append("Strengths:")
+        for s in traits.strengths[:5]:
+            lines.append(f"  • {s}")
+    
+    if traits.growth_areas:
+        lines.append("")
+        lines.append("Growth Areas:")
+        for g in traits.growth_areas[:5]:
+            lines.append(f"  • {g}")
+    
+    if traits.custom:
+        lines.append("")
+        lines.append("Custom:")
+        for k, v in list(traits.custom.items())[:5]:
+            lines.append(f"  • {k}: {v}")
+    
+    summary = F.header("Identity Profile") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"profile": profile.to_dict()})
+
+
+def handle_identity_set(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Set an identity trait.
+    
+    Usage:
+        identity-set name="Vant"
+        identity-set context="Building NovaOS"
+        identity-set goals="Learn ML,Build products"  (comma-separated)
+        identity-set roles="Developer,Founder"
+    """
+    im = kernel.identity_manager
+    
+    if not isinstance(args, dict) or not args:
+        return _base_response(
+            cmd_name,
+            "Usage: identity-set <trait>=<value>\nTraits: name, context, goals, values, roles, strengths, growth_areas, or custom keys",
+            {"ok": False}
+        )
+    
+    # Process args
+    updates = {}
+    for key, value in args.items():
+        if key == "_":
+            continue
+        
+        # Handle comma-separated list fields
+        list_fields = {"goals", "values", "roles", "strengths", "growth_areas"}
+        if key in list_fields and isinstance(value, str):
+            value = [v.strip() for v in value.split(",") if v.strip()]
+        
+        updates[key] = value
+    
+    if not updates:
+        return _base_response(cmd_name, "No valid traits provided.", {"ok": False})
+    
+    # Update each trait
+    for key, value in updates.items():
+        im.set_trait(key, value, notes=f"Set {key} via identity-set")
+    
+    profile = im.get_current()
+    
+    lines = [f"Updated: {', '.join(updates.keys())}"]
+    summary = F.header("Identity Updated") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"updated": list(updates.keys()), "profile": profile.to_dict() if profile else None})
+
+
+def handle_identity_snapshot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Create a snapshot of current identity.
+    
+    Usage:
+        identity-snapshot
+        identity-snapshot notes="Before career change"
+    """
+    im = kernel.identity_manager
+    
+    notes = ""
+    if isinstance(args, dict):
+        notes = args.get("notes", "") or args.get("_", [""])[0] if "_" in args else ""
+    
+    try:
+        entry = im.snapshot(notes=notes)
+        summary = (
+            F.header("Identity Snapshot Created") +
+            f"Snapshot saved at {entry.snapshot_at[:19]}\n" +
+            f"Version: {entry.version}"
+        )
+        return _base_response(cmd_name, summary, {"snapshot": entry.to_dict()})
+    except ValueError as e:
+        return _base_response(cmd_name, str(e), {"ok": False})
+
+
+def handle_identity_history(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show identity history.
+    
+    Usage:
+        identity-history
+        identity-history limit=5
+    """
+    im = kernel.identity_manager
+    
+    limit = 10
+    if isinstance(args, dict) and "limit" in args:
+        try:
+            limit = int(args["limit"])
+        except (ValueError, TypeError):
+            pass
+    
+    history = im.get_history(limit=limit)
+    
+    if not history:
+        return _base_response(cmd_name, "No identity history.", {"history": []})
+    
+    lines = []
+    for entry in history:
+        name = entry.traits.name or "(unnamed)"
+        goals_count = len(entry.traits.goals)
+        lines.append(
+            f"• {entry.snapshot_at[:19]} — v{entry.version} — {name} — {goals_count} goals"
+        )
+        if entry.notes:
+            lines.append(f"    Notes: {entry.notes[:50]}...")
+    
+    summary = F.header(f"Identity History ({len(history)} snapshots)") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"history": [e.to_dict() for e in history]})
+
+
+def handle_identity_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Restore identity from a historical snapshot.
+    
+    Usage:
+        identity-restore id=profile-20250101-abc123
+        identity-restore timestamp=2025-01-01T12:00:00
+    """
+    im = kernel.identity_manager
+    
+    snapshot_id = None
+    if isinstance(args, dict):
+        snapshot_id = args.get("id") or args.get("timestamp") or args.get("_", [None])[0] if "_" in args else None
+    
+    if not snapshot_id:
+        return _base_response(
+            cmd_name,
+            "Usage: identity-restore id=<profile-id> or timestamp=<iso-timestamp>",
+            {"ok": False}
+        )
+    
+    profile = im.restore_from_history(str(snapshot_id))
+    
+    if not profile:
+        return _base_response(cmd_name, f"Snapshot '{snapshot_id}' not found.", {"ok": False})
+    
+    summary = (
+        F.header("Identity Restored") +
+        f"Restored from snapshot. New profile ID: {profile.id}"
+    )
+    return _base_response(cmd_name, summary, {"profile": profile.to_dict()})
+
+
+def handle_identity_clear_history(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Clear identity history.
+    
+    Usage:
+        identity-clear-history
+    """
+    im = kernel.identity_manager
+    count = im.clear_history()
+    
+    summary = F.header("Identity History Cleared") + f"Removed {count} historical snapshots."
+    return _base_response(cmd_name, summary, {"cleared": count})
+
+
+# ---------------------------------------------------------------------
+# v0.5.6 — Memory Lifecycle Commands
+# ---------------------------------------------------------------------
+
+def handle_memory_decay(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Run decay analysis on memories and optionally apply updates.
+    
+    Usage:
+        memory-decay              (analyze only)
+        memory-decay apply=true   (analyze and apply changes)
+    """
+    from kernel.memory_lifecycle import MemoryLifecycle
+    
+    # Get memory engine
+    mm = kernel.memory_manager
+    if not hasattr(mm, "_engine"):
+        return _base_response(cmd_name, "Memory engine not available.", {"ok": False})
+    
+    engine = mm._engine
+    
+    # Parse args
+    apply_changes = False
+    if isinstance(args, dict):
+        apply_val = args.get("apply", "false")
+        apply_changes = str(apply_val).lower() in ("true", "yes", "1")
+    
+    # Initialize lifecycle manager
+    lifecycle = MemoryLifecycle()
+    
+    # Get all memories for processing
+    memories = engine.get_all_for_lifecycle()
+    
+    if not memories:
+        return _base_response(cmd_name, "No memories to process.", {"processed": 0})
+    
+    # Process
+    result = lifecycle.process_memories(
+        memories=memories,
+        apply_decay=True,
+        detect_drift=True,
+    )
+    
+    summary_data = result["summary"]
+    
+    # Apply changes if requested
+    applied = 0
+    if apply_changes and result["decay_updates"]:
+        applied = engine.apply_decay_updates(result["decay_updates"])
+    
+    # Build summary
+    lines = [
+        F.key_value("Memories processed", summary_data["processed"]),
+        F.key_value("Decay changes detected", summary_data["decay_changes"]),
+        F.key_value("Drift issues found", summary_data["drift_detected"]),
+        F.key_value("Need re-confirmation", summary_data["needs_reconfirm"]),
+    ]
+    
+    if apply_changes:
+        lines.append("")
+        lines.append(F.key_value("Changes applied", applied))
+    else:
+        lines.append("")
+        lines.append("Run with apply=true to apply changes.")
+    
+    # Show top drift issues
+    if result["drift_reports"]:
+        lines.append("")
+        lines.append("Top drift issues:")
+        for drift in result["drift_reports"][:5]:
+            lines.append(f"  • #{drift['memory_id']} ({drift['memory_type']}): {drift['drift_reason'][:50]}")
+    
+    summary = F.header("Memory Decay Analysis") + "\n".join(lines)
+    return _base_response(cmd_name, summary, result)
+
+
+def handle_memory_drift(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Detect drifted/stale memories.
+    
+    Usage:
+        memory-drift
+        memory-drift limit=20
+    """
+    from kernel.memory_lifecycle import MemoryLifecycle
+    
+    mm = kernel.memory_manager
+    if not hasattr(mm, "_engine"):
+        return _base_response(cmd_name, "Memory engine not available.", {"ok": False})
+    
+    engine = mm._engine
+    
+    # Parse args
+    limit = 20
+    if isinstance(args, dict) and "limit" in args:
+        try:
+            limit = int(args["limit"])
+        except (ValueError, TypeError):
+            pass
+    
+    # Initialize lifecycle manager
+    lifecycle = MemoryLifecycle()
+    
+    # Get all memories
+    memories = engine.get_all_for_lifecycle()
+    
+    # Process for drift only (no decay application)
+    result = lifecycle.process_memories(
+        memories=memories,
+        apply_decay=False,
+        detect_drift=True,
+    )
+    
+    drift_reports = result["drift_reports"][:limit]
+    
+    if not drift_reports:
+        return _base_response(cmd_name, "No drifted memories detected.", {"drift_reports": []})
+    
+    lines = []
+    for drift in drift_reports:
+        action_label = drift["recommended_action"].upper()
+        lines.append(
+            f"• #{drift['memory_id']} [{drift['memory_type']}] ({action_label})\n"
+            f"    Salience: {drift['current_salience']:.3f} | "
+            f"Days since use: {drift['days_since_use']}\n"
+            f"    {drift['drift_reason'][:60]}"
+        )
+    
+    summary = F.header(f"Drifted Memories ({len(drift_reports)})") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"drift_reports": drift_reports})
+
+
+def handle_memory_reconfirm(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Re-confirm a memory (restore to active status).
+    
+    Usage:
+        memory-reconfirm id=5
+        memory-reconfirm id=5 salience=0.8
+    """
+    mm = kernel.memory_manager
+    if not hasattr(mm, "_engine"):
+        return _base_response(cmd_name, "Memory engine not available.", {"ok": False})
+    
+    engine = mm._engine
+    
+    if not isinstance(args, dict) or "id" not in args:
+        return _base_response(
+            cmd_name,
+            "Usage: memory-reconfirm id=<memory_id> [salience=<0.0-1.0>]",
+            {"ok": False}
+        )
+    
+    try:
+        mem_id = int(args["id"])
+    except (ValueError, TypeError):
+        return _base_response(cmd_name, "Invalid memory ID.", {"ok": False})
+    
+    new_salience = None
+    if "salience" in args:
+        try:
+            new_salience = float(args["salience"])
+        except (ValueError, TypeError):
+            pass
+    
+    success = engine.reconfirm_memory(mem_id, new_salience)
+    
+    if success:
+        summary = f"Memory #{mem_id} re-confirmed and restored to active status."
+        if new_salience is not None:
+            summary += f" Salience set to {new_salience:.2f}."
+        return _base_response(cmd_name, summary, {"id": mem_id, "reconfirmed": True})
+    else:
+        return _base_response(cmd_name, f"Memory #{mem_id} not found.", {"ok": False})
+
+
+def handle_memory_stale(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    List stale memories.
+    
+    Usage:
+        memory-stale
+        memory-stale limit=10
+    """
+    mm = kernel.memory_manager
+    if not hasattr(mm, "_engine"):
+        return _base_response(cmd_name, "Memory engine not available.", {"ok": False})
+    
+    engine = mm._engine
+    
+    limit = 20
+    if isinstance(args, dict) and "limit" in args:
+        try:
+            limit = int(args["limit"])
+        except (ValueError, TypeError):
+            pass
+    
+    stale = engine.get_stale_memories(limit=limit)
+    
+    if not stale:
+        return _base_response(cmd_name, "No stale memories.", {"items": []})
+    
+    lines = []
+    for item in stale[:10]:
+        lines.append(
+            f"• #{item.id} [{item.type}] salience={item.salience:.3f}\n"
+            f"    {item.payload[:50]}..."
+        )
+    
+    if len(stale) > 10:
+        lines.append(f"  ...and {len(stale) - 10} more")
+    
+    summary = F.header(f"Stale Memories ({len(stale)})") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"count": len(stale)})
+
+
+def handle_memory_archive_stale(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Archive all stale memories.
+    
+    Usage:
+        memory-archive-stale
+    """
+    mm = kernel.memory_manager
+    if not hasattr(mm, "_engine"):
+        return _base_response(cmd_name, "Memory engine not available.", {"ok": False})
+    
+    engine = mm._engine
+    
+    stale = engine.get_stale_memories(limit=1000)
+    
+    if not stale:
+        return _base_response(cmd_name, "No stale memories to archive.", {"archived": 0})
+    
+    ids = [item.id for item in stale]
+    count = engine.bulk_update_status(ids, "archived")
+    
+    summary = F.header("Stale Memories Archived") + f"Archived {count} memories."
+    return _base_response(cmd_name, summary, {"archived": count})
+
+
+def handle_decay_preview(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Preview decay trajectory for a memory type.
+    
+    Usage:
+        decay-preview type=episodic salience=0.8
+        decay-preview type=semantic salience=0.6
+    """
+    from kernel.memory_lifecycle import MemoryLifecycle
+    
+    mem_type = "semantic"
+    salience = 0.5
+    
+    if isinstance(args, dict):
+        mem_type = args.get("type", "semantic")
+        try:
+            salience = float(args.get("salience", 0.5))
+        except (ValueError, TypeError):
+            pass
+    
+    lifecycle = MemoryLifecycle()
+    predictions = lifecycle.estimate_decay_preview(
+        memory_type=mem_type,
+        current_salience=salience,
+        days_ahead=180,
+    )
+    
+    lines = [
+        f"Type: {mem_type} | Starting salience: {salience:.2f}",
+        "",
+        "Day  | Salience | Status",
+        "-" * 30,
+    ]
+    
+    for p in predictions:
+        lines.append(f"{p['day']:4d} | {p['salience']:.4f}  | {p['status']}")
+    
+    summary = F.header("Decay Preview") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"predictions": predictions})
+
+
+# ---------------------------------------------------------------------
+# v0.5.7 — Memory Policy Commands
+# ---------------------------------------------------------------------
+
+def handle_memory_policy(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show memory policy configuration.
+    
+    Usage:
+        memory-policy
+    """
+    if not hasattr(kernel, "memory_policy"):
+        return _base_response(cmd_name, "Memory policy not initialized.", {"ok": False})
+    
+    policy = kernel.memory_policy
+    config = policy.get_config_summary()
+    active = policy.get_active_policies()
+    
+    lines = [
+        F.key_value("Current mode", config["current_mode"]),
+        "",
+        "Active Policies:",
+    ]
+    
+    for p in active:
+        lines.append(f"  • {p}")
+    
+    lines.append("")
+    lines.append("Identity Tags:")
+    lines.append(f"  {', '.join(config['identity_tags'])}")
+    
+    lines.append("")
+    lines.append("Mode Filters:")
+    for mode, filters in config["mode_filters"].items():
+        if filters:
+            filter_str = ", ".join(f"{k}={v}" for k, v in filters.items())
+            lines.append(f"  • {mode}: {filter_str}")
+    
+    summary = F.header("Memory Policy") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"config": config, "active_policies": active})
+
+
+def handle_memory_policy_test(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Test memory policy pre-store validation.
+    
+    Usage:
+        memory-policy-test payload="Test memory" type=semantic tags=test,example
+    """
+    if not hasattr(kernel, "memory_policy"):
+        return _base_response(cmd_name, "Memory policy not initialized.", {"ok": False})
+    
+    policy = kernel.memory_policy
+    
+    # Parse args
+    payload = "Test memory payload"
+    mem_type = "semantic"
+    tags = ["test"]
+    source = "user"
+    
+    if isinstance(args, dict):
+        payload = args.get("payload", payload)
+        mem_type = args.get("type", mem_type)
+        raw_tags = args.get("tags", "test")
+        if isinstance(raw_tags, str):
+            tags = [t.strip() for t in raw_tags.split(",") if t.strip()]
+        else:
+            tags = list(raw_tags)
+        source = args.get("source", source)
+    
+    # Run pre-store check
+    result = policy.pre_store(
+        payload=payload,
+        mem_type=mem_type,
+        tags=tags,
+        source=source,
+    )
+    
+    lines = [
+        F.key_value("Allowed", "Yes" if result.allowed else "No"),
+    ]
+    
+    if not result.allowed:
+        lines.append(F.key_value("Reason", result.reason or "Unknown"))
+    
+    if result.warnings:
+        lines.append("")
+        lines.append("Warnings:")
+        for w in result.warnings:
+            lines.append(f"  • {w}")
+    
+    if result.modified_item:
+        lines.append("")
+        lines.append("Modifications:")
+        for k, v in result.modified_item.items():
+            if k == "trace":
+                lines.append(f"  • trace: (enhanced)")
+            else:
+                lines.append(f"  • {k}: {v}")
+    
+    summary = F.header("Policy Test Result") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {
+        "allowed": result.allowed,
+        "reason": result.reason,
+        "warnings": result.warnings,
+        "modifications": result.modified_item,
+    })
+
+
+def handle_memory_mode_filter(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show memory recall filters for current or specified mode.
+    
+    Usage:
+        memory-mode-filter
+        memory-mode-filter mode=deep_work
+    """
+    if not hasattr(kernel, "memory_policy"):
+        return _base_response(cmd_name, "Memory policy not initialized.", {"ok": False})
+    
+    policy = kernel.memory_policy
+    
+    # Parse mode
+    mode = policy._current_mode
+    if isinstance(args, dict) and "mode" in args:
+        mode = args["mode"]
+    
+    # Temporarily set mode to get filter
+    original_mode = policy._current_mode
+    policy.set_mode(mode)
+    mode_filter = policy.get_mode_filter()
+    policy.set_mode(original_mode)
+    
+    lines = [
+        F.key_value("Mode", mode),
+        "",
+    ]
+    
+    if not mode_filter:
+        lines.append("No special filters (default behavior)")
+    else:
+        lines.append("Active Filters:")
+        for k, v in mode_filter.items():
+            if isinstance(v, list):
+                lines.append(f"  • {k}: {', '.join(v)}")
+            else:
+                lines.append(f"  • {k}: {v}")
+    
+    summary = F.header("Memory Mode Filter") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"mode": mode, "filter": mode_filter})
 
 
 # ------------------------ Modules v0.3 handlers ------------------------
@@ -1786,6 +2780,36 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_setenv": handle_setenv,
     "handle_mode": handle_mode,
     "handle_macro": handle_macro,
+
+    # v0.5.3 Model Routing
+    "handle_model_info": handle_model_info,
+
+    # v0.5.4 Memory Engine
+    "handle_memory_stats": handle_memory_stats,
+    "handle_memory_salience": handle_memory_salience,
+    "handle_memory_status": handle_memory_status,
+    "handle_memory_high_salience": handle_memory_high_salience,
+
+    # v0.5.5 Identity Profile
+    "handle_identity_show": handle_identity_show,
+    "handle_identity_set": handle_identity_set,
+    "handle_identity_snapshot": handle_identity_snapshot,
+    "handle_identity_history": handle_identity_history,
+    "handle_identity_restore": handle_identity_restore,
+    "handle_identity_clear_history": handle_identity_clear_history,
+
+    # v0.5.6 Memory Lifecycle
+    "handle_memory_decay": handle_memory_decay,
+    "handle_memory_drift": handle_memory_drift,
+    "handle_memory_reconfirm": handle_memory_reconfirm,
+    "handle_memory_stale": handle_memory_stale,
+    "handle_memory_archive_stale": handle_memory_archive_stale,
+    "handle_decay_preview": handle_decay_preview,
+
+    # v0.5.7 Memory Policy
+    "handle_memory_policy": handle_memory_policy,
+    "handle_memory_policy_test": handle_memory_policy_test,
+    "handle_memory_mode_filter": handle_memory_mode_filter,
 
 
 }
