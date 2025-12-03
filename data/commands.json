@@ -20,9 +20,70 @@
     "description": "Display system state"
   },
   "help": {
-    "handler": "handle_help",
+    "handler": "handle_help_v06",
     "category": "core",
-    "description": "List all syscommands"
+    "description": "List all syscommands organized by section"
+  },
+
+  "core": {
+    "handler": "handle_section_core",
+    "category": "section_menu",
+    "description": "Show CORE section menu"
+  },
+  "memory": {
+    "handler": "handle_section_memory",
+    "category": "section_menu",
+    "description": "Show MEMORY section menu"
+  },
+  "continuity": {
+    "handler": "handle_section_continuity",
+    "category": "section_menu",
+    "description": "Show CONTINUITY section menu"
+  },
+  "human_state": {
+    "handler": "handle_section_human_state",
+    "category": "section_menu",
+    "description": "Show HUMAN STATE section menu"
+  },
+  "modules": {
+    "handler": "handle_section_modules",
+    "category": "section_menu",
+    "description": "Show MODULES section menu"
+  },
+  "identity": {
+    "handler": "handle_section_identity",
+    "category": "section_menu",
+    "description": "Show IDENTITY section menu"
+  },
+  "system": {
+    "handler": "handle_section_system",
+    "category": "section_menu",
+    "description": "Show SYSTEM section menu"
+  },
+  "workflow": {
+    "handler": "handle_section_workflow",
+    "category": "section_menu",
+    "description": "Show WORKFLOW section menu"
+  },
+  "timerhythm": {
+    "handler": "handle_section_timerhythm",
+    "category": "section_menu",
+    "description": "Show TIME RHYTHM section menu"
+  },
+  "reminders": {
+    "handler": "handle_section_reminders",
+    "category": "section_menu",
+    "description": "Show REMINDERS section menu"
+  },
+  "commands": {
+    "handler": "handle_section_commands",
+    "category": "section_menu",
+    "description": "Show CUSTOM COMMANDS section menu"
+  },
+  "interpretation": {
+    "handler": "handle_section_interpretation",
+    "category": "section_menu",
+    "description": "Show INTERPRETATION section menu"
   },
 
   "store": {

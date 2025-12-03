@@ -473,6 +473,174 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     return _base_response(cmd_name, summary, extra)
 
 
+# ---------------------------------------------------------------------
+# v0.6 — Sectioned Help and Section Menu Handlers
+# ---------------------------------------------------------------------
+
+# Import section definitions
+from .section_defs import SECTION_DEFS, get_section, get_section_keys
+
+# Session state for section menus
+_section_menu_state: Dict[str, str] = {}  # session_id -> active_section
+
+
+def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.6 — Sectioned help command.
+    
+    Usage:
+        #help              (show all sections)
+        #help section=memory  (show specific section)
+    """
+    # Check if specific section requested
+    target_section = None
+    if isinstance(args, dict):
+        target_section = args.get("section")
+        if not target_section and "_" in args and args["_"]:
+            target_section = args["_"][0]
+    
+    lines = []
+    
+    if target_section:
+        # Show specific section
+        section = get_section(target_section)
+        if not section:
+            return _base_response(
+                cmd_name,
+                f"Unknown section '{target_section}'. Use #help to see all sections.",
+                {"ok": False}
+            )
+        
+        lines.append(f"[{section.title}]")
+        lines.append(f"{section.description}")
+        lines.append("")
+        
+        for i, cmd in enumerate(section.commands, 1):
+            lines.append(f"{i}) {cmd.name}")
+            lines.append(f"   Description: {cmd.description}")
+            lines.append(f"   Example: {cmd.example}")
+            lines.append("")
+        
+        lines.append(f"Tip: Type #{target_section} to enter this section's menu.")
+    else:
+        # Show all sections
+        lines.append("NovaOS Commands")
+        lines.append("=" * 50)
+        lines.append("")
+        
+        for section in SECTION_DEFS:
+            lines.append(f"[{section.title}]")
+            lines.append(f"{section.description}")
+            lines.append("")
+            
+            for i, cmd in enumerate(section.commands, 1):
+                lines.append(f"{i}) {cmd.name}")
+                lines.append(f"   Description: {cmd.description}")
+                lines.append(f"   Example: {cmd.example}")
+                lines.append("")
+            
+            lines.append("-" * 50)
+            lines.append("")
+        
+        # Section menu tip
+        lines.append("Section Menus:")
+        section_list = ", ".join(f"#{s.key}" for s in SECTION_DEFS)
+        lines.append(f"  {section_list}")
+        lines.append("")
+        lines.append("Type a section command (e.g., #memory) to see its menu.")
+    
+    summary = "\n".join(lines)
+    return _base_response(cmd_name, summary, {"sections": [s.key for s in SECTION_DEFS]})
+
+
+def _handle_section_menu(section_key: str, cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Generic section menu handler.
+    Shows commands in the section and waits for selection.
+    """
+    section = get_section(section_key)
+    if not section:
+        return _base_response(cmd_name, f"Unknown section '{section_key}'.", {"ok": False})
+    
+    # Set active section for this session
+    _section_menu_state[session_id] = section_key
+    
+    lines = [
+        f"You're in the {section.title} section. Which command would you like to run?",
+        "",
+    ]
+    
+    for i, cmd in enumerate(section.commands, 1):
+        lines.append(f"{i}) {cmd.name}")
+        lines.append(f"   Description: {cmd.description}")
+        lines.append(f"   Example: {cmd.example}")
+        lines.append("")
+    
+    example_cmd = section.commands[0].name if section.commands else "command"
+    lines.append(f'Please type the command name exactly (e.g., "{example_cmd}"). Numbers will not work.')
+    
+    summary = "\n".join(lines)
+    return _base_response(cmd_name, summary, {
+        "section": section_key,
+        "commands": [cmd.name for cmd in section.commands],
+        "menu_active": True,
+    })
+
+
+# Individual section menu handlers
+def handle_section_core(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("core", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_memory(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("memory", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_continuity(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("continuity", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_human_state(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("human_state", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_modules(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("modules", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_identity(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("identity", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_system(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("system", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_workflow(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("workflow", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_timerhythm(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("timerhythm", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_reminders(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("reminders", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("commands", cmd_name, args, session_id, context, kernel, meta)
+
+def handle_section_interpretation(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("interpretation", cmd_name, args, session_id, context, kernel, meta)
+
+
+def get_active_section(session_id: str) -> str:
+    """Get the active section menu for a session."""
+    return _section_menu_state.get(session_id)
+
+def clear_active_section(session_id: str) -> None:
+    """Clear the active section menu for a session."""
+    _section_menu_state.pop(session_id, None)
+
+def get_section_command_names(section_key: str) -> list:
+    """Get command names for a section."""
+    section = get_section(section_key)
+    if section:
+        return [cmd.name for cmd in section.commands]
+    return []
+
+
 def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     kernel.context_manager.reset_session(session_id)
     summary = "Session context reset. Modules and workflows reloaded from disk."
@@ -3362,6 +3530,21 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_log_state": handle_log_state,
     "handle_state_history": handle_state_history,
     "handle_capacity_check": handle_capacity_check,
+
+    # v0.6 Sectioned Help and Section Menus
+    "handle_help_v06": handle_help_v06,
+    "handle_section_core": handle_section_core,
+    "handle_section_memory": handle_section_memory,
+    "handle_section_continuity": handle_section_continuity,
+    "handle_section_human_state": handle_section_human_state,
+    "handle_section_modules": handle_section_modules,
+    "handle_section_identity": handle_section_identity,
+    "handle_section_system": handle_section_system,
+    "handle_section_workflow": handle_section_workflow,
+    "handle_section_timerhythm": handle_section_timerhythm,
+    "handle_section_reminders": handle_section_reminders,
+    "handle_section_commands": handle_section_commands,
+    "handle_section_interpretation": handle_section_interpretation,
 
 
 }
