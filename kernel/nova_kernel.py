@@ -149,20 +149,20 @@ class NovaKernel:
         FOR ALL INPUTS:
         1. Active wizard check → feed text to wizard
         2. Active section menu check → treat text as command selection
+           (ONLY place where bare command names work)
         
         FOR INPUTS STARTING WITH #:
-        3. Explicit syscommand (includes section menus, help, all registered commands)
+        3. Explicit syscommand (ALL commands require # prefix)
         4. Wizard mode for no-arg commands
         
         FOR NON-# INPUTS:
-        5. Section command without # (core, memory, workflow, etc.)
-        6. v0.6 NL Router → pattern-based intent detection
-        7. Reminder check
-        8. Persona fallback → normal chat
+        5. v0.6 NL Router → pattern-based intent detection
+        6. Reminder check
+        7. Persona fallback → normal chat
         
-        REMOVED in v0.6:
-        - Legacy NL routing (legacy_nl_router.py) - file preserved but not imported
-        - InterpretationEngine auto-routing (kept for explicit #interpret, #derive, etc.)
+        STRICT RULE: All commands MUST start with # at top level.
+        Bare words like "core", "help", "status" are NOT commands.
+        Exception: Inside an active section menu, bare command names work.
         """
         self.logger.log_input(session_id, text)
 
@@ -284,32 +284,14 @@ class NovaKernel:
         # -------------------------------------------------------------
         
         # -------------------------------------------------------------
-        # 5) Section Command without # prefix (e.g., "core", "memory")
+        # NON-# INPUT: Goes directly to NL Router → Reminder → Persona
+        # v0.6 RULE: All commands MUST start with # at top level
+        # Bare words like "core", "help", "status" are NOT commands
+        # (except inside an active section menu, handled above)
         # -------------------------------------------------------------
-        # Check if input matches a section command name
-        first_word = stripped.split()[0].lower() if stripped.split() else ""
-        section_commands = ["core", "memory", "continuity", "human_state", "modules", 
-                          "identity", "system", "workflow", "timerhythm", "reminders", 
-                          "commands", "interpretation"]
-        
-        if first_word in section_commands and first_word in self.commands:
-            # Route to section menu handler (same as #core, #memory, etc.)
-            args_str = " ".join(stripped.split()[1:]) if len(stripped.split()) > 1 else ""
-            args_dict = self._parse_args(args_str)
-            
-            request = CommandRequest(
-                cmd_name=first_word,
-                args=args_dict,
-                session_id=session_id,
-                raw_text=text,
-                meta=self.commands.get(first_word),
-            )
-            response = self.router.route(request, kernel=self)
-            self.logger.log_response(session_id, first_word, response.to_dict())
-            return response.to_dict()
 
         # -------------------------------------------------------------
-        # 6) v0.6 NL Router (pattern-based intent detection)
+        # 5) v0.6 NL Router (pattern-based intent detection)
         # -------------------------------------------------------------
         nl_request = route_natural_language(stripped)
         if nl_request is not None:
