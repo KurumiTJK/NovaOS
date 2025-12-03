@@ -1667,6 +1667,545 @@ def handle_memory_mode_filter(cmd_name, args, session_id, context, kernel, meta)
     return _base_response(cmd_name, summary, {"mode": mode, "filter": mode_filter})
 
 
+# ---------------------------------------------------------------------
+# v0.5.8 — Continuity Commands
+# ---------------------------------------------------------------------
+
+def handle_preferences(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show user preferences extracted from memory and identity.
+    
+    Usage:
+        preferences
+        preferences limit=20
+    """
+    if not hasattr(kernel, "continuity"):
+        return _base_response(cmd_name, "Continuity helpers not initialized.", {"ok": False})
+    
+    limit = 10
+    if isinstance(args, dict) and "limit" in args:
+        try:
+            limit = int(args["limit"])
+        except (ValueError, TypeError):
+            pass
+    
+    prefs = kernel.continuity.get_user_preferences(limit=limit)
+    
+    if not prefs:
+        return _base_response(cmd_name, "No preferences found.", {"preferences": []})
+    
+    lines = []
+    for pref in prefs:
+        conf_str = f"({pref.confidence:.0%})"
+        source_str = f"[mem #{pref.source_memory_id}]" if pref.source_memory_id > 0 else "[identity]"
+        value_str = str(pref.value)[:50]
+        lines.append(f"• {pref.key}: {value_str} {conf_str} {source_str}")
+    
+    summary = F.header(f"User Preferences ({len(prefs)})") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"preferences": [p.to_dict() for p in prefs]})
+
+
+def handle_projects(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show active projects and goals.
+    
+    Usage:
+        projects
+        projects limit=10 include_stale=true
+    """
+    if not hasattr(kernel, "continuity"):
+        return _base_response(cmd_name, "Continuity helpers not initialized.", {"ok": False})
+    
+    limit = 5
+    include_stale = False
+    
+    if isinstance(args, dict):
+        if "limit" in args:
+            try:
+                limit = int(args["limit"])
+            except (ValueError, TypeError):
+                pass
+        if "include_stale" in args:
+            include_stale = str(args["include_stale"]).lower() in ("true", "yes", "1")
+    
+    projects = kernel.continuity.get_active_projects(limit=limit, include_stale=include_stale)
+    
+    if not projects:
+        return _base_response(cmd_name, "No active projects found.", {"projects": []})
+    
+    lines = []
+    for proj in projects:
+        status_icon = "✓" if proj.status == "active" else "○" if proj.status == "stale" else "—"
+        priority_str = f"P{proj.priority}"
+        source_str = f"[#{proj.source_memory_id}]" if proj.source_memory_id > 0 else "[identity]"
+        lines.append(f"{status_icon} {priority_str} {proj.name} {source_str}")
+        if proj.description and proj.description != proj.name:
+            desc = proj.description[:60]
+            lines.append(f"    {desc}...")
+    
+    summary = F.header(f"Active Projects ({len(projects)})") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"projects": [p.to_dict() for p in projects]})
+
+
+def handle_continuity_context(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show full continuity context (preferences + projects + identity + stale items).
+    
+    Usage:
+        continuity-context
+    """
+    if not hasattr(kernel, "continuity"):
+        return _base_response(cmd_name, "Continuity helpers not initialized.", {"ok": False})
+    
+    ctx = kernel.continuity.get_continuity_context()
+    
+    lines = []
+    
+    # Identity summary
+    if ctx.identity_summary:
+        lines.append("Identity:")
+        if ctx.identity_summary.get("name"):
+            lines.append(f"  Name: {ctx.identity_summary['name']}")
+        if ctx.identity_summary.get("context"):
+            lines.append(f"  Context: {ctx.identity_summary['context'][:50]}...")
+        if ctx.identity_summary.get("goals"):
+            lines.append(f"  Goals: {', '.join(ctx.identity_summary['goals'][:3])}")
+        lines.append("")
+    
+    # Active projects
+    active_projects = [p for p in ctx.projects if p.status == "active"]
+    if active_projects:
+        lines.append(f"Active Projects ({len(active_projects)}):")
+        for proj in active_projects[:3]:
+            lines.append(f"  • {proj.name}")
+        lines.append("")
+    
+    # Top preferences
+    if ctx.preferences:
+        lines.append(f"Preferences ({len(ctx.preferences)}):")
+        for pref in ctx.preferences[:3]:
+            lines.append(f"  • {pref.key}: {str(pref.value)[:30]}")
+        lines.append("")
+    
+    # Stale items
+    if ctx.stale_items:
+        lines.append(f"Items Needing Re-confirmation ({len(ctx.stale_items)}):")
+        for item in ctx.stale_items[:3]:
+            lines.append(f"  ? {item['suggestion']}")
+    
+    summary = F.header("Continuity Context") + "\n".join(lines)
+    return _base_response(cmd_name, summary, ctx.to_dict())
+
+
+def handle_reconfirm_prompts(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show gentle re-confirmation prompts for stale items.
+    
+    Usage:
+        reconfirm-prompts
+        reconfirm-prompts limit=5
+    """
+    if not hasattr(kernel, "continuity"):
+        return _base_response(cmd_name, "Continuity helpers not initialized.", {"ok": False})
+    
+    limit = 3
+    if isinstance(args, dict) and "limit" in args:
+        try:
+            limit = int(args["limit"])
+        except (ValueError, TypeError):
+            pass
+    
+    prompts = kernel.continuity.generate_reconfirmation_prompts(limit=limit)
+    
+    if not prompts:
+        return _base_response(cmd_name, "No re-confirmation prompts needed.", {"prompts": []})
+    
+    lines = []
+    for p in prompts:
+        tone_icon = "💭" if p["tone"] == "gentle" else "🤔" if p["tone"] == "curious" else "❓"
+        lines.append(f"{tone_icon} {p['prompt']}")
+    
+    summary = F.header("Re-confirmation Suggestions") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"prompts": prompts})
+
+
+def handle_suggest_workflow(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Suggest a workflow for a goal.
+    
+    Usage:
+        suggest-workflow goal="Learn ML"
+    """
+    if not hasattr(kernel, "continuity"):
+        return _base_response(cmd_name, "Continuity helpers not initialized.", {"ok": False})
+    
+    goal_name = None
+    if isinstance(args, dict):
+        goal_name = args.get("goal") or args.get("name")
+        if not goal_name:
+            positional = args.get("_", [])
+            if positional:
+                goal_name = " ".join(str(p) for p in positional)
+    
+    if not goal_name:
+        # Show available goals
+        projects = kernel.continuity.get_active_projects(limit=5)
+        if projects:
+            goal_list = ", ".join(p.name for p in projects)
+            return _base_response(
+                cmd_name,
+                f"Usage: suggest-workflow goal=\"<goal_name>\"\nAvailable goals: {goal_list}",
+                {"ok": False, "available_goals": [p.name for p in projects]}
+            )
+        return _base_response(cmd_name, "No goals found. Set some with identity-set or store memories.", {"ok": False})
+    
+    suggestion = kernel.continuity.suggest_workflow_for_goal(goal_name)
+    
+    if not suggestion:
+        return _base_response(cmd_name, f"Goal '{goal_name}' not found.", {"ok": False})
+    
+    lines = [
+        F.key_value("Workflow Name", suggestion["name"]),
+        "",
+        "Suggested Steps:",
+    ]
+    for i, step in enumerate(suggestion["suggested_steps"], 1):
+        lines.append(f"  {i}. {step}")
+    
+    lines.append("")
+    lines.append("To create: compose name=\"" + suggestion["name"] + "\"")
+    
+    summary = F.header("Workflow Suggestion") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"suggestion": suggestion})
+
+
+# ---------------------------------------------------------------------
+# v0.5.9 — Human State Commands
+# ---------------------------------------------------------------------
+
+def handle_evolution_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show evolution status (human state summary).
+    Non-LLM, formatted via OutputFormatter.
+    
+    Usage:
+        evolution-status
+    """
+    if not hasattr(kernel, "human_state"):
+        return _base_response(cmd_name, "Human state manager not initialized.", {"ok": False})
+    
+    hsm = kernel.human_state
+    summary_data = hsm.get_evolution_summary()
+    
+    current = summary_data["current"]
+    trends = summary_data["trends"]
+    meta_info = summary_data["meta"]
+    recs = summary_data["recommendations"]
+    
+    # Build formatted output
+    lines = []
+    
+    # Current state section
+    lines.append("Current State:")
+    
+    # Energy with trend indicator
+    energy_icon = "⚡" if current["energy"] in ("good", "high") else "🔋" if current["energy"] == "moderate" else "🪫"
+    trend_arrow = "↑" if trends["energy"] == "improving" else "↓" if trends["energy"] == "declining" else "→"
+    lines.append(f"  {energy_icon} Energy: {current['energy']} {trend_arrow}")
+    
+    # Stress with trend
+    stress_icon = "😌" if current["stress"] in ("calm", "low") else "😐" if current["stress"] == "moderate" else "😰"
+    stress_arrow = "↓" if trends["stress"] == "improving" else "↑" if trends["stress"] == "increasing" else "→"
+    lines.append(f"  {stress_icon} Stress: {current['stress']} {stress_arrow}")
+    
+    # Cognitive load
+    load_icon = "🧠" if current["cognitive_load"] in ("clear", "light") else "💭" if current["cognitive_load"] == "moderate" else "🤯"
+    lines.append(f"  {load_icon} Cognitive load: {current['cognitive_load']}")
+    
+    # Momentum with trend
+    momentum_icon = "🚀" if current["momentum"] in ("building", "flowing") else "🚶" if current["momentum"] == "steady" else "🐢"
+    momentum_arrow = "↑" if trends["momentum"] == "building" else "↓" if trends["momentum"] == "slowing" else "→"
+    lines.append(f"  {momentum_icon} Momentum: {current['momentum']} {momentum_arrow}")
+    
+    lines.append("")
+    
+    # Capacity summary
+    capacity_icons = {
+        "excellent": "🟢",
+        "good": "🟢",
+        "moderate": "🟡",
+        "limited": "🟠",
+        "very_limited": "🔴",
+    }
+    cap_icon = capacity_icons.get(current["capacity"], "⚪")
+    lines.append(f"Overall Capacity: {cap_icon} {current['capacity'].replace('_', ' ').title()}")
+    lines.append(f"Strain Level: {current['strain']:.0%}")
+    
+    # Streak
+    if meta_info["checkin_streak"] > 0:
+        lines.append("")
+        lines.append(f"🔥 Check-in streak: {meta_info['checkin_streak']} days")
+    
+    # Recommendations
+    if recs:
+        lines.append("")
+        lines.append("Recommendations:")
+        for rec in recs[:4]:
+            lines.append(f"  • {rec}")
+    
+    summary = F.header("Evolution Status") + "\n".join(lines)
+    return _base_response(cmd_name, summary, summary_data)
+
+
+def handle_log_state(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Guided check-in for updating human state.
+    
+    Usage:
+        log-state                          (show current + prompts)
+        log-state energy=good stress=low   (update specific fields)
+        log-state checkin                  (record check-in)
+    """
+    if not hasattr(kernel, "human_state"):
+        return _base_response(cmd_name, "Human state manager not initialized.", {"ok": False})
+    
+    hsm = kernel.human_state
+    
+    if not isinstance(args, dict) or not args:
+        # Show guided prompts
+        state = hsm.get_state()
+        
+        lines = [
+            "Current State:",
+            f"  Energy: {state.bio.energy}",
+            f"  Stress: {state.bio.stress}",
+            f"  Cognitive Load: {state.load.cognitive_load}",
+            f"  Momentum: {state.aspiration.momentum}",
+            "",
+            "Update with:",
+            "  log-state energy=<level>",
+            "    Levels: depleted, low, moderate, good, high",
+            "",
+            "  log-state stress=<level>",
+            "    Levels: overwhelmed, high, moderate, low, calm",
+            "",
+            "  log-state load=<level>",
+            "    Levels: overloaded, heavy, moderate, light, clear",
+            "",
+            "  log-state momentum=<level>",
+            "    Levels: stalled, slow, steady, building, flowing",
+            "",
+            "  log-state checkin notes=\"How I'm feeling\"",
+            "    Record a check-in snapshot",
+        ]
+        
+        summary = F.header("Log State — Guided Check-in") + "\n".join(lines)
+        return _base_response(cmd_name, summary, {"current": state.to_dict()})
+    
+    # Process updates
+    updates_made = []
+    
+    # Energy
+    if "energy" in args:
+        energy = args["energy"]
+        valid_energy = {"depleted", "low", "moderate", "good", "high"}
+        if energy in valid_energy:
+            hsm.update_bio(energy=energy)
+            updates_made.append(f"energy → {energy}")
+    
+    # Stress
+    if "stress" in args:
+        stress = args["stress"]
+        valid_stress = {"overwhelmed", "high", "moderate", "low", "calm"}
+        if stress in valid_stress:
+            hsm.update_bio(stress=stress)
+            updates_made.append(f"stress → {stress}")
+    
+    # Sleep
+    if "sleep_hours" in args:
+        try:
+            hours = float(args["sleep_hours"])
+            hsm.update_bio(sleep_hours=hours)
+            updates_made.append(f"sleep_hours → {hours}")
+        except (ValueError, TypeError):
+            pass
+    
+    if "sleep_quality" in args:
+        quality = args["sleep_quality"]
+        valid_quality = {"poor", "fair", "good", "great"}
+        if quality in valid_quality:
+            hsm.update_bio(sleep_quality=quality)
+            updates_made.append(f"sleep_quality → {quality}")
+    
+    # Cognitive load
+    if "load" in args:
+        load = args["load"]
+        valid_load = {"overloaded", "heavy", "moderate", "light", "clear"}
+        if load in valid_load:
+            hsm.update_load(cognitive_load=load)
+            updates_made.append(f"cognitive_load → {load}")
+    
+    # Tasks
+    if "tasks" in args:
+        try:
+            tasks = int(args["tasks"])
+            hsm.update_load(active_tasks=tasks)
+            updates_made.append(f"active_tasks → {tasks}")
+        except (ValueError, TypeError):
+            pass
+    
+    # Focus
+    if "focus" in args:
+        focus = args["focus"]
+        valid_focus = {"scattered", "okay", "focused", "deep"}
+        if focus in valid_focus:
+            hsm.update_load(focus_quality=focus)
+            updates_made.append(f"focus_quality → {focus}")
+    
+    # Momentum
+    if "momentum" in args:
+        momentum = args["momentum"]
+        valid_momentum = {"stalled", "slow", "steady", "building", "flowing"}
+        if momentum in valid_momentum:
+            hsm.update_aspiration(momentum=momentum)
+            updates_made.append(f"momentum → {momentum}")
+    
+    # Win
+    if "win" in args:
+        win = args["win"]
+        hsm.update_aspiration(add_win=win)
+        updates_made.append(f"added win: {win[:30]}")
+    
+    # Blocker
+    if "blocker" in args:
+        blocker = args["blocker"]
+        hsm.update_aspiration(add_blocker=blocker)
+        updates_made.append(f"added blocker: {blocker[:30]}")
+    
+    if "clear_blocker" in args:
+        blocker = args["clear_blocker"]
+        hsm.update_aspiration(remove_blocker=blocker)
+        updates_made.append(f"cleared blocker: {blocker[:30]}")
+    
+    # Current focus
+    if "current_focus" in args:
+        focus = args["current_focus"]
+        hsm.update_aspiration(current_focus=focus)
+        updates_made.append(f"current_focus → {focus[:30]}")
+    
+    # Check-in
+    if "checkin" in args or args.get("_") == ["checkin"]:
+        notes = args.get("notes", "")
+        entry = hsm.do_checkin(notes=notes if notes else None)
+        updates_made.append(f"check-in recorded (strain: {entry.overall_strain:.0%})")
+    
+    if not updates_made:
+        return _base_response(cmd_name, "No valid updates provided. Run 'log-state' for help.", {"ok": False})
+    
+    lines = ["Updates applied:"] + [f"  ✓ {u}" for u in updates_made]
+    
+    # Show new capacity
+    state = hsm.get_state()
+    lines.append("")
+    lines.append(f"Current capacity: {state.get_capacity_level().replace('_', ' ')}")
+    
+    if state.needs_small_version():
+        lines.append("⚡ Recommendation: Consider 'small version' tasks")
+    
+    summary = F.header("State Updated") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"updates": updates_made, "current": state.to_dict()})
+
+
+def handle_state_history(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Show human state history.
+    
+    Usage:
+        state-history
+        state-history limit=20
+    """
+    if not hasattr(kernel, "human_state"):
+        return _base_response(cmd_name, "Human state manager not initialized.", {"ok": False})
+    
+    hsm = kernel.human_state
+    
+    limit = 10
+    if isinstance(args, dict) and "limit" in args:
+        try:
+            limit = int(args["limit"])
+        except (ValueError, TypeError):
+            pass
+    
+    history = hsm.get_history(limit=limit)
+    
+    if not history:
+        return _base_response(cmd_name, "No state history yet. Use 'log-state checkin' to record.", {"history": []})
+    
+    lines = []
+    for entry in history:
+        ts = entry.timestamp[:16].replace("T", " ")
+        strain_pct = f"{entry.overall_strain:.0%}"
+        lines.append(
+            f"• {ts} — Energy: {entry.bio_energy}, Stress: {entry.bio_stress}, "
+            f"Momentum: {entry.aspiration_momentum} ({strain_pct} strain)"
+        )
+        if entry.notes:
+            lines.append(f"    \"{entry.notes[:50]}...\"")
+    
+    summary = F.header(f"State History ({len(history)} entries)") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {"history": [e.to_dict() for e in history]})
+
+
+def handle_capacity_check(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Quick capacity check with recommendations.
+    
+    Usage:
+        capacity
+    """
+    if not hasattr(kernel, "human_state"):
+        return _base_response(cmd_name, "Human state manager not initialized.", {"ok": False})
+    
+    hsm = kernel.human_state
+    state = hsm.get_state()
+    
+    capacity = state.get_capacity_level()
+    strain = state.get_overall_strain()
+    needs_small = state.needs_small_version()
+    
+    # Capacity emoji
+    cap_emoji = {
+        "excellent": "🟢 Excellent",
+        "good": "🟢 Good",
+        "moderate": "🟡 Moderate",
+        "limited": "🟠 Limited",
+        "very_limited": "🔴 Very Limited",
+    }
+    
+    lines = [
+        f"Capacity: {cap_emoji.get(capacity, capacity)}",
+        f"Strain: {strain:.0%}",
+        "",
+    ]
+    
+    if needs_small:
+        lines.append("⚡ Consider 'small version' tasks today:")
+        lines.append("  • Break tasks into 15-minute chunks")
+        lines.append("  • Focus on one thing at a time")
+        lines.append("  • Defer non-essential decisions")
+    else:
+        lines.append("✓ You have good capacity for normal tasks")
+        if state.aspiration.momentum in ("building", "flowing"):
+            lines.append("🚀 Momentum is strong — good time for deep work")
+    
+    summary = F.header("Capacity Check") + "\n".join(lines)
+    return _base_response(cmd_name, summary, {
+        "capacity": capacity,
+        "strain": strain,
+        "needs_small_version": needs_small,
+    })
+
+
 # ------------------------ Modules v0.3 handlers ------------------------
 
 
@@ -2810,6 +3349,19 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_memory_policy": handle_memory_policy,
     "handle_memory_policy_test": handle_memory_policy_test,
     "handle_memory_mode_filter": handle_memory_mode_filter,
+
+    # v0.5.8 Continuity
+    "handle_preferences": handle_preferences,
+    "handle_projects": handle_projects,
+    "handle_continuity_context": handle_continuity_context,
+    "handle_reconfirm_prompts": handle_reconfirm_prompts,
+    "handle_suggest_workflow": handle_suggest_workflow,
+
+    # v0.5.9 Human State
+    "handle_evolution_status": handle_evolution_status,
+    "handle_log_state": handle_log_state,
+    "handle_state_history": handle_state_history,
+    "handle_capacity_check": handle_capacity_check,
 
 
 }

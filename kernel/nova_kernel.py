@@ -14,6 +14,8 @@ from .policy_engine import PolicyEngine
 from .logger import KernelLogger
 from .identity_manager import IdentityManager
 from .memory_policy import MemoryPolicy
+from .continuity_helpers import ContinuityHelpers
+from .human_state import HumanStateManager
 from kernel.interpretation_engine import InterpretationEngine
 
 
@@ -92,6 +94,15 @@ class NovaKernel:
             self.memory_manager.set_post_recall_hook(
                 self.memory_policy.create_post_recall_hook()
             )
+
+        # ---------------- v0.5.8 Continuity Helpers ----------------
+        self.continuity = ContinuityHelpers(
+            memory_manager=self.memory_manager,
+            identity_manager=self.identity_manager,
+        )
+
+        # ---------------- v0.5.9 Human State ----------------
+        self.human_state = HumanStateManager(self.config.data_dir)
 
         # ---------------- Persona fallback ----------------
         from persona.nova_persona import NovaPersona
@@ -903,6 +914,36 @@ class NovaKernel:
         }
 
     # ------------------------------------------------------------------
+    # v0.5.8 Continuity Helpers
+    # ------------------------------------------------------------------
+
+    def get_user_preferences(self, limit: int = 10) -> list:
+        """
+        Get user preferences from memory and identity.
+        Convenience method wrapping ContinuityHelpers.
+        """
+        return [p.to_dict() for p in self.continuity.get_user_preferences(limit=limit)]
+
+    def get_active_projects(self, limit: int = 5) -> list:
+        """
+        Get active projects/goals from memory and identity.
+        Convenience method wrapping ContinuityHelpers.
+        """
+        return [p.to_dict() for p in self.continuity.get_active_projects(limit=limit)]
+
+    def get_continuity_context(self) -> dict:
+        """
+        Get full continuity context for interpretation framing.
+        """
+        return self.continuity.get_continuity_context().to_dict()
+
+    def get_reconfirmation_prompts(self, limit: int = 3) -> list:
+        """
+        Get gentle re-confirmation prompts for stale items.
+        """
+        return self.continuity.generate_reconfirmation_prompts(limit=limit)
+
+    # ------------------------------------------------------------------
     # v0.4 kernel state export (for snapshots)
     # ------------------------------------------------------------------
     def export_kernel_state(self) -> Dict[str, Any]:
@@ -914,4 +955,3 @@ class NovaKernel:
             "time_rhythm": getattr(self.time_rhythm_engine, "to_dict", lambda: {})(),
             "workflows": getattr(self.workflow_engine, "to_dict", lambda: {})(),
         }
-

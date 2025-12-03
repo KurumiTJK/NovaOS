@@ -116,6 +116,53 @@
     "description": "Show memory recall filters for current or specified mode."
   },
 
+  "preferences": {
+    "handler": "handle_preferences",
+    "category": "continuity",
+    "description": "Show user preferences extracted from memory and identity."
+  },
+  "projects": {
+    "handler": "handle_projects",
+    "category": "continuity",
+    "description": "Show active projects and goals."
+  },
+  "continuity-context": {
+    "handler": "handle_continuity_context",
+    "category": "continuity",
+    "description": "Show full continuity context (preferences + projects + identity)."
+  },
+  "reconfirm-prompts": {
+    "handler": "handle_reconfirm_prompts",
+    "category": "continuity",
+    "description": "Show gentle re-confirmation prompts for stale items."
+  },
+  "suggest-workflow": {
+    "handler": "handle_suggest_workflow",
+    "category": "continuity",
+    "description": "Suggest a workflow for a goal."
+  },
+
+  "evolution-status": {
+    "handler": "handle_evolution_status",
+    "category": "human_state",
+    "description": "Show evolution status (human state summary with trends)."
+  },
+  "log-state": {
+    "handler": "handle_log_state",
+    "category": "human_state",
+    "description": "Guided check-in for updating human state."
+  },
+  "state-history": {
+    "handler": "handle_state_history",
+    "category": "human_state",
+    "description": "Show human state history."
+  },
+  "capacity": {
+    "handler": "handle_capacity_check",
+    "category": "human_state",
+    "description": "Quick capacity check with recommendations."
+  },
+
   "map": {
     "handler": "handle_map",
     "category": "modules",
