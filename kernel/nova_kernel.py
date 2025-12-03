@@ -155,9 +155,10 @@ class NovaKernel:
         4. Wizard mode for no-arg commands
         
         FOR NON-# INPUTS:
-        5. v0.6 NL Router → pattern-based intent detection
-        6. Reminder check
-        7. Persona fallback → normal chat
+        5. Section command without # (core, memory, workflow, etc.)
+        6. v0.6 NL Router → pattern-based intent detection
+        7. Reminder check
+        8. Persona fallback → normal chat
         
         REMOVED in v0.6:
         - Legacy NL routing (legacy_nl_router.py) - file preserved but not imported
@@ -211,18 +212,7 @@ class NovaKernel:
             selection = stripped.lower().strip()
             valid_commands = get_section_command_names(active_section)
             
-            # Check if it's a number (invalid)
-            if selection.isdigit():
-                section = get_section(active_section)
-                example_cmd = section.commands[0].name if section and section.commands else "command"
-                return {
-                    "ok": True,
-                    "command": "section_menu",
-                    "summary": f"I didn't recognize that selection.\nPlease type the exact command name shown in the menu (e.g., \"{example_cmd}\").",
-                    "content": {"command": "section_menu", "summary": "Invalid selection"},
-                }
-            
-            # Check if valid command name
+            # Check if valid command name - EXACT match required
             if selection in valid_commands:
                 # Clear the menu state and execute the command
                 clear_active_section(session_id)
@@ -237,14 +227,15 @@ class NovaKernel:
                 self.logger.log_response(session_id, selection, response.to_dict())
                 return response.to_dict()
             else:
-                # Invalid selection
-                section = get_section(active_section)
-                example_cmd = section.commands[0].name if section and section.commands else "command"
+                # ANY invalid input exits the section menu immediately
+                # This includes: numbers, wrong names, "exit", "quit", natural language, etc.
+                clear_active_section(session_id)
+                self.logger.log_input(session_id, f"[SECTION_MENU] Exiting {active_section} menu - invalid input: {selection}")
                 return {
                     "ok": True,
-                    "command": "section_menu",
-                    "summary": f"I didn't recognize that selection.\nPlease type the exact command name shown in the menu (e.g., \"{example_cmd}\").",
-                    "content": {"command": "section_menu", "summary": "Invalid selection"},
+                    "command": "section_menu_exit",
+                    "summary": "Exiting section menu.",
+                    "content": {"command": "section_menu_exit", "summary": "Exiting section menu."},
                 }
 
         # Clear any stale section menu state if user types a # command
@@ -289,11 +280,36 @@ class NovaKernel:
                 return self._error("UNKNOWN_COMMAND", f"Unknown command: #{cmd_name}").to_dict()
 
         # -------------------------------------------------------------
-        # NON-# INPUT PATH: NL Router → Reminder Check → Persona
+        # NON-# INPUT PATH
         # -------------------------------------------------------------
+        
+        # -------------------------------------------------------------
+        # 5) Section Command without # prefix (e.g., "core", "memory")
+        # -------------------------------------------------------------
+        # Check if input matches a section command name
+        first_word = stripped.split()[0].lower() if stripped.split() else ""
+        section_commands = ["core", "memory", "continuity", "human_state", "modules", 
+                          "identity", "system", "workflow", "timerhythm", "reminders", 
+                          "commands", "interpretation"]
+        
+        if first_word in section_commands and first_word in self.commands:
+            # Route to section menu handler (same as #core, #memory, etc.)
+            args_str = " ".join(stripped.split()[1:]) if len(stripped.split()) > 1 else ""
+            args_dict = self._parse_args(args_str)
+            
+            request = CommandRequest(
+                cmd_name=first_word,
+                args=args_dict,
+                session_id=session_id,
+                raw_text=text,
+                meta=self.commands.get(first_word),
+            )
+            response = self.router.route(request, kernel=self)
+            self.logger.log_response(session_id, first_word, response.to_dict())
+            return response.to_dict()
 
         # -------------------------------------------------------------
-        # 5) v0.6 NL Router (pattern-based intent detection)
+        # 6) v0.6 NL Router (pattern-based intent detection)
         # -------------------------------------------------------------
         nl_request = route_natural_language(stripped)
         if nl_request is not None:
@@ -380,15 +396,23 @@ class NovaKernel:
         """
         Ensure the in-memory command registry is always a dict:
         { cmd_name: meta_dict }.
+        
+        v0.6: Also strips any '#' prefix from command names since
+        the # is input syntax only, not part of the command identifier.
 
         Handles:
-        - dict: already in desired shape.
+        - dict: already in desired shape (with # stripped from keys).
         - list-of-dicts v0.2 formats.
         This mirrors nova_registry._normalize_commands but is defensive
         in case anything upstream returns an unexpected shape.
         """
         if isinstance(raw, dict):
-            return raw
+            # v0.6: Strip # prefix from all keys
+            normalized = {}
+            for key, value in raw.items():
+                clean_key = key.lstrip("#")
+                normalized[clean_key] = value
+            return normalized
 
         normalized: Dict[str, Dict[str, Any]] = {}
         if isinstance(raw, list):
@@ -397,6 +421,8 @@ class NovaKernel:
                     continue
                 name = entry.get("name") or entry.get("command") or entry.get("cmd")
                 if name:
+                    # v0.6: Strip # prefix
+                    name = name.lstrip("#")
                     meta = {
                         k: v
                         for k, v in entry.items()
@@ -407,7 +433,8 @@ class NovaKernel:
                 if len(entry) == 1:
                     k, v = next(iter(entry.items()))
                     if isinstance(v, dict):
-                        normalized[k] = v
+                        # v0.6: Strip # prefix
+                        normalized[k.lstrip("#")] = v
                         continue
         return normalized
 

@@ -30,14 +30,23 @@ class SyscommandRouter:
     def _normalize_commands(self, raw: Any) -> Dict[str, Dict[str, Any]]:
         """
         Ensure we always have a dict: { cmd_name: meta_dict }.
+        
+        v0.6: Also strips any '#' prefix from command names since
+        the # is input syntax only, not part of the command identifier.
 
         Handles:
         - dict: { "boot": {...}, "status": {...} }
+        - dict with # prefix: { "#boot": {...} } → normalized to { "boot": {...} }
         - list of dicts with 'name' / 'command' / 'cmd'
         - list of single-key dicts: [{ "boot": {...} }, { "status": {...} }]
         """
         if isinstance(raw, dict):
-            return raw
+            # v0.6: Strip # prefix from all keys
+            normalized = {}
+            for key, value in raw.items():
+                clean_key = key.lstrip("#")
+                normalized[clean_key] = value
+            return normalized
 
         normalized: Dict[str, Dict[str, Any]] = {}
 
@@ -49,6 +58,8 @@ class SyscommandRouter:
                 # Shape A: explicit name field
                 name = entry.get("name") or entry.get("command") or entry.get("cmd")
                 if name:
+                    # v0.6: Strip # prefix
+                    name = name.lstrip("#")
                     meta = {
                         k: v
                         for k, v in entry.items()
@@ -61,7 +72,8 @@ class SyscommandRouter:
                 if len(entry) == 1:
                     k, v = next(iter(entry.items()))
                     if isinstance(v, dict):
-                        normalized[k] = v
+                        # v0.6: Strip # prefix
+                        normalized[k.lstrip("#")] = v
                     continue
 
         return normalized
