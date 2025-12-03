@@ -135,7 +135,7 @@ class IntentPatterns:
         (r"\bhow am i doing\b", "evolution-status", None, 0.8),
         (r"\bcheck(-in| in|in)\b", "log-state", None, 0.75),
         (r"\b(log|update) (my )?(state|energy|stress)\b", "log-state", None, 0.8),
-        (r"\b(my )?capacity\b", "capacity", None, 0.8),
+        (r"\b(my|check|show) capacity\b", "capacity", None, 0.8),  # Requires "my/check/show capacity", not bare "capacity"
     ]
     
     # ===== CONTINUITY =====
