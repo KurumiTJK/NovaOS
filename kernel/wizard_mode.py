@@ -110,35 +110,10 @@ _wizard_manager = WizardManager()
 # -----------------------------------------------------------------------------
 
 WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
-    "flow": WizardDefinition(
-        command="flow",
-        title="Start Workflow",
-        description="Start or resume a workflow.",
-        steps=[
-            WizardStep(
-                key="name",
-                prompt="What is the name of the workflow you want to start?\n(Type the workflow name, or 'list' to see available workflows)",
-                required=True,
-            ),
-        ],
-    ),
-    "remind-add": WizardDefinition(
-        command="remind-add",
-        title="Add Reminder",
-        description="Create a new reminder.",
-        steps=[
-            WizardStep(
-                key="msg",
-                prompt="What would you like to be reminded about?",
-                required=True,
-            ),
-            WizardStep(
-                key="at",
-                prompt="When should I remind you?\n(Examples: '9:00 AM', 'in 30 minutes', 'tomorrow 2pm')",
-                required=True,
-            ),
-        ],
-    ),
+    # =========================================================================
+    # GROUP A: Strong Wizard Candidates (must have)
+    # =========================================================================
+    
     "store": WizardDefinition(
         command="store",
         title="Store Memory",
@@ -158,60 +133,31 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
             ),
             WizardStep(
                 key="tags",
-                prompt="What tags should this memory have?\n(Comma-separated, e.g., 'work,project,meeting')\n[Default: general]",
+                prompt="Tags for this memory?\n(Comma-separated, e.g., 'work, project')\n[Press Enter to skip]",
                 required=False,
-                default="general",
+                default="",
             ),
         ],
     ),
-    "identity-set": WizardDefinition(
-        command="identity-set",
-        title="Set Identity",
-        description="Update identity traits.",
+    
+    "remind-add": WizardDefinition(
+        command="remind-add",
+        title="Add Reminder",
+        description="Create a new reminder.",
         steps=[
             WizardStep(
-                key="trait",
-                prompt="Which trait would you like to set?\n(Options: name, goals, values, context, roles, strengths, growth_areas)",
+                key="title",
+                prompt="What should I remind you about?",
                 required=True,
-                options=["name", "goals", "values", "context", "roles", "strengths", "growth_areas"],
             ),
             WizardStep(
-                key="value",
-                prompt="What value should this trait have?\n(For lists like goals/values, separate with commas)",
+                key="when",
+                prompt="When should I remind you?\n(Examples: 'tomorrow 9am', 'in 30 minutes', 'friday 3pm')",
                 required=True,
             ),
         ],
     ),
-    "mode": WizardDefinition(
-        command="mode",
-        title="Set Mode",
-        description="Change NovaOS operating mode.",
-        steps=[
-            WizardStep(
-                key="mode",
-                prompt="Which mode would you like to switch to?\n(Options: normal, deep_work, reflection, debug)",
-                required=True,
-                options=["normal", "deep_work", "reflection", "debug"],
-            ),
-        ],
-    ),
-    "compose": WizardDefinition(
-        command="compose",
-        title="Compose Workflow",
-        description="Create a new workflow with LLM assistance.",
-        steps=[
-            WizardStep(
-                key="name",
-                prompt="What should this workflow be called?",
-                required=True,
-            ),
-            WizardStep(
-                key="description",
-                prompt="Describe what this workflow should accomplish.\n(The more detail, the better the generated steps)",
-                required=True,
-            ),
-        ],
-    ),
+    
     "log-state": WizardDefinition(
         command="log-state",
         title="Log State",
@@ -234,6 +180,477 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
                 prompt="How is your momentum?\n(Options: stalled, slow, steady, building, flowing)",
                 required=False,
                 options=["stalled", "slow", "steady", "building", "flowing"],
+            ),
+        ],
+    ),
+    
+    "identity-set": WizardDefinition(
+        command="identity-set",
+        title="Set Identity",
+        description="Update identity traits.",
+        steps=[
+            WizardStep(
+                key="trait",
+                prompt="Which trait would you like to set?\n(Options: name, goals, values, context, roles, strengths, growth_areas)",
+                required=True,
+                options=["name", "goals", "values", "context", "roles", "strengths", "growth_areas"],
+            ),
+            WizardStep(
+                key="value",
+                prompt="What value should this trait have?\n(For lists like goals/values, separate with commas)",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "flow": WizardDefinition(
+        command="flow",
+        title="Start Workflow",
+        description="Start or resume a workflow.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="What is the ID of the workflow you want to start?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "compose": WizardDefinition(
+        command="compose",
+        title="Compose Workflow",
+        description="Create a new workflow with LLM assistance.",
+        steps=[
+            WizardStep(
+                key="name",
+                prompt="What should this workflow be called?",
+                required=True,
+            ),
+            WizardStep(
+                key="description",
+                prompt="Describe what this workflow should accomplish.\n(The more detail, the better the generated steps)",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "snapshot": WizardDefinition(
+        command="snapshot",
+        title="Create Snapshot",
+        description="Create a snapshot of NovaOS state.",
+        steps=[
+            WizardStep(
+                key="label",
+                prompt="Label for this snapshot?\n[Press Enter to skip]",
+                required=False,
+                default="",
+            ),
+            WizardStep(
+                key="notes",
+                prompt="Any notes for this snapshot?\n[Press Enter to skip]",
+                required=False,
+                default="",
+            ),
+        ],
+    ),
+    
+    "forge": WizardDefinition(
+        command="forge",
+        title="Forge Module",
+        description="Create a new module.",
+        steps=[
+            WizardStep(
+                key="key",
+                prompt="Module key (unique identifier, e.g., 'finance', 'health')?",
+                required=True,
+            ),
+            WizardStep(
+                key="name",
+                prompt="Module name (display name)?\n[Press Enter to use key as name]",
+                required=False,
+                default="",
+            ),
+            WizardStep(
+                key="mission",
+                prompt="Module mission (what does this module do)?\n[Press Enter to skip]",
+                required=False,
+                default="",
+            ),
+        ],
+    ),
+    
+    "restore": WizardDefinition(
+        command="restore",
+        title="Restore Snapshot",
+        description="Restore NovaOS state from a snapshot.",
+        steps=[
+            WizardStep(
+                key="file",
+                prompt="Which snapshot file to restore?\n(e.g., 'snapshot_20251203T120000Z.json')",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "command-add": WizardDefinition(
+        command="command-add",
+        title="Add Custom Command",
+        description="Create a new custom command.",
+        steps=[
+            WizardStep(
+                key="name",
+                prompt="Command name (e.g., 'daily-review')?",
+                required=True,
+            ),
+            WizardStep(
+                key="kind",
+                prompt="Command type?\n(Options: prompt, macro)\n[Default: prompt]",
+                required=False,
+                default="prompt",
+                options=["prompt", "macro"],
+            ),
+            WizardStep(
+                key="prompt",
+                prompt="What should this command do?\n(Describe the prompt or action)",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "forget": WizardDefinition(
+        command="forget",
+        title="Forget Memory",
+        description="Delete memory items.",
+        steps=[
+            WizardStep(
+                key="forget_by",
+                prompt="Forget by what?\n(Options: id, tags, type)",
+                required=True,
+                options=["id", "tags", "type"],
+            ),
+            WizardStep(
+                key="forget_value",
+                prompt="Enter the value:\n(ID number, comma-separated tags, or type name)",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "bind": WizardDefinition(
+        command="bind",
+        title="Bind Memories",
+        description="Bind memory items into a cluster.",
+        steps=[
+            WizardStep(
+                key="ids",
+                prompt="Which memory IDs to bind?\n(Comma-separated, e.g., '1, 2, 3')",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "workflow-delete": WizardDefinition(
+        command="workflow-delete",
+        title="Delete Workflow",
+        description="Delete a workflow.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which workflow ID to delete?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "remind-update": WizardDefinition(
+        command="remind-update",
+        title="Update Reminder",
+        description="Update an existing reminder.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which reminder ID to update?",
+                required=True,
+            ),
+            WizardStep(
+                key="title",
+                prompt="New title?\n[Press Enter to keep current]",
+                required=False,
+                default="",
+            ),
+            WizardStep(
+                key="when",
+                prompt="New time?\n[Press Enter to keep current]",
+                required=False,
+                default="",
+            ),
+        ],
+    ),
+    
+    "remind-delete": WizardDefinition(
+        command="remind-delete",
+        title="Delete Reminder",
+        description="Delete a reminder.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which reminder ID to delete?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    # =========================================================================
+    # GROUP B: Optional Wizards (nice to have)
+    # =========================================================================
+    
+    "mode": WizardDefinition(
+        command="mode",
+        title="Set Mode",
+        description="Change NovaOS operating mode.",
+        steps=[
+            WizardStep(
+                key="mode",
+                prompt="Which mode?\n(Options: normal, deep_work, reflection, debug)",
+                required=True,
+                options=["normal", "deep_work", "reflection", "debug"],
+            ),
+        ],
+    ),
+    
+    "setenv": WizardDefinition(
+        command="setenv",
+        title="Set Environment",
+        description="Set an environment variable.",
+        steps=[
+            WizardStep(
+                key="key",
+                prompt="Which environment key to set?",
+                required=True,
+            ),
+            WizardStep(
+                key="value",
+                prompt="What value?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "memory-salience": WizardDefinition(
+        command="memory-salience",
+        title="Set Memory Salience",
+        description="Update the importance of a memory.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which memory ID?",
+                required=True,
+            ),
+            WizardStep(
+                key="salience",
+                prompt="New salience value?\n(0.0 to 1.0, where 1.0 = most important)",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "memory-status": WizardDefinition(
+        command="memory-status",
+        title="Set Memory Status",
+        description="Update the status of a memory.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which memory ID?",
+                required=True,
+            ),
+            WizardStep(
+                key="status",
+                prompt="New status?\n(Options: active, stale, archived, pending_confirmation)",
+                required=True,
+                options=["active", "stale", "archived", "pending_confirmation"],
+            ),
+        ],
+    ),
+    
+    "memory-reconfirm": WizardDefinition(
+        command="memory-reconfirm",
+        title="Reconfirm Memory",
+        description="Re-confirm a memory to restore it to active status.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which memory ID to reconfirm?",
+                required=True,
+            ),
+            WizardStep(
+                key="salience",
+                prompt="New salience value?\n[Press Enter to keep current]",
+                required=False,
+                default="",
+            ),
+        ],
+    ),
+    
+    "bind-module": WizardDefinition(
+        command="bind-module",
+        title="Bind Modules",
+        description="Bind two modules together.",
+        steps=[
+            WizardStep(
+                key="a",
+                prompt="First module key?",
+                required=True,
+            ),
+            WizardStep(
+                key="b",
+                prompt="Second module key?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "dismantle": WizardDefinition(
+        command="dismantle",
+        title="Dismantle Module",
+        description="Remove a module.",
+        steps=[
+            WizardStep(
+                key="key",
+                prompt="Which module key to dismantle?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "identity-restore": WizardDefinition(
+        command="identity-restore",
+        title="Restore Identity",
+        description="Restore identity from a historical snapshot.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Snapshot ID or timestamp to restore?\n(e.g., 'profile-20251203-abc123' or '2025-12-03T12:00:00')",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "trace": WizardDefinition(
+        command="trace",
+        title="Trace Memory",
+        description="Show lineage and trace info for a memory.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which memory ID to trace?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "inspect": WizardDefinition(
+        command="inspect",
+        title="Inspect Module",
+        description="Inspect a module's metadata.",
+        steps=[
+            WizardStep(
+                key="key",
+                prompt="Which module key to inspect?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "advance": WizardDefinition(
+        command="advance",
+        title="Advance Workflow",
+        description="Advance a workflow by one step.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which workflow ID to advance?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "halt": WizardDefinition(
+        command="halt",
+        title="Halt Workflow",
+        description="Pause or halt a workflow.",
+        steps=[
+            WizardStep(
+                key="id",
+                prompt="Which workflow ID to halt?",
+                required=True,
+            ),
+            WizardStep(
+                key="status",
+                prompt="Set to which status?\n(Options: paused, cancelled)\n[Default: paused]",
+                required=False,
+                default="paused",
+                options=["paused", "cancelled"],
+            ),
+        ],
+    ),
+    
+    "command-inspect": WizardDefinition(
+        command="command-inspect",
+        title="Inspect Command",
+        description="Inspect a custom command's metadata.",
+        steps=[
+            WizardStep(
+                key="name",
+                prompt="Which command name to inspect?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "command-remove": WizardDefinition(
+        command="command-remove",
+        title="Remove Command",
+        description="Remove a custom command.",
+        steps=[
+            WizardStep(
+                key="name",
+                prompt="Which command name to remove?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "command-toggle": WizardDefinition(
+        command="command-toggle",
+        title="Toggle Command",
+        description="Enable or disable a custom command.",
+        steps=[
+            WizardStep(
+                key="name",
+                prompt="Which command name to toggle?",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "recall": WizardDefinition(
+        command="recall",
+        title="Recall Memories",
+        description="Recall memory items with filters.",
+        steps=[
+            WizardStep(
+                key="type",
+                prompt="Filter by type?\n(Options: semantic, procedural, episodic)\n[Press Enter for all]",
+                required=False,
+                default="",
+                options=["semantic", "procedural", "episodic", ""],
+            ),
+            WizardStep(
+                key="tags",
+                prompt="Filter by tags?\n(Comma-separated, or press Enter for all)",
+                required=False,
+                default="",
             ),
         ],
     ),
@@ -420,40 +837,23 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
     
     This transforms wizard output into the format expected by syscommand handlers.
     """
+    # =========================================================================
+    # GROUP A: Strong Wizard Candidates
+    # =========================================================================
+    
     if command == "store":
-        return {
+        args = {
             "payload": collected.get("payload", ""),
             "type": collected.get("type", "semantic"),
-            "tags": collected.get("tags", "general"),
         }
+        if collected.get("tags"):
+            args["tags"] = collected["tags"]
+        return args
     
     elif command == "remind-add":
         return {
-            "msg": collected.get("msg", ""),
-            "at": collected.get("at", ""),
-        }
-    
-    elif command == "flow":
-        return {
-            "name": collected.get("name", ""),
-        }
-    
-    elif command == "identity-set":
-        trait = collected.get("trait", "")
-        value = collected.get("value", "")
-        return {
-            trait: value,
-        }
-    
-    elif command == "mode":
-        return {
-            "mode": collected.get("mode", "normal"),
-        }
-    
-    elif command == "compose":
-        return {
-            "name": collected.get("name", ""),
-            "description": collected.get("description", ""),
+            "title": collected.get("title", ""),
+            "when": collected.get("when", ""),
         }
     
     elif command == "log-state":
@@ -461,6 +861,151 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
         for key in ["energy", "stress", "momentum"]:
             if collected.get(key):
                 args[key] = collected[key]
+        return args
+    
+    elif command == "identity-set":
+        trait = collected.get("trait", "")
+        value = collected.get("value", "")
+        return {trait: value} if trait else {}
+    
+    elif command == "flow":
+        return {"id": collected.get("id", "")}
+    
+    elif command == "compose":
+        return {
+            "name": collected.get("name", ""),
+            "description": collected.get("description", ""),
+        }
+    
+    elif command == "snapshot":
+        args = {}
+        if collected.get("label"):
+            args["label"] = collected["label"]
+        if collected.get("notes"):
+            args["notes"] = collected["notes"]
+        return args
+    
+    elif command == "forge":
+        args = {"key": collected.get("key", "")}
+        if collected.get("name"):
+            args["name"] = collected["name"]
+        if collected.get("mission"):
+            args["mission"] = collected["mission"]
+        return args
+    
+    elif command == "restore":
+        return {"file": collected.get("file", "")}
+    
+    elif command == "command-add":
+        return {
+            "name": collected.get("name", ""),
+            "kind": collected.get("kind", "prompt"),
+            "prompt": collected.get("prompt", ""),
+        }
+    
+    elif command == "forget":
+        # Special handling: forget_by determines which key to use
+        forget_by = collected.get("forget_by", "id")
+        forget_value = collected.get("forget_value", "")
+        
+        if forget_by == "id":
+            return {"id": forget_value}
+        elif forget_by == "tags":
+            return {"tags": forget_value}
+        elif forget_by == "type":
+            return {"type": forget_value}
+        return {"id": forget_value}
+    
+    elif command == "bind":
+        return {"ids": collected.get("ids", "")}
+    
+    elif command == "workflow-delete":
+        return {"id": collected.get("id", "")}
+    
+    elif command == "remind-update":
+        args = {"id": collected.get("id", "")}
+        if collected.get("title"):
+            args["title"] = collected["title"]
+        if collected.get("when"):
+            args["when"] = collected["when"]
+        return args
+    
+    elif command == "remind-delete":
+        return {"id": collected.get("id", "")}
+    
+    # =========================================================================
+    # GROUP B: Optional Wizards
+    # =========================================================================
+    
+    elif command == "mode":
+        return {"mode": collected.get("mode", "normal")}
+    
+    elif command == "setenv":
+        # Build key=value pair
+        key = collected.get("key", "")
+        value = collected.get("value", "")
+        return {key: value} if key else {}
+    
+    elif command == "memory-salience":
+        return {
+            "id": collected.get("id", ""),
+            "salience": collected.get("salience", ""),
+        }
+    
+    elif command == "memory-status":
+        return {
+            "id": collected.get("id", ""),
+            "status": collected.get("status", ""),
+        }
+    
+    elif command == "memory-reconfirm":
+        args = {"id": collected.get("id", "")}
+        if collected.get("salience"):
+            args["salience"] = collected["salience"]
+        return args
+    
+    elif command == "bind-module":
+        return {
+            "a": collected.get("a", ""),
+            "b": collected.get("b", ""),
+        }
+    
+    elif command == "dismantle":
+        return {"key": collected.get("key", "")}
+    
+    elif command == "identity-restore":
+        return {"id": collected.get("id", "")}
+    
+    elif command == "trace":
+        return {"id": collected.get("id", "")}
+    
+    elif command == "inspect":
+        return {"key": collected.get("key", "")}
+    
+    elif command == "advance":
+        return {"id": collected.get("id", "")}
+    
+    elif command == "halt":
+        args = {"id": collected.get("id", "")}
+        if collected.get("status"):
+            args["status"] = collected["status"]
+        return args
+    
+    elif command == "command-inspect":
+        return {"name": collected.get("name", "")}
+    
+    elif command == "command-remove":
+        return {"name": collected.get("name", "")}
+    
+    elif command == "command-toggle":
+        return {"name": collected.get("name", "")}
+    
+    elif command == "recall":
+        args = {}
+        if collected.get("type"):
+            args["type"] = collected["type"]
+        if collected.get("tags"):
+            args["tags"] = collected["tags"]
         return args
     
     # Default: pass through as-is
