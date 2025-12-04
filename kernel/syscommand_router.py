@@ -138,7 +138,7 @@ class SyscommandRouter:
         context = kernel.context_manager.get_context(request.session_id)
 
         try:
-            return handler(
+            result = handler(
                 cmd_name=request.cmd_name,
                 args=request.args,
                 session_id=request.session_id,
@@ -146,6 +146,11 @@ class SyscommandRouter:
                 kernel=kernel,
                 meta=meta,
             )
+            # v0.7.10: Handlers may return dict (for wizards) or CommandResponse
+            # Pass through dicts directly; kernel will handle them
+            if isinstance(result, dict):
+                return result
+            return result
         except Exception as e:
             kernel.logger.log_exception(request.session_id, request.cmd_name, e)
             return CommandResponse(

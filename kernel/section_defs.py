@@ -372,6 +372,11 @@ SECTION_DEFS: List[SectionDef] = [
                 description="List all workflows.",
                 example="#workflow-list",
             ),
+            CommandDef(
+                name="workflow-inspect",
+                description="Inspect a workflow and show all steps.",
+                example="#workflow-inspect id=wf-xxxx",
+            ),
         ],
     ),
     SectionDef(
@@ -630,6 +635,8 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         "create": "compose",
         "delete": "workflow-delete",
         "list": "workflow-list",
+        "inspect": "workflow-inspect",
+        "show": "workflow-inspect",
     },
     "reminders": {
         "add": "remind-add",

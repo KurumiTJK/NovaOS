@@ -299,8 +299,12 @@ class NovaKernel:
             if cmd_name in self.commands:
                 args_dict = self._parse_args(args_str)
                 
-                # 4) Wizard mode for no-arg commands
-                if not args_dict and is_wizard_command(cmd_name):
+                # v0.7.10: Commands with custom selection wizards handle their own no-arg case
+                # These commands need to fetch data (workflow list) before showing wizard
+                CUSTOM_WIZARD_COMMANDS = {"flow", "advance", "halt"}
+                
+                # 4) Wizard mode for no-arg commands (except custom wizard commands)
+                if not args_dict and is_wizard_command(cmd_name) and cmd_name not in CUSTOM_WIZARD_COMMANDS:
                     # v0.7: Clear Working Memory when wizard starts
                     wm_clear(session_id)
                     result = start_wizard(session_id, cmd_name)
@@ -320,8 +324,27 @@ class NovaKernel:
                     meta=self.commands.get(cmd_name),
                 )
                 response = self.router.route(request, kernel=self)
-                self.logger.log_response(session_id, cmd_name, response.to_dict())
-                return response.to_dict()
+                # v0.7.10: Handle both dict responses (from wizards) and CommandResponse objects
+                if isinstance(response, dict):
+                    # Wrap dict in UI-expected format if needed
+                    if "content" not in response:
+                        wrapped = {
+                            "ok": response.get("ok", True),
+                            "command": response.get("command", cmd_name),
+                            "summary": response.get("summary", ""),
+                            "content": {
+                                "command": response.get("command", cmd_name),
+                                "summary": response.get("summary", ""),
+                            },
+                            "extra": response.get("extra", {}),
+                        }
+                        self.logger.log_response(session_id, cmd_name, wrapped)
+                        return wrapped
+                    self.logger.log_response(session_id, cmd_name, response)
+                    return response
+                else:
+                    self.logger.log_response(session_id, cmd_name, response.to_dict())
+                    return response.to_dict()
             else:
                 # Unknown command
                 return self._error("UNKNOWN_COMMAND", f"Unknown command: #{cmd_name}").to_dict()

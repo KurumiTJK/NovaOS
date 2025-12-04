@@ -217,6 +217,14 @@ BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
         "description": "Show WM status including module breakdown",
         "args": [],
     },
+    # v0.7.10: Workflow commands
+    "workflow-inspect": {
+        "handler": "handle_workflow_inspect",
+        "category": "workflow",
+        "section": "workflow",
+        "description": "Inspect a workflow and show all steps",
+        "args": ["id"],
+    },
 }
 
 # ------------------------------------------------------------

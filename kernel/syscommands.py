@@ -3869,27 +3869,94 @@ def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelR
 
 def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
-    Start or restart a workflow.
+    Start or resume a workflow.
+    
+    v0.7.10: 
+    - Enhanced presentation showing goal, step count, and current step details.
+    - Selection wizard when no ID provided.
+    
     Usage:
-        flow id=<workflow_id> steps='[{"title": "..."}]'
-    Or minimal:
-        flow id=mywf
+        flow                                     # Trigger selection wizard
+        flow id=<workflow_id>                    # Resume existing workflow
+        flow id=<id> steps='[{"title": "..."}]'  # Create new workflow with steps
+    
+    If workflow exists and no new steps provided, resumes it.
+    If workflow doesn't exist or new steps provided, creates/recreates it.
     """
     wf_engine = kernel.workflow_engine
 
     wf_id = None
     name = None
     steps_raw = None
+    from_wizard = False
 
     if isinstance(args, dict):
         wf_id = args.get("id") or args.get("workflow") or args.get("_", [None])[0]
         name = args.get("name")
         steps_raw = args.get("steps")
+        from_wizard = args.get("_from_wizard", False)
 
+    # =================================================================
+    # v0.7.10: Trigger selection wizard if no ID provided
+    # =================================================================
     if not wf_id:
-        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+        # Get all workflows
+        workflows = wf_engine.summarize_all()
+        
+        if not workflows:
+            return _base_response(
+                cmd_name, 
+                "No workflows available. Create one first with #compose.",
+                {"ok": True, "no_workflows": True}
+            )
+        
+        # Build wizard display inline (avoid import issues)
+        lines = [
+            "╔══ Workflow Start Wizard ══╗",
+            "",
+            "Select a workflow to start or resume:",
+            "",
+            "Available workflows:",
+            "",
+        ]
+        
+        for idx, wf in enumerate(workflows, start=1):
+            wf_id_str = wf.get("id", "?")
+            wf_name = wf.get("name", "Untitled")
+            wf_status = wf.get("status", "unknown")
+            total_steps = wf.get("total_steps", 0)
+            current_step_idx = wf.get("current_step_index", 0)
+            active_step_title = wf.get("active_step_title", "")
+            
+            lines.append(f"  {idx}) {wf_name}")
+            lines.append(f"     ID: {wf_id_str}")
+            
+            if wf_status == "completed":
+                lines.append(f"     Status: completed ({total_steps} steps)")
+            elif wf_status == "active" and active_step_title:
+                lines.append(f"     Status: active at step {current_step_idx + 1}/{total_steps}")
+                lines.append(f"     Current: {active_step_title}")
+            elif wf_status == "paused" and active_step_title:
+                lines.append(f"     Status: paused at step {current_step_idx + 1}/{total_steps}")
+                lines.append(f"     Current: {active_step_title}")
+            elif wf_status == "pending":
+                lines.append(f"     Status: not started ({total_steps} steps)")
+            else:
+                lines.append(f"     Status: {wf_status} ({total_steps} steps)")
+            
+            lines.append("")
+        
+        lines.append("To start a workflow, use: #flow id=<workflow_id>")
+        lines.append("Example: #flow id=" + workflows[0].get("id", "wf-xxx"))
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "ok": True,
+            "workflows": workflows,
+            "workflow_count": len(workflows),
+        })
 
-    steps = []
+    # Parse steps if provided
+    steps = None
     if isinstance(steps_raw, str):
         try:
             steps = json.loads(steps_raw)
@@ -3898,59 +3965,263 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     elif isinstance(steps_raw, list):
         steps = steps_raw
 
-    wf = wf_engine.start(workflow_id=wf_id, name=name, steps=steps)
-    summary = f"Started workflow '{wf.id}' with {len(wf.steps)} step(s)."
+    # Check if workflow already exists
+    existing_wf = wf_engine.get(wf_id)
+    
+    if existing_wf and steps is None:
+        # =================================================================
+        # v0.7.10: Enhanced resume presentation
+        # =================================================================
+        wf = existing_wf
+        goal = wf.meta.get("goal", "") if wf.meta else ""
+        total = len(wf.steps)
+        current_idx = wf.current_step + 1
+        
+        lines = [
+            f"Resumed workflow \"{wf.name}\"" + (f" (Goal: {goal})" if goal else ""),
+            f"Total steps: {total}",
+            "",
+        ]
+        
+        if wf.steps and wf.current_step < len(wf.steps):
+            current = wf.active_step()
+            if current:
+                lines.append(f"Current step [{current_idx}/{total}]:")
+                lines.append(f"  {current_idx}. {current.title}")
+                if current.description:
+                    # Show first 150 chars of description
+                    desc = current.description[:150]
+                    if len(current.description) > 150:
+                        desc += "..."
+                    lines.append(f"     {desc}")
+                lines.append("")
+                # v0.7.10: Updated hint text (no ID needed)
+                lines.append("(Type '#halt' to pause, '#advance' to go to the next step.)")
+        elif wf.status == "completed":
+            lines.append("✓ This workflow is completed.")
+        else:
+            lines.append("(No steps remaining)")
+        
+        extra = wf.to_dict()
+        return _base_response(cmd_name, "\n".join(lines), extra)
+    
+    # Create new workflow (or recreate with new steps)
+    wf = wf_engine.start(workflow_id=wf_id, name=name, steps=steps or [])
+    
+    # v0.7.10: Enhanced start presentation
+    goal = wf.meta.get("goal", "") if wf.meta else ""
+    total = len(wf.steps)
+    
+    lines = [
+        f"Started workflow \"{wf.name}\"" + (f" (Goal: {goal})" if goal else ""),
+        f"Total steps: {total}",
+        "",
+    ]
+    
+    if wf.steps:
+        current = wf.active_step()
+        if current:
+            lines.append(f"Current step [1/{total}]:")
+            lines.append(f"  1. {current.title}")
+            if current.description:
+                desc = current.description[:150]
+                if len(current.description) > 150:
+                    desc += "..."
+                lines.append(f"     {desc}")
+            lines.append("")
+            # v0.7.10: Updated hint text (no ID needed)
+            lines.append("(Type '#halt' to pause, '#advance' to go to the next step.)")
+    
     extra = wf.to_dict()
-    return _base_response(cmd_name, summary, extra)
+    return _base_response(cmd_name, "\n".join(lines), extra)
 
 
 def handle_advance(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
     Advance a workflow by one step.
+    
+    v0.7.10: 
+    - Enhanced to show next step details.
+    - Shows workflow list when no ID provided.
+    
     Usage:
-        advance id=<workflow_id>
+        advance                  # Show workflow list
+        advance id=<workflow_id> # Advance specific workflow
     """
     wf_engine = kernel.workflow_engine
     wf_id = None
+    from_wizard = False
 
     if isinstance(args, dict):
         wf_id = args.get("id") or args.get("_", [None])[0]
+        from_wizard = args.get("_from_wizard", False)
 
+    # =================================================================
+    # v0.7.10: Show workflow list if no ID provided
+    # =================================================================
     if not wf_id:
-        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+        all_workflows = wf_engine.summarize_all()
+        active_workflows = [w for w in all_workflows if w.get("status") in ("active", "paused", "pending")]
+        
+        if not active_workflows:
+            return _base_response(
+                cmd_name,
+                "No active workflows to advance. Use #flow to start one first.",
+                {"ok": True, "no_workflows": True}
+            )
+        
+        lines = [
+            "╔══ Advance Workflow ══╗",
+            "",
+            "Select a workflow to advance:",
+            "",
+            "Active workflows:",
+            "",
+        ]
+        
+        for idx, wf in enumerate(active_workflows, start=1):
+            wf_id_str = wf.get("id", "?")
+            wf_name = wf.get("name", "Untitled")
+            wf_status = wf.get("status", "unknown")
+            total_steps = wf.get("total_steps", 0)
+            current_step_idx = wf.get("current_step_index", 0)
+            active_step_title = wf.get("active_step_title", "")
+            
+            lines.append(f"  {idx}) {wf_name}")
+            lines.append(f"     ID: {wf_id_str}")
+            if active_step_title:
+                lines.append(f"     Current: Step {current_step_idx + 1}/{total_steps} — {active_step_title}")
+            else:
+                lines.append(f"     Status: {wf_status} ({total_steps} steps)")
+            lines.append("")
+        
+        lines.append("To advance a workflow, use: #advance id=<workflow_id>")
+        lines.append("Example: #advance id=" + active_workflows[0].get("id", "wf-xxx"))
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "ok": True,
+            "workflows": active_workflows,
+            "workflow_count": len(active_workflows),
+        })
 
     wf = wf_engine.advance(wf_id)
     if not wf:
         return _base_response(cmd_name, f"No such workflow '{wf_id}'.", {"ok": False})
 
-    summary = f"Advanced workflow '{wf_id}' to step {wf.current_step + 1}."
+    total = len(wf.steps)
+    current_idx = wf.current_step + 1
+    
+    # Check if workflow is completed
+    if wf.status == "completed":
+        lines = [
+            f"✓ Workflow \"{wf.name}\" completed!",
+            f"All {total} steps done.",
+        ]
+        return _base_response(cmd_name, "\n".join(lines), wf.to_dict())
+    
+    # Show current step
+    current = wf.active_step()
+    lines = [
+        f"Advanced workflow \"{wf.name}\"",
+        "",
+        f"Current step [{current_idx}/{total}]:",
+    ]
+    
+    if current:
+        lines.append(f"  {current_idx}. {current.title}")
+        if current.description:
+            desc = current.description[:150]
+            if len(current.description) > 150:
+                desc += "..."
+            lines.append(f"     {desc}")
+    
+    # v0.7.10: Add hint text
+    lines.append("")
+    lines.append("(Type '#halt' to pause, '#advance' to go to the next step.)")
+    
     extra = wf.to_dict()
-    return _base_response(cmd_name, summary, extra)
+    return _base_response(cmd_name, "\n".join(lines), extra)
 
 
 def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
     Pause or halt a workflow.
+    
+    v0.7.10: Shows workflow list when no ID provided.
+    
     Usage:
+        halt                             # Show workflow list
+        halt id=<workflow_id>            # Halt specific workflow
         halt id=<workflow_id> status=paused
     """
     wf_engine = kernel.workflow_engine
     wf_id = None
     new_status = "paused"
+    from_wizard = False
 
     if isinstance(args, dict):
         wf_id = args.get("id") or args.get("_", [None])[0]
         new_status = args.get("status", "paused")
+        from_wizard = args.get("_from_wizard", False)
 
+    # =================================================================
+    # v0.7.10: Show workflow list if no ID provided
+    # =================================================================
     if not wf_id:
-        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+        all_workflows = wf_engine.summarize_all()
+        active_workflows = [w for w in all_workflows if w.get("status") == "active"]
+        
+        if not active_workflows:
+            return _base_response(
+                cmd_name,
+                "No active workflows to halt. All workflows are already paused or completed.",
+                {"ok": True, "no_workflows": True}
+            )
+        
+        lines = [
+            "╔══ Halt Workflow ══╗",
+            "",
+            "Select a workflow to pause:",
+            "",
+            "Running workflows:",
+            "",
+        ]
+        
+        for idx, wf in enumerate(active_workflows, start=1):
+            wf_id_str = wf.get("id", "?")
+            wf_name = wf.get("name", "Untitled")
+            total_steps = wf.get("total_steps", 0)
+            current_step_idx = wf.get("current_step_index", 0)
+            active_step_title = wf.get("active_step_title", "")
+            
+            lines.append(f"  {idx}) {wf_name}")
+            lines.append(f"     ID: {wf_id_str}")
+            if active_step_title:
+                lines.append(f"     Current: Step {current_step_idx + 1}/{total_steps} — {active_step_title}")
+            else:
+                lines.append(f"     Progress: Step {current_step_idx + 1}/{total_steps}")
+            lines.append("")
+        
+        lines.append("To halt a workflow, use: #halt id=<workflow_id>")
+        lines.append("Example: #halt id=" + active_workflows[0].get("id", "wf-xxx"))
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "ok": True,
+            "workflows": active_workflows,
+            "workflow_count": len(active_workflows),
+        })
 
     wf = wf_engine.halt(wf_id, status=new_status)
     if not wf:
         return _base_response(cmd_name, f"No such workflow '{wf_id}'.", {"ok": False})
 
-    summary = f"Workflow '{wf_id}' set to status '{new_status}'."
-    return _base_response(cmd_name, summary, wf.to_dict())
+    lines = [
+        f"Workflow \"{wf.name}\" has been {new_status}.",
+        f"ID: {wf_id}",
+        "",
+        f"(Type '#flow' to resume this workflow.)",
+    ]
+    return _base_response(cmd_name, "\n".join(lines), wf.to_dict())
 
 
 def handle_workflow_delete(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -4010,6 +4281,8 @@ def handle_workflow_delete(cmd_name, args, session_id, context, kernel, meta) ->
 def handle_workflow_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
     List all workflows currently tracked in kernel.workflow_engine.
+    
+    v0.7.10: Enhanced to show goal/purpose for each workflow.
 
     Uses the in-memory WorkflowEngine state (snapshot-friendly),
     no direct file access.
@@ -4025,24 +4298,93 @@ def handle_workflow_list(cmd_name, args, session_id, context, kernel, meta) -> K
             {"ok": False, "count": 0, "workflows": []},
         )
 
-    formatted = []
+    lines = [F.header(f"Known Workflows ({len(summaries)})"), ""]
+    
     for wf in summaries:
         wid = wf.get("id")
         name = wf.get("name") or f"Workflow {wid}"
         status = wf.get("status", "unknown")
-        active_title = wf.get("active_step_title") or ""
-        details = status
-        if active_title:
-            details = f"{status} → {active_title}"
-        formatted.append(F.item(wid, name, details))
+        step_count = wf.get("total_steps", 0)
+        meta_data = wf.get("meta", {}) or {}
+        goal = meta_data.get("goal", "")
+        
+        # Truncate goal if too long
+        if goal and len(goal) > 60:
+            goal = goal[:57] + "..."
+        
+        lines.append(f"• {wid} — {name}")
+        if goal:
+            lines.append(f"  Goal: {goal}")
+        lines.append(f"  Status: {status} | Steps: {step_count}")
+        lines.append("")
 
-    summary = F.header(f"Workflows ({len(summaries)})") + F.list(formatted)
     extra = {
         "ok": True,
         "count": len(summaries),
         "workflows": summaries,
     }
-    return _base_response(cmd_name, summary, extra)
+    return _base_response(cmd_name, "\n".join(lines), extra)
+
+
+def handle_workflow_inspect(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    Inspect a workflow and show all its steps.
+    
+    v0.7.10: Enhanced presentation with goal and full step list.
+    
+    Usage:
+        workflow-inspect id=<workflow_id>
+    """
+    wf_engine = kernel.workflow_engine
+    
+    wf_id = None
+    if isinstance(args, dict):
+        wf_id = args.get("id") or args.get("_", [None])[0]
+    
+    if not wf_id:
+        return _base_response(cmd_name, "Missing workflow id (id=<id>).", {"ok": False})
+    
+    wf = wf_engine.get(wf_id)
+    if not wf:
+        return _base_response(cmd_name, f"No workflow found with id '{wf_id}'.", {"ok": False})
+    
+    goal = wf.meta.get("goal", "") if wf.meta else ""
+    total = len(wf.steps)
+    current_idx = wf.current_step + 1
+    
+    lines = [
+        f"Workflow: {wf.name} ({wf.id})",
+    ]
+    
+    if goal:
+        lines.append(f"Goal: {goal}")
+    
+    lines.append(f"Status: {wf.status} | Current: step {current_idx}/{total}")
+    lines.append("")
+    
+    if wf.steps:
+        lines.append(f"Steps ({total}):")
+        for idx, step in enumerate(wf.steps, start=1):
+            # Mark current step with arrow
+            if idx == current_idx:
+                marker = "→"
+            elif idx < current_idx:
+                marker = "✓"  # Completed
+            else:
+                marker = " "
+            
+            lines.append(f"  {marker} {idx}. {step.title}")
+            
+            # Show description for current step only (to keep output manageable)
+            if idx == current_idx and step.description:
+                desc = step.description[:80]
+                if len(step.description) > 80:
+                    desc += "..."
+                lines.append(f"       {desc}")
+    else:
+        lines.append("(No steps defined)")
+    
+    return _base_response(cmd_name, "\n".join(lines), {"ok": True, "workflow": wf.to_dict()})
 
 
 def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -4191,7 +4533,7 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         ]
         lines.extend(formatted_steps)
         lines.append("")
-        lines.append(f"Use #flow id={wf_id} to start it.")
+        lines.append("Use #flow to start it.")
         
         return _base_response(cmd_name, "\n".join(lines), {
             "ok": True,
@@ -4286,7 +4628,7 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         ]
         lines.extend(formatted_steps)
         lines.append("")
-        lines.append(f"Use #flow id={wf_id} to start it.")
+        lines.append("Use #flow to start it.")
         
         return _base_response(cmd_name, "\n".join(lines), {
             "ok": True,
@@ -4965,6 +5307,7 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     # v0.4.4 Workflow delete
     "handle_workflow_delete": handle_workflow_delete,
     "handle_workflow_list": handle_workflow_list,
+    "handle_workflow_inspect": handle_workflow_inspect,
     # v0.5 Custom Commands
     "handle_prompt_command": handle_prompt_command,
     "handle_command_add": handle_command_add,

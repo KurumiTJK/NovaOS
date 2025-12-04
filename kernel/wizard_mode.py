@@ -221,12 +221,38 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
     
     "flow": WizardDefinition(
         command="flow",
-        title="Start Workflow",
-        description="Start or resume a workflow.",
+        title="Workflow Start",
+        description="Select a workflow to start or resume.",
         steps=[
             WizardStep(
-                key="id",
-                prompt="What is the ID of the workflow you want to start?",
+                key="selection",
+                prompt="(Workflow list will be shown above)\n\nType a number to select:",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "advance": WizardDefinition(
+        command="advance",
+        title="Advance Workflow",
+        description="Select a workflow to advance to the next step.",
+        steps=[
+            WizardStep(
+                key="selection",
+                prompt="(Workflow list will be shown above)\n\nType a number to select:",
+                required=True,
+            ),
+        ],
+    ),
+    
+    "halt": WizardDefinition(
+        command="halt",
+        title="Halt Workflow",
+        description="Select a workflow to pause or halt.",
+        steps=[
+            WizardStep(
+                key="selection",
+                prompt="(Workflow list will be shown above)\n\nType a number to select:",
                 required=True,
             ),
         ],
@@ -595,39 +621,6 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
         ],
     ),
     
-    "advance": WizardDefinition(
-        command="advance",
-        title="Advance Workflow",
-        description="Advance a workflow by one step.",
-        steps=[
-            WizardStep(
-                key="id",
-                prompt="Which workflow ID to advance?",
-                required=True,
-            ),
-        ],
-    ),
-    
-    "halt": WizardDefinition(
-        command="halt",
-        title="Halt Workflow",
-        description="Pause or halt a workflow.",
-        steps=[
-            WizardStep(
-                key="id",
-                prompt="Which workflow ID to halt?",
-                required=True,
-            ),
-            WizardStep(
-                key="status",
-                prompt="Set to which status?\n(Options: paused, cancelled)\n[Default: paused]",
-                required=False,
-                default="paused",
-                options=["paused", "cancelled"],
-            ),
-        ],
-    ),
-    
     "command-inspect": WizardDefinition(
         command="command-inspect",
         title="Inspect Command",
@@ -787,6 +780,26 @@ def process_wizard_input(session_id: str, user_input: str) -> Dict[str, Any]:
     
     # Validate input
     value = user_input.strip()
+    
+    # =================================================================
+    # v0.7.10: Handle workflow selection wizards
+    # Convert number selection to workflow ID
+    # =================================================================
+    if is_workflow_selection_wizard(session_id) and step.key == "selection":
+        resolved_id = resolve_workflow_selection(session_id, value)
+        if not resolved_id:
+            workflows = get_workflow_selection_list(session_id)
+            max_num = len(workflows)
+            return {
+                "ok": True,
+                "command": "wizard",
+                "summary": f"Invalid selection. Please enter a number from 1 to {max_num}.",
+                "extra": {"wizard_active": True, "validation_error": True},
+            }
+        # Use the resolved workflow ID as the value
+        value = resolved_id
+        # Clear the selection cache
+        clear_workflow_selection_cache(session_id)
     
     # Use default if empty and step has default
     if not value and step.default is not None:
@@ -969,7 +982,10 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
         return {trait: value} if trait else {}
     
     elif command == "flow":
-        return {"id": collected.get("id", "")}
+        # v0.7.10: Selection wizard provides "selection" which maps to "id"
+        if collected.get("selection"):
+            return {"id": collected["selection"], "_from_wizard": True}
+        return {"id": collected.get("id", ""), "_from_wizard": True}
     
     elif command == "compose":
         # Full wizard data: name, goal, step_mode, manual_steps, confirm
@@ -1088,10 +1104,18 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
         return {"key": collected.get("key", "")}
     
     elif command == "advance":
-        return {"id": collected.get("id", "")}
+        # v0.7.10: Selection wizard provides "selection" which maps to "id"
+        if collected.get("selection"):
+            return {"id": collected["selection"], "_from_wizard": True}
+        return {"id": collected.get("id", ""), "_from_wizard": True}
     
     elif command == "halt":
-        args = {"id": collected.get("id", "")}
+        # v0.7.10: Selection wizard provides "selection" which maps to "id"
+        args = {"_from_wizard": True}
+        if collected.get("selection"):
+            args["id"] = collected["selection"]
+        elif collected.get("id"):
+            args["id"] = collected["id"]
         if collected.get("status"):
             args["status"] = collected["status"]
         return args
@@ -1115,3 +1139,148 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
     
     # Default: pass through as-is
     return collected
+
+
+# =============================================================================
+# v0.7.10: Workflow Selection Wizards
+# =============================================================================
+
+# Storage for workflow lists during selection wizards
+_workflow_selection_cache: Dict[str, List[Dict[str, Any]]] = {}
+
+
+def start_workflow_selection_wizard(
+    session_id: str, 
+    command: str, 
+    workflows: List[Dict[str, Any]],
+    title: str,
+    description: str,
+) -> Dict[str, Any]:
+    """
+    Start a workflow selection wizard.
+    
+    Shows a numbered list of workflows for user to select from.
+    
+    Args:
+        session_id: User session ID
+        command: The command being wizarded (flow, advance, halt)
+        workflows: List of workflow dicts with at least 'id' and 'name'
+        title: Wizard title
+        description: Wizard description
+    
+    Returns:
+        Wizard prompt response dict
+    """
+    if not workflows:
+        return {
+            "ok": False,
+            "command": command,
+            "summary": "No workflows available. Create one first with #compose.",
+            "extra": {"no_workflows": True},
+        }
+    
+    # Cache the workflow list for this session
+    _workflow_selection_cache[session_id] = workflows
+    
+    # Start wizard session
+    session = _wizard_manager.start(session_id, command)
+    
+    # Build numbered list with enhanced display
+    lines = [
+        f"╔══ {title} Wizard ══╗",
+        "",
+        description,
+        "",
+        "Available workflows:",
+        "",
+    ]
+    
+    for idx, wf in enumerate(workflows, start=1):
+        wf_id = wf.get("id", "?")
+        wf_name = wf.get("name", "Untitled")
+        wf_status = wf.get("status", "unknown")
+        total_steps = wf.get("total_steps", 0)
+        current_step_idx = wf.get("current_step_index", 0)
+        active_step_title = wf.get("active_step_title", "")
+        
+        # Format workflow entry
+        lines.append(f"  {idx}) {wf_name}")
+        lines.append(f"     ID: {wf_id}")
+        
+        # Format status line with step info
+        if wf_status == "completed":
+            lines.append(f"     Status: completed ({total_steps} steps)")
+        elif wf_status == "active" and active_step_title:
+            lines.append(f"     Status: active at step {current_step_idx + 1}/{total_steps}")
+            lines.append(f"     Current: {active_step_title}")
+        elif wf_status == "paused" and active_step_title:
+            lines.append(f"     Status: paused at step {current_step_idx + 1}/{total_steps}")
+            lines.append(f"     Current: {active_step_title}")
+        elif wf_status == "pending":
+            lines.append(f"     Status: not started ({total_steps} steps)")
+        else:
+            lines.append(f"     Status: {wf_status}")
+        
+        lines.append("")  # Blank line between entries
+    
+    lines.append("Step 1/1:")
+    lines.append("Type a number to select:")
+    lines.append("")
+    lines.append("(Type 'cancel' to exit wizard)")
+    
+    return {
+        "ok": True,
+        "command": "wizard",
+        "summary": "\n".join(lines),
+        "extra": {
+            "wizard_active": True,
+            "wizard_command": command,
+            "wizard_type": "selection",
+            "step": 1,
+            "total_steps": 1,
+            "workflow_count": len(workflows),
+        },
+    }
+
+
+def resolve_workflow_selection(session_id: str, selection: str) -> Optional[str]:
+    """
+    Convert a selection number to a workflow ID.
+    
+    Args:
+        session_id: User session ID
+        selection: The user's input (should be a number)
+    
+    Returns:
+        Workflow ID if valid selection, None otherwise
+    """
+    workflows = _workflow_selection_cache.get(session_id, [])
+    if not workflows:
+        return None
+    
+    try:
+        idx = int(selection.strip())
+        if 1 <= idx <= len(workflows):
+            return workflows[idx - 1].get("id")
+    except (ValueError, TypeError):
+        pass
+    
+    return None
+
+
+def clear_workflow_selection_cache(session_id: str) -> None:
+    """Clear the cached workflow list for a session."""
+    _workflow_selection_cache.pop(session_id, None)
+
+
+def is_workflow_selection_wizard(session_id: str) -> bool:
+    """Check if current wizard is a workflow selection wizard."""
+    session = _wizard_manager.get(session_id)
+    if not session:
+        return False
+    return session.command in ("flow", "advance", "halt")
+
+
+def get_workflow_selection_list(session_id: str) -> List[Dict[str, Any]]:
+    """Get the cached workflow list for a session."""
+    return _workflow_selection_cache.get(session_id, [])
