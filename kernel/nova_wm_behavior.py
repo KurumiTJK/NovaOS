@@ -1,9 +1,19 @@
 # kernel/nova_wm_behavior.py
 """
-NovaOS v0.7.2 — Working Memory Behavior Layer
+NovaOS v0.7.5 — Working Memory Behavior Layer
 
 This layer sits above the entity/topic/pronoun memory from v0.7.0–v0.7.1
 and provides human-like conversational continuity.
+
+v0.7.5 CHANGES:
+- Enhanced topic switching with tangent/return detection from WM
+- Group-aware meta-question handling ("who are they again?")
+- Better meta-question routing to WM helpers
+- Behavior mode integration with control knobs
+
+v0.7.3 CHANGES:
+- Behavior mode support (normal/minimal/debug)
+- Thread and entity summarization for meta-questions
 
 Key Capabilities:
 - Open question tracking (when Nova asks something)
@@ -12,12 +22,14 @@ Key Capabilities:
 - Topic drift detection ("Anyway...", "Different question...")
 - User state inference (confusion, urgency, decisiveness)
 - Conversation thread memory with summaries
+- Meta-question routing and handling
 
 Integration:
     from nova_wm_behavior import (
         behavior_update,
         behavior_after_response,
         behavior_get_context,
+        behavior_handle_meta_question,
     )
     
     # In persona fallback flow:
@@ -252,7 +264,7 @@ IMPLICIT_DEFER = {
     r"^i'?ll leave it to you\.?$", r"^you choose\.?$",
 }
 
-# Topic switch patterns
+# Topic switch patterns (basic drift detection)
 TOPIC_SWITCH_PATTERNS = [
     (r"^anyway[,\.\-—]?\s+", "anyway"),  # Must have space after
     (r"^different (?:question|topic|thing)[,\.\-—:\s]+", "different"),
@@ -266,6 +278,39 @@ TOPIC_SWITCH_PATTERNS = [
     (r"^unrelated[,\.\-—:\s]+", "unrelated"),
     (r"^quick question[,\.\-—:\s]+", "quick_question"),
     (r"^random[,\.\-—:\s]+", "random"),
+    # v0.7.5: Added tangent starters
+    (r"^side\s+note[,:\-—]?\s*", "side_note"),
+    (r"^quick\s+tangent[,:\-—]?\s*", "tangent"),
+    (r"^small\s+tangent[,:\-—]?\s*", "tangent"),
+    (r"^off\s+topic[,:\-—]?\s*", "off_topic"),
+    (r"^real\s+quick[,:\-—]?\s*", "real_quick"),
+]
+
+# v0.7.5: Topic return patterns (for behavior layer sync)
+TOPIC_RETURN_PATTERNS = [
+    (r"^anyway[,\-—]?\s+back\s+to\b", "anyway_back"),
+    (r"^back\s+to\s+", "back_to"),
+    (r"^where\s+were\s+we", "where_were_we"),
+    (r"^let'?s\s+(?:go\s+)?back\s+to\b", "lets_back"),
+    (r"^returning\s+to\b", "returning_to"),
+    (r"^so\s+anyway[,\-—]?\s*", "so_anyway"),
+    (r"^getting\s+back\s+to\b", "getting_back"),
+    (r"^as\s+(?:i|we)\s+(?:was|were)\s+saying\b", "as_i_was_saying"),
+]
+
+# v0.7.5: Meta-question patterns for behavior layer routing
+BEHAVIOR_META_PATTERNS = [
+    (r"what\s+(?:were\s+we|was\s+i)\s+(?:talking|discussing)\s+about", "topic_recall"),
+    (r"what\s+(?:were\s+we|was\s+i)\s+saying", "topic_recall"),
+    (r"where\s+did\s+we\s+leave\s+off", "topic_recall"),
+    (r"what\s+do\s+you\s+remember\s+about", "entity_recall"),
+    (r"what\s+did\s+i\s+tell\s+you\s+about", "entity_recall"),
+    (r"who\s+(?:were\s+we|was\s+i)\s+discussing", "person_recall"),
+    (r"who\s+are\s+they\s*(?:again)?", "group_recall"),
+    (r"who\s+is\s+\w+\s*(?:again)?", "person_recall"),
+    (r"remind\s+me\s+(?:who|what)", "reminder"),
+    (r"what'?s\s+the\s+context", "context_recall"),
+    (r"catch\s+me\s+up", "context_recall"),
 ]
 
 # Goal inference patterns
@@ -1076,6 +1121,136 @@ class WMBehaviorEngine:
         return self.behavior_mode == "debug"
     
     # =========================================================================
+    # v0.7.5 — META-QUESTION HANDLING
+    # =========================================================================
+    
+    def check_meta_question(self, message: str) -> Optional[Dict[str, Any]]:
+        """
+        v0.7.5: Check if message is a meta-question about the conversation.
+        
+        Returns:
+            Dict with meta-question type, or None
+        """
+        message_lower = message.lower().strip()
+        
+        for pattern, question_type in BEHAVIOR_META_PATTERNS:
+            if re.search(pattern, message_lower, re.IGNORECASE):
+                return {
+                    "type": question_type,
+                    "pattern": pattern,
+                }
+        
+        return None
+    
+    def handle_meta_question(
+        self, 
+        message: str, 
+        wm_context: Dict[str, Any],
+        meta_info: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """
+        v0.7.5: Handle a meta-question using behavior + WM state.
+        
+        Args:
+            message: User message
+            wm_context: Working memory context
+            meta_info: Optional pre-checked meta info
+        
+        Returns:
+            Answer string, or None if cannot answer
+        """
+        if not meta_info:
+            meta_info = self.check_meta_question(message)
+        
+        if not meta_info:
+            return None
+        
+        question_type = meta_info.get("type")
+        
+        if question_type == "topic_recall":
+            return self.summarize_thread()
+        
+        elif question_type == "entity_recall":
+            # Extract entity name from message
+            match = re.search(r"about\s+(\w+)", message.lower())
+            if match:
+                entity_name = match.group(1)
+                return self.summarize_entity(entity_name, wm_context)
+        
+        elif question_type == "person_recall":
+            # List people from thread
+            if self.thread_summary.participants:
+                parts = []
+                for p in self.thread_summary.participants[:5]:
+                    parts.append(p)
+                return f"We've been discussing: {', '.join(parts)}."
+            return "We haven't discussed any specific people yet."
+        
+        elif question_type == "group_recall":
+            # This should be routed to WM's group handling
+            # Return None to let WM handle it
+            return None
+        
+        elif question_type == "context_recall":
+            return self._build_context_summary(wm_context)
+        
+        elif question_type == "reminder":
+            match = re.search(r"(?:who|what)\s+(\w+)", message.lower())
+            if match:
+                entity_name = match.group(1)
+                return self.summarize_entity(entity_name, wm_context)
+        
+        return None
+    
+    def _build_context_summary(self, wm_context: Dict[str, Any]) -> str:
+        """Build a comprehensive context summary."""
+        parts = []
+        
+        # Topic from behavior
+        if self.thread_summary.topic:
+            parts.append(f"Topic: {self.thread_summary.topic}")
+        
+        # People from behavior
+        if self.thread_summary.participants:
+            parts.append(f"People: {', '.join(self.thread_summary.participants[:4])}")
+        
+        # Goal
+        if self.thread_summary.goal:
+            parts.append(f"Your goal: {self.thread_summary.goal}")
+        
+        # User state
+        if self.user_state.primary_signal and self.user_state.primary_signal != "neutral":
+            parts.append(f"Your state: {self.user_state.primary_signal}")
+        
+        # Unresolved
+        unanswered = [q for q in self.open_questions if not q.answered]
+        if unanswered:
+            parts.append(f"Open question: {unanswered[0].text}")
+        
+        if not parts:
+            return "We're just getting started — no context established yet."
+        
+        return "\n".join(parts)
+    
+    def check_topic_return(self, message: str) -> Optional[Dict[str, Any]]:
+        """
+        v0.7.5: Check if user is returning to a previous topic.
+        
+        Returns:
+            Dict with return info, or None
+        """
+        message_lower = message.lower().strip()
+        
+        for pattern, trigger_name in TOPIC_RETURN_PATTERNS:
+            if re.match(pattern, message_lower, re.IGNORECASE):
+                return {
+                    "type": "topic_return",
+                    "trigger": trigger_name,
+                }
+        
+        return None
+    
+    # =========================================================================
     # v0.7.3 — SUMMARY HELPERS FOR META-QUESTIONS
     # =========================================================================
     
@@ -1295,6 +1470,54 @@ def behavior_summarize_entity(session_id: str, entity_name: str, wm_context: Dic
     """
     engine = _behavior_manager.get(session_id)
     return engine.summarize_entity(entity_name, wm_context)
+
+
+# =============================================================================
+# v0.7.5 PUBLIC API ADDITIONS
+# =============================================================================
+
+def behavior_check_meta_question(session_id: str, message: str) -> Optional[Dict[str, Any]]:
+    """
+    v0.7.5: Check if message is a meta-question.
+    
+    Returns:
+        Dict with meta-question type, or None
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.check_meta_question(message)
+
+
+def behavior_handle_meta_question(
+    session_id: str, 
+    message: str, 
+    wm_context: Dict[str, Any],
+    meta_info: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    v0.7.5: Handle a meta-question using behavior + WM state.
+    
+    Args:
+        session_id: Session identifier
+        message: User message
+        wm_context: Working memory context
+        meta_info: Optional pre-checked meta info from check_meta_question
+    
+    Returns:
+        Answer string, or None if cannot answer
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.handle_meta_question(message, wm_context, meta_info)
+
+
+def behavior_check_topic_return(session_id: str, message: str) -> Optional[Dict[str, Any]]:
+    """
+    v0.7.5: Check if user is returning to a previous topic.
+    
+    Returns:
+        Dict with return info, or None
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.check_topic_return(message)
 
 
 # TODO v0.7.4: Add behavior_explain_memory_model_if_needed() helper

@@ -50,7 +50,33 @@ from .nova_wm_behavior import (
     behavior_get_context_string,
     behavior_answer_reference,
     behavior_clear,
+    # v0.7.3: Meta-question helpers
+    behavior_summarize_thread,
+    behavior_summarize_entity,
+    behavior_get_mode,
+    # v0.7.5: Enhanced meta-question handling
+    behavior_check_meta_question,
+    behavior_handle_meta_question,
 )
+# v0.7.5: WM meta-question handlers
+from .nova_wm import (
+    wm_check_meta_question,
+    wm_answer_meta_question,
+)
+# v0.7.3: Config toggles
+try:
+    from system.wm_behavior_config import (
+        is_wm_enabled,
+        is_behavior_enabled,
+        get_behavior_mode,
+    )
+    _HAS_WM_CONFIG = True
+except ImportError:
+    _HAS_WM_CONFIG = False
+    # Fallback: always enabled
+    def is_wm_enabled(session_id): return True
+    def is_behavior_enabled(session_id): return True
+    def get_behavior_mode(session_id): return "normal"
 # InterpretationEngine is kept for explicit #interpret, #derive, etc. commands
 # but is NO LONGER used for automatic NL → command routing
 from kernel.interpretation_engine import InterpretationEngine
@@ -368,31 +394,79 @@ class NovaKernel:
             }
         
         # -------------------------------------------------------------
-        # 7) Persona Fallback (normal chat) with NovaWM v0.7.2
+        # 7) Persona Fallback (normal chat) with NovaWM v0.7.3
         # -------------------------------------------------------------
         self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
 
+        # v0.7.3: Check if WM/Behavior are enabled via config
+        wm_enabled = is_wm_enabled(session_id)
+        behavior_enabled = is_behavior_enabled(session_id)
+        
+        direct_answer = None
+        wm_result = {}
+        wm_context = {}
+        behavior_result = {}
+        wm_context_string = ""
+        behavior_context_string = ""
+        
+        # v0.7.5: Enhanced meta-question routing (before WM update)
+        # First, check if this is a meta-question using the new pattern system
+        stripped_lower = stripped.lower()
+        meta_info = None
+        
+        if wm_enabled or behavior_enabled:
+            # Check WM first for meta-questions
+            if wm_enabled:
+                meta_info = wm_check_meta_question(session_id, stripped)
+            
+            # Check behavior layer if WM didn't find anything
+            if not meta_info and behavior_enabled:
+                meta_info = behavior_check_meta_question(session_id, stripped)
+            
+            if meta_info:
+                question_type = meta_info.get("type")
+                
+                # Route to appropriate handler based on question type
+                if question_type == "group_recall" and wm_enabled:
+                    # "Who are they again?" - WM handles group resolution
+                    direct_answer = wm_answer_meta_question(session_id, meta_info)
+                
+                elif question_type in ("topic_recall", "context_recall") and behavior_enabled:
+                    # "What were we talking about?" - Behavior handles thread summary
+                    wm_ctx = wm_get_context(session_id) if wm_enabled else {}
+                    direct_answer = behavior_handle_meta_question(session_id, stripped, wm_ctx, meta_info)
+                
+                elif question_type == "entity_recall" and behavior_enabled:
+                    # "What do you remember about X?" - Behavior handles entity summary
+                    wm_ctx = wm_get_context(session_id) if wm_enabled else {}
+                    direct_answer = behavior_handle_meta_question(session_id, stripped, wm_ctx, meta_info)
+                
+                elif question_type in ("person_recall", "reminder"):
+                    # Try behavior first, fall back to WM
+                    if behavior_enabled:
+                        wm_ctx = wm_get_context(session_id) if wm_enabled else {}
+                        direct_answer = behavior_handle_meta_question(session_id, stripped, wm_ctx, meta_info)
+                    if not direct_answer and wm_enabled:
+                        direct_answer = wm_answer_meta_question(session_id, meta_info)
+        
         # v0.7: Check if Working Memory can answer directly (reference questions)
-        direct_answer = wm_answer_reference(session_id, stripped)
+        if not direct_answer and wm_enabled:
+            direct_answer = wm_answer_reference(session_id, stripped)
         
         # v0.7.2: Also check Behavior Layer for reference questions
-        if not direct_answer:
+        if not direct_answer and behavior_enabled:
             direct_answer = behavior_answer_reference(session_id, stripped)
         
-        # v0.7: Update Working Memory with user message
-        wm_result = wm_update(session_id, stripped)
+        # v0.7: Update Working Memory with user message (if enabled)
+        if wm_enabled:
+            wm_result = wm_update(session_id, stripped)
+            wm_context = wm_get_context(session_id)
+            wm_context_string = wm_get_context_string(session_id)
         
-        # v0.7: Get WM context for behavior layer
-        wm_context = wm_get_context(session_id)
-        
-        # v0.7.2: Update Behavior Layer (AFTER wm_update)
-        behavior_result = behavior_update(session_id, stripped, wm_context)
-        
-        # v0.7: Get formatted context string for persona system prompt
-        wm_context_string = wm_get_context_string(session_id)
-        
-        # v0.7.2: Get behavior context string
-        behavior_context_string = behavior_get_context_string(session_id)
+        # v0.7.2: Update Behavior Layer (AFTER wm_update, if enabled)
+        if behavior_enabled:
+            behavior_result = behavior_update(session_id, stripped, wm_context)
+            behavior_context_string = behavior_get_context_string(session_id)
         
         # Combine context strings
         combined_context = wm_context_string
@@ -405,6 +479,9 @@ class NovaKernel:
             "env": getattr(self, "env_state", None),
             "wm_turn": wm_result.get("turn", 0),
             "behavior": behavior_result,  # v0.7.2
+            "wm_enabled": wm_enabled,      # v0.7.3
+            "behavior_enabled": behavior_enabled,  # v0.7.3
+            "meta_question": meta_info,    # v0.7.5
         }
 
         # Pre-LLM sanitization
@@ -423,11 +500,13 @@ class NovaKernel:
             direct_answer=direct_answer,
         )
 
-        # v0.7: Record Nova's response in Working Memory
+        # v0.7: Record Nova's response in Working Memory (if enabled)
         if reply:
-            wm_record_response(session_id, reply)
+            if wm_enabled:
+                wm_record_response(session_id, reply)
             # v0.7.2: Process response in Behavior Layer (extract questions)
-            behavior_after_response(session_id, reply)
+            if behavior_enabled:
+                behavior_after_response(session_id, reply)
 
         # Post-LLM correction/stabilization
         if self.policy_engine is not None:

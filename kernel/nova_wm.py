@@ -1,9 +1,21 @@
 # kernel/nova_wm.py
 """
-NovaOS v0.7.1 — Working Memory Engine (NovaWM)
+NovaOS v0.7.5 — Working Memory Engine (NovaWM)
 
 A robust conversational memory system that makes Nova feel "alive" and continuous.
 Tracks entities, topics, pronouns, goals, and conversation state across turns.
+
+v0.7.5 CHANGES:
+- Automatic group detection from "X and Y" patterns
+- Enhanced topic stack with tangent/return-to-topic triggers
+- Group pronoun resolution ("they" → "Steven and Sarah")
+- "Who are they again?" meta-question support
+- WM/Behavior control knobs fully wired
+
+v0.7.3 CHANGES:
+- Topic stack for multi-topic navigation
+- Group entity support
+- Snapshot/restore for episodic memory
 
 v0.7.1 CHANGES:
 - Gender-aware pronoun resolution (he→masculine, she→feminine)
@@ -15,6 +27,7 @@ Key Capabilities:
 - Entity tracking (people, places, objects, concepts)
 - Topic/thread management with active topic awareness
 - Pronoun resolution ("he" → "Steven", "she" → "Sarah")
+- Group entity support ("they" → "Steven and Sarah")
 - Goal and unresolved question tracking
 - Emotional tone awareness
 - Turn-by-turn summaries with compression
@@ -446,6 +459,77 @@ FEMININE_HINT_PATTERNS = [
     r"\b(?:girl|woman|lady|gal)\s+(?:named\s+)?([A-Z][a-z]+)\b",  # "woman named Sarah"
 ]
 
+# =============================================================================
+# v0.7.5 — GROUP DETECTION PATTERNS
+# =============================================================================
+
+# Pattern to detect "X and Y" group references
+GROUP_DETECTION_PATTERN = re.compile(
+    r"\b([A-Z][a-z]+)\s+and\s+([A-Z][a-z]+)\b"
+)
+
+# Pattern with "both" qualifier
+GROUP_BOTH_PATTERN = re.compile(
+    r"\b([A-Z][a-z]+)\s+and\s+([A-Z][a-z]+)\s+(?:both|together)\b"
+)
+
+# =============================================================================
+# v0.7.5 — TOPIC TANGENT/RETURN PATTERNS  
+# =============================================================================
+
+# Patterns that indicate starting a tangent (push current topic)
+TANGENT_START_PATTERNS = [
+    (r"^side\s+note[,:\-—]?\s*", "side_note"),
+    (r"^quick\s+tangent[,:\-—]?\s*", "quick_tangent"),
+    (r"^small\s+tangent[,:\-—]?\s*", "small_tangent"),
+    (r"^different\s+question[,:\-—]?\s*", "different_question"),
+    (r"^new\s+topic[,:\-—]?\s*", "new_topic"),
+    (r"^on\s+another\s+note[,:\-—]?\s*", "another_note"),
+    (r"^totally\s+unrelated[,:\-—]?\s*", "unrelated"),
+    (r"^off\s+topic[,:\-—]?\s*", "off_topic"),
+    (r"^random\s+(?:question|thought)[,:\-—]?\s*", "random"),
+    (r"^real\s+quick[,:\-—]?\s*", "real_quick"),
+]
+
+# Patterns that indicate returning to previous topic (pop from stack)
+TOPIC_RETURN_PATTERNS = [
+    (r"^anyway[,\-—]?\s+back\s+to\b", "anyway_back"),
+    (r"^back\s+to\s+(?:the\s+)?(\w+)", "back_to"),
+    (r"^where\s+were\s+we\s*(?:again)?\s*\??", "where_were_we"),
+    (r"^let'?s\s+(?:go\s+)?back\s+to\b", "lets_back"),
+    (r"^returning\s+to\b", "returning_to"),
+    (r"^so\s+anyway[,\-—]?\s*", "so_anyway"),
+    (r"^getting\s+back\s+to\b", "getting_back"),
+    (r"^as\s+(?:i|we)\s+(?:was|were)\s+saying\b", "as_i_was_saying"),
+]
+
+# =============================================================================
+# v0.7.5 — META-QUESTION PATTERNS
+# =============================================================================
+
+META_QUESTION_PATTERNS = [
+    # Topic recall
+    (r"what\s+(?:were\s+we|was\s+i)\s+(?:talking|discussing)\s+about", "topic_recall"),
+    (r"what\s+(?:were\s+we|was\s+i)\s+saying", "topic_recall"),
+    (r"where\s+did\s+we\s+leave\s+off", "topic_recall"),
+    
+    # Entity recall
+    (r"what\s+do\s+you\s+remember\s+about\s+(\w+)", "entity_recall"),
+    (r"what\s+did\s+i\s+tell\s+you\s+about\s+(\w+)", "entity_recall"),
+    (r"what\s+do\s+(?:i|we)\s+know\s+about\s+(\w+)", "entity_recall"),
+    
+    # Person/group recall
+    (r"who\s+(?:were\s+we|was\s+i)\s+discussing\s*(?:again)?", "person_recall"),
+    (r"who\s+are\s+they\s*(?:again)?", "group_recall"),
+    (r"who\s+is\s+(\w+)\s*(?:again)?", "person_recall"),
+    (r"remind\s+me\s+(?:who|what)\s+(\w+)", "reminder"),
+    
+    # Context recall
+    (r"what'?s\s+the\s+context\s*(?:again)?", "context_recall"),
+    (r"catch\s+me\s+up", "context_recall"),
+    (r"where\s+are\s+we\s*\??", "context_recall"),
+]
+
 
 # =============================================================================
 # WORKING MEMORY CLASS
@@ -543,7 +627,19 @@ class NovaWorkingMemory:
             "pronouns_resolved": {},
             "emotional_tone": None,
             "gender_inferences": [],  # v0.7.1
+            "groups_detected": [],    # v0.7.5
+            "tangent_detected": None, # v0.7.5
+            "return_detected": None,  # v0.7.5
         }
+        
+        # v0.7.5: Check for tangent/return patterns FIRST (before entity extraction)
+        tangent_result = self._check_tangent_patterns(user_message)
+        if tangent_result:
+            results["tangent_detected"] = tangent_result
+        
+        return_result = self._check_return_patterns(user_message)
+        if return_result:
+            results["return_detected"] = return_result
         
         # 1. Extract entities from user message
         extracted_entities = self._extract_entities(user_message)
@@ -555,25 +651,31 @@ class NovaWorkingMemory:
         gender_inferences = self._infer_gender_from_context(user_message)
         results["gender_inferences"] = gender_inferences
         
-        # 3. Extract topics
+        # 3. v0.7.5: Detect groups from "X and Y" patterns
+        groups_detected = self._detect_groups(user_message)
+        for group_id in groups_detected:
+            if group_id in self.entities:
+                results["groups_detected"].append(self.entities[group_id].name)
+        
+        # 4. Extract topics
         extracted_topics = self._extract_topics(user_message)
         for topic in extracted_topics:
             self._add_or_update_topic(topic)
             results["topics_extracted"].append(topic.name)
         
-        # 4. Detect goals/intentions
+        # 5. Detect goals/intentions
         detected_goals = self._extract_goals(user_message)
         for goal in detected_goals:
             self._add_goal(goal)
             results["goals_detected"].append(goal.description)
         
-        # 5. Detect questions
+        # 6. Detect questions
         detected_questions = self._extract_questions(user_message)
         for question in detected_questions:
             self._add_question(question)
             results["questions_detected"].append(question.question)
         
-        # 6. Resolve pronouns in the message (and update last_mentioned)
+        # 7. Resolve pronouns in the message (and update last_mentioned)
         pronouns_found = self._find_pronouns(user_message)
         for pronoun in pronouns_found:
             resolved = self.resolve_pronoun(pronoun)
@@ -583,15 +685,15 @@ class NovaWorkingMemory:
                 if resolved.id in self.entities:
                     self.entities[resolved.id].last_mentioned = self.turn_count
         
-        # 7. Detect emotional tone
+        # 8. Detect emotional tone
         tone = self._detect_emotional_tone(user_message)
         self.emotional_tone = tone
         results["emotional_tone"] = tone.value
         
-        # 8. Update active topic
+        # 9. Update active topic
         self._update_active_topic()
         
-        # 9. Create turn summary
+        # 10. Create turn summary
         user_summary = self._summarize_message(user_message)
         nova_summary = self._summarize_message(nova_response) if nova_response else ""
         
@@ -1734,6 +1836,366 @@ class NovaWorkingMemory:
         return [self.entities[mid] for mid in member_ids if mid in self.entities]
     
     # =========================================================================
+    # v0.7.5 — AUTOMATIC GROUP DETECTION
+    # =========================================================================
+    
+    def _detect_groups(self, message: str) -> List[str]:
+        """
+        v0.7.5: Detect "X and Y" patterns and create group entities.
+        
+        Returns:
+            List of created group entity IDs
+        """
+        created_groups = []
+        
+        # First try with "both" qualifier (higher confidence)
+        for match in GROUP_BOTH_PATTERN.finditer(message):
+            name1, name2 = match.group(1), match.group(2)
+            group_id = self._create_group_if_valid(name1, name2)
+            if group_id:
+                created_groups.append(group_id)
+        
+        # Then try basic "X and Y" pattern
+        for match in GROUP_DETECTION_PATTERN.finditer(message):
+            name1, name2 = match.group(1), match.group(2)
+            
+            # Skip if this pair was already created with "both" qualifier
+            group_name = f"{name1} and {name2}"
+            if any(self.entities.get(gid, {}) and 
+                   getattr(self.entities.get(gid), 'name', '') == group_name 
+                   for gid in created_groups):
+                continue
+            
+            group_id = self._create_group_if_valid(name1, name2)
+            if group_id:
+                created_groups.append(group_id)
+        
+        return created_groups
+    
+    def _create_group_if_valid(self, name1: str, name2: str) -> Optional[str]:
+        """
+        Create a group entity if both names are valid people.
+        
+        Returns:
+            Group entity ID if created, None otherwise
+        """
+        # Filter out non-names
+        if name1.lower() in NOT_NAMES or name2.lower() in NOT_NAMES:
+            return None
+        
+        # Check if entities exist (or create them)
+        entity1 = self._find_entity_by_name(name1)
+        entity2 = self._find_entity_by_name(name2)
+        
+        # Both must be known people or we create them
+        if not entity1:
+            entity1 = WMEntity(
+                id=self._gen_entity_id(),
+                name=name1,
+                entity_type=EntityType.PERSON,
+                first_mentioned=self.turn_count,
+                last_mentioned=self.turn_count,
+            )
+            self.entities[entity1.id] = entity1
+        
+        if not entity2:
+            entity2 = WMEntity(
+                id=self._gen_entity_id(),
+                name=name2,
+                entity_type=EntityType.PERSON,
+                first_mentioned=self.turn_count,
+                last_mentioned=self.turn_count,
+            )
+            self.entities[entity2.id] = entity2
+        
+        # Check if this group already exists
+        group_name = f"{name1} and {name2}"
+        alt_group_name = f"{name2} and {name1}"
+        
+        for gid, members in self.groups.items():
+            if gid in self.entities:
+                existing_name = self.entities[gid].name
+                if existing_name == group_name or existing_name == alt_group_name:
+                    # Update last_mentioned
+                    self.entities[gid].last_mentioned = self.turn_count
+                    return None  # Already exists
+        
+        # Create the group
+        return self.register_group(group_name, [name1, name2])
+    
+    # =========================================================================
+    # v0.7.5 — TANGENT/RETURN DETECTION
+    # =========================================================================
+    
+    def _check_tangent_patterns(self, message: str) -> Optional[Dict[str, Any]]:
+        """
+        v0.7.5: Check if user is starting a tangent.
+        
+        Returns:
+            Dict with tangent info if detected, None otherwise
+        """
+        message_lower = message.lower().strip()
+        
+        for pattern, trigger_name in TANGENT_START_PATTERNS:
+            if re.match(pattern, message_lower, re.IGNORECASE):
+                # Push current topic to stack
+                old_topic_id = self.active_topic_id
+                old_topic_name = None
+                if old_topic_id and old_topic_id in self.topics:
+                    old_topic_name = self.topics[old_topic_id].name
+                    self.topic_stack.append(old_topic_id)
+                    # Keep stack bounded
+                    if len(self.topic_stack) > 5:
+                        self.topic_stack = self.topic_stack[-5:]
+                    # Mark as paused
+                    self.topics[old_topic_id].status = TopicStatus.PAUSED
+                
+                # Extract tangent topic from rest of message
+                cleaned = re.sub(pattern, "", message_lower, count=1, flags=re.IGNORECASE).strip()
+                tangent_topic = cleaned[:50] if cleaned else "tangent"
+                
+                return {
+                    "type": "tangent_start",
+                    "trigger": trigger_name,
+                    "old_topic": old_topic_name,
+                    "tangent_topic": tangent_topic,
+                }
+        
+        return None
+    
+    def _check_return_patterns(self, message: str) -> Optional[Dict[str, Any]]:
+        """
+        v0.7.5: Check if user is returning to previous topic.
+        
+        Returns:
+            Dict with return info if detected, None otherwise
+        """
+        message_lower = message.lower().strip()
+        
+        for pattern, trigger_name in TOPIC_RETURN_PATTERNS:
+            match = re.match(pattern, message_lower, re.IGNORECASE)
+            if match:
+                # Check if they mentioned a specific topic
+                target_topic = None
+                if match.lastindex and match.lastindex >= 1:
+                    target_topic = match.group(1)
+                
+                result = {
+                    "type": "topic_return",
+                    "trigger": trigger_name,
+                    "target_topic": target_topic,
+                }
+                
+                # If specific topic mentioned, try to switch to it
+                if target_topic:
+                    switched = self.switch_topic(target_topic)
+                    if switched:
+                        result["switched_to"] = switched
+                        if switched in self.topics:
+                            result["topic_name"] = self.topics[switched].name
+                        return result
+                
+                # Otherwise, pop from stack
+                if self.topic_stack:
+                    prev_topic_id = self.pop_topic()
+                    if prev_topic_id:
+                        result["switched_to"] = prev_topic_id
+                        if prev_topic_id in self.topics:
+                            result["topic_name"] = self.topics[prev_topic_id].name
+                
+                return result
+        
+        return None
+    
+    # =========================================================================
+    # v0.7.5 — META-QUESTION HANDLING
+    # =========================================================================
+    
+    def check_meta_question(self, message: str) -> Optional[Dict[str, Any]]:
+        """
+        v0.7.5: Check if the message is a meta-question about the conversation.
+        
+        Returns:
+            Dict with meta-question type and extracted info, or None
+        """
+        message_lower = message.lower().strip()
+        
+        for pattern, question_type in META_QUESTION_PATTERNS:
+            match = re.search(pattern, message_lower, re.IGNORECASE)
+            if match:
+                result = {
+                    "type": question_type,
+                    "pattern": pattern,
+                }
+                
+                # Extract entity name if captured
+                if match.lastindex and match.lastindex >= 1:
+                    result["entity_mentioned"] = match.group(1)
+                
+                return result
+        
+        return None
+    
+    def answer_meta_question(self, meta_info: Dict[str, Any]) -> Optional[str]:
+        """
+        v0.7.5: Generate an answer for a meta-question using WM state.
+        
+        Args:
+            meta_info: Result from check_meta_question()
+        
+        Returns:
+            Answer string, or None if cannot answer
+        """
+        question_type = meta_info.get("type")
+        
+        if question_type == "topic_recall":
+            return self._answer_topic_recall()
+        
+        elif question_type == "entity_recall":
+            entity_name = meta_info.get("entity_mentioned")
+            if entity_name:
+                return self._answer_entity_recall(entity_name)
+        
+        elif question_type == "person_recall":
+            return self._answer_person_recall()
+        
+        elif question_type == "group_recall":
+            return self._answer_group_recall()
+        
+        elif question_type == "context_recall":
+            return self._answer_context_recall()
+        
+        elif question_type == "reminder":
+            entity_name = meta_info.get("entity_mentioned")
+            if entity_name:
+                return self._answer_entity_recall(entity_name)
+        
+        return None
+    
+    def _answer_topic_recall(self) -> Optional[str]:
+        """Answer 'what were we talking about?'"""
+        if self.active_topic_id and self.active_topic_id in self.topics:
+            topic = self.topics[self.active_topic_id]
+            
+            # Get related entities
+            people = self.get_entities_by_type(EntityType.PERSON)
+            people_str = ""
+            if people:
+                names = [p.name for p in people[:3]]
+                people_str = f" (involving {', '.join(names)})"
+            
+            return f"We were discussing {topic.name}{people_str}."
+        
+        # Check topic stack
+        if self.topic_stack:
+            recent_id = self.topic_stack[-1]
+            if recent_id in self.topics:
+                return f"We were on a tangent. Before that, we were discussing {self.topics[recent_id].name}."
+        
+        return "We haven't established a specific topic yet."
+    
+    def _answer_person_recall(self) -> Optional[str]:
+        """Answer 'who were we discussing?'"""
+        people = self.get_entities_by_type(EntityType.PERSON)
+        if not people:
+            return "We haven't discussed any specific people yet."
+        
+        # Sort by last_mentioned
+        people_sorted = sorted(people, key=lambda p: p.last_mentioned, reverse=True)
+        
+        parts = []
+        for person in people_sorted[:5]:
+            part = person.name
+            if person.gender_hint and person.gender_hint != GenderHint.NEUTRAL:
+                part += f" ({person.gender_hint.value})"
+            parts.append(part)
+        
+        return f"We've been discussing: {', '.join(parts)}."
+    
+    def _answer_group_recall(self) -> Optional[str]:
+        """Answer 'who are they again?'"""
+        # Find recent group
+        groups = [e for e in self.entities.values() if e.entity_type == EntityType.GROUP]
+        
+        if not groups:
+            # Try neutral pronoun resolution
+            resolved = self.resolve_pronoun("they")
+            if resolved:
+                return f"'They' refers to {resolved.name}."
+            return "I'm not sure who 'they' refers to in this context."
+        
+        # Get most recent group
+        recent_group = max(groups, key=lambda g: g.last_mentioned)
+        
+        # Get member details
+        members = self.get_group_members(recent_group.id)
+        if members:
+            member_details = []
+            for m in members:
+                detail = m.name
+                if m.gender_hint and m.gender_hint != GenderHint.NEUTRAL:
+                    detail += f" ({m.gender_hint.value})"
+                member_details.append(detail)
+            
+            return f"'They' refers to {recent_group.name} — {', '.join(member_details)}."
+        
+        return f"'They' refers to {recent_group.name}."
+    
+    def _answer_entity_recall(self, entity_name: str) -> Optional[str]:
+        """Answer 'what do you remember about X?'"""
+        entity = self._find_entity_by_name(entity_name)
+        if not entity:
+            return f"I don't have any information about {entity_name}."
+        
+        parts = [f"{entity.name} is a {entity.entity_type.value}"]
+        
+        if entity.description:
+            parts.append(f"— {entity.description}")
+        
+        if entity.gender_hint and entity.gender_hint != GenderHint.NEUTRAL:
+            parts.append(f"(pronouns: {entity.gender_hint.value})")
+        
+        # Check if part of a group
+        for gid, members in self.groups.items():
+            if entity.id in members and gid in self.entities:
+                group = self.entities[gid]
+                parts.append(f"Part of group: {group.name}")
+        
+        return " ".join(parts) + "."
+    
+    def _answer_context_recall(self) -> Optional[str]:
+        """Answer 'what's the context?'"""
+        parts = []
+        
+        # Topic
+        if self.active_topic_id and self.active_topic_id in self.topics:
+            parts.append(f"Topic: {self.topics[self.active_topic_id].name}")
+        
+        # People
+        people = self.get_entities_by_type(EntityType.PERSON)
+        if people:
+            names = [p.name for p in people[:4]]
+            parts.append(f"People: {', '.join(names)}")
+        
+        # Groups
+        groups = [e for e in self.entities.values() if e.entity_type == EntityType.GROUP]
+        if groups:
+            group_names = [g.name for g in groups]
+            parts.append(f"Groups: {', '.join(group_names)}")
+        
+        # Tone
+        if self.emotional_tone != EmotionalTone.NEUTRAL:
+            parts.append(f"Tone: {self.emotional_tone.value}")
+        
+        # Turn count
+        parts.append(f"Turns: {self.turn_count}")
+        
+        if not parts:
+            return "We're just getting started — no context established yet."
+        
+        return "\n".join(parts)
+    
+    # =========================================================================
     # v0.7.3 — SNAPSHOT SUPPORT
     # =========================================================================
     
@@ -1979,6 +2441,77 @@ def wm_get_snapshot(session_id: str, label: Optional[str] = None) -> str:
     """
     wm = _wm_manager.get(session_id)
     return wm.get_snapshot_summary(label)
+
+
+# =============================================================================
+# v0.7.5 — META-QUESTION API
+# =============================================================================
+
+def wm_check_meta_question(session_id: str, message: str) -> Optional[Dict[str, Any]]:
+    """
+    v0.7.5: Check if a message is a meta-question about the conversation.
+    
+    Args:
+        session_id: Session identifier
+        message: User message to check
+    
+    Returns:
+        Dict with meta-question info, or None
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.check_meta_question(message)
+
+
+def wm_answer_meta_question(session_id: str, meta_info: Dict[str, Any]) -> Optional[str]:
+    """
+    v0.7.5: Generate an answer for a meta-question using WM state.
+    
+    Args:
+        session_id: Session identifier
+        meta_info: Result from wm_check_meta_question()
+    
+    Returns:
+        Answer string, or None
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.answer_meta_question(meta_info)
+
+
+def wm_get_group_info(session_id: str, group_id: str) -> Optional[Dict[str, Any]]:
+    """
+    v0.7.5: Get information about a group entity.
+    
+    Args:
+        session_id: Session identifier
+        group_id: Group entity ID
+    
+    Returns:
+        Dict with group name and member details, or None
+    """
+    wm = _wm_manager.get(session_id)
+    
+    if group_id not in wm.entities:
+        return None
+    
+    group = wm.entities[group_id]
+    if group.entity_type != EntityType.GROUP:
+        return None
+    
+    members = wm.get_group_members(group_id)
+    member_info = []
+    for m in members:
+        member_info.append({
+            "id": m.id,
+            "name": m.name,
+            "gender": m.gender_hint.value if m.gender_hint else "neutral",
+        })
+    
+    return {
+        "id": group_id,
+        "name": group.name,
+        "members": member_info,
+        "last_mentioned": group.last_mentioned,
+    }
 
 
 # TODO v0.7.4: On new sessions, optionally reload recent wm-snapshot memories
