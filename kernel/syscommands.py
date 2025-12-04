@@ -4,6 +4,14 @@ from typing import Dict, Any, Callable
 
 from .command_types import CommandResponse
 from .formatting import OutputFormatter as F
+# v0.6.1: Working Memory integration
+try:
+    from .working_memory import clear_working_memory
+    _HAS_WORKING_MEMORY = True
+except ImportError:
+    _HAS_WORKING_MEMORY = False
+    def clear_working_memory(session_id: str) -> None:
+        pass  # No-op if WM not installed
 
 KernelResponse = CommandResponse
 
@@ -575,6 +583,9 @@ def _handle_section_menu(section_key: str, cmd_name, args, session_id, context, 
     if not section:
         return _base_response(cmd_name, f"Unknown section '{section_key}'.", {"ok": False})
     
+    # v0.6.1: Clear Working Memory when entering section menu
+    clear_working_memory(session_id)
+    
     # Set active section for this session
     _section_menu_state[session_id] = section_key
     
@@ -655,8 +666,10 @@ def get_section_command_names(section_key: str) -> list:
 
 
 def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    # v0.6.1: Clear Working Memory on reset
+    clear_working_memory(session_id)
     kernel.context_manager.reset_session(session_id)
-    summary = "Session context reset. Modules and workflows reloaded from disk."
+    summary = "Session context reset. Working memory cleared. Modules and workflows reloaded from disk."
     return _base_response(cmd_name, summary)
 
 # ---------------------------------------------------------------------

@@ -32,6 +32,12 @@ from .wizard_mode import (
     cancel_wizard,
     build_command_args_from_wizard,
 )
+# v0.6.1 Working Memory
+from .working_memory import (
+    process_for_persona,
+    record_nova_response,
+    clear_working_memory,
+)
 # InterpretationEngine is kept for explicit #interpret, #derive, etc. commands
 # but is NO LONGER used for automatic NL → command routing
 from kernel.interpretation_engine import InterpretationEngine
@@ -256,6 +262,8 @@ class NovaKernel:
                 
                 # 4) Wizard mode for no-arg commands
                 if not args_dict and is_wizard_command(cmd_name):
+                    # v0.6.1: Clear Working Memory when wizard starts
+                    clear_working_memory(session_id)
                     result = start_wizard(session_id, cmd_name)
                     return {
                         "ok": result.get("ok", True),
@@ -301,6 +309,8 @@ class NovaKernel:
             use_wizard = nl_request.meta.get("use_wizard", False) if nl_request.meta else False
             
             if use_wizard and is_wizard_command(nl_request.cmd_name):
+                # v0.6.1: Clear Working Memory when wizard starts
+                clear_working_memory(session_id)
                 # Start wizard for this command
                 result = start_wizard(session_id, nl_request.cmd_name)
                 return {
@@ -345,14 +355,18 @@ class NovaKernel:
             }
         
         # -------------------------------------------------------------
-        # 7) Persona Fallback (normal chat)
+        # 7) Persona Fallback (normal chat) with Working Memory
         # -------------------------------------------------------------
         self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
 
+        # v0.6.1: Process message through Working Memory for context enrichment
+        wm_context = process_for_persona(session_id, stripped)
+        
         policy_meta = {
             "session_id": session_id,
             "source": "persona_fallback",
             "env": getattr(self, "env_state", None),
+            "working_memory": wm_context,  # v0.6.1: Pass WM context
         }
 
         # Pre-LLM sanitization
@@ -363,11 +377,16 @@ class NovaKernel:
             except Exception as e:
                 self.logger.log_error(session_id, f"policy.pre_llm error (persona): {e}")
 
-        # Persona LLM call
+        # Persona LLM call with Working Memory context
         reply = self.persona.generate_response(
             safe_input,
-            session_id=session_id
+            session_id=session_id,
+            working_memory=wm_context,  # v0.6.1: Pass WM to persona
         )
+
+        # v0.6.1: Record Nova's response in Working Memory
+        if reply:
+            record_nova_response(session_id, reply)
 
         # Post-LLM correction/stabilization
         if self.policy_engine is not None:
@@ -388,7 +407,14 @@ class NovaKernel:
                 "command": "persona",
                 "summary": reply,
             },
-            "meta": {"source": "persona_fallback"},
+            "meta": {
+                "source": "persona_fallback",
+                "working_memory": {
+                    "topic": wm_context.get("current_topic"),
+                    "turn_count": wm_context.get("turn_count", 0),
+                    "is_continuation": wm_context.get("is_continuation", False),
+                },
+            },
         }
 
         self.logger.log_response(session_id, "persona", response_dict)
