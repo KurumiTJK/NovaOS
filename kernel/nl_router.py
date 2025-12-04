@@ -1,9 +1,20 @@
 # kernel/nl_router.py
 """
-v0.6 — Natural Language Router (Wizard-Aware)
+v0.6.1 — Natural Language Router (Wizard-Aware, Expanded Coverage)
 
 Routes natural language input to syscommands via intent detection.
 Integrates with the wizard system for guided command execution.
+
+v0.6.1 UPGRADES:
+- Expanded pattern coverage (~100 patterns)
+- Continuity commands (preferences, projects, etc.)
+- Identity history commands
+- System info commands (env, model-info, help)
+- Time-rhythm commands (presence, pulse, align)
+- Interpretation commands (interpret, derive, forecast, etc.)
+- Natural psychology patterns (emotional intents)
+- Enhanced preamble stripping
+- Conflict detection for mixed/ambiguous intents
 
 Design:
 - Pattern-based intent detection (no LLM calls)
@@ -12,13 +23,20 @@ Design:
 - Strips preambles ("ok nova", "hey nova", etc.)
 - Returns None if ambiguous (falls back to persona)
 
+SAFETY RULES:
+- Destructive commands MUST use wizard: dismantle, restore, workflow-delete,
+  remind-delete, command-remove, forget, identity-clear-history
+- Mixed intent → no match
+- Ambiguous → persona fallback
+- MIN_CONFIDENCE = 0.75
+
 ROUTING INVARIANTS:
 - At top level, a command is only a command if it starts with #
 - This router only handles natural language (non-# input)
 - Section menus & wizards are handled elsewhere
 """
 
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Set
 import re
 from dataclasses import dataclass, field
 
@@ -36,16 +54,24 @@ class IntentMatch:
 
 
 # -----------------------------------------------------------------------------
-# Preamble Stripping
+# Preamble Stripping (v0.6.1 expanded)
 # -----------------------------------------------------------------------------
 
-# Common preambles users might say before their intent
 PREAMBLE_PATTERNS = [
-    r"^(okay|ok|alright|yo|hey|hi|um+|uh+|so+|well|like|basically|actually)\s*,?\s*",
+    # Basic greetings / fillers
+    r"^(okay|ok|alright|yo|hey|hi|hello|um+|uh+|so+|well|like|basically|actually)\s*,?\s*",
+    # Nova address
     r"^(nova|novaos)\s*,?\s*",
-    r"^(can you|could you|would you|will you|please)\s+",
-    r"^(i want to|i('d| would) like to|let('s| us)|i need to)\s+",
-    r"^(lowkey|tbh|ngl|honestly|mmm+)\s*,?\s*",
+    # Polite requests
+    r"^(can you|could you|would you|will you|please|pls)\s+",
+    # Intent preambles
+    r"^(i want to|i('d| would) like to|let('s| us)|i need to|i wanna|i gotta)\s+",
+    # Slang / casual
+    r"^(lowkey|tbh|ngl|honestly|mmm+|hmm+|bruh|dude|bro)\s*,?\s*",
+    # Thinking out loud
+    r"^(i think|i guess|i suppose|maybe|perhaps)\s+",
+    # Question starters (keep the question)
+    r"^(just|quickly|real quick)\s+",
 ]
 
 _compiled_preambles = [re.compile(p, re.IGNORECASE) for p in PREAMBLE_PATTERNS]
@@ -59,10 +85,11 @@ def strip_preambles(text: str) -> str:
         "okay nova remind me to..." -> "remind me to..."
         "hey can you store this" -> "store this"
         "lowkey I need to log how I'm feeling" -> "log how I'm feeling"
+        "bruh i gotta check in" -> "check in"
     """
     result = text.strip()
     changed = True
-    max_iterations = 5  # Prevent infinite loops
+    max_iterations = 5
     iterations = 0
     
     while changed and iterations < max_iterations:
@@ -78,7 +105,7 @@ def strip_preambles(text: str) -> str:
 
 
 # -----------------------------------------------------------------------------
-# Wizard-Aware Intent Patterns
+# Pattern Definition
 # -----------------------------------------------------------------------------
 
 @dataclass
@@ -92,19 +119,127 @@ class NLPattern:
         use_wizard: Whether to trigger wizard mode
         confidence: Base confidence score (0.0-1.0)
         patterns: List of regex patterns
-        extractor: Optional arg extractor function name or callable
+        destructive: If True, MUST use wizard (safety)
     """
     name: str
     cmd_name: str
     use_wizard: bool
     confidence: float
     patterns: List[str]
-    extractor: Optional[str] = None
+    destructive: bool = False
 
 
 # =============================================================================
-# GROUP A: Strong Wizard Candidates (15 commands)
-# These trigger wizards for guided input
+# DESTRUCTIVE COMMANDS (always require wizard)
+# =============================================================================
+
+DESTRUCTIVE_PATTERNS: List[NLPattern] = [
+    # MEMORY FORGET
+    NLPattern(
+        name="memory_forget",
+        cmd_name="forget",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\bforget (this|that|the) memory\b",
+            r"\bdelete (this|that|the) memory\b",
+            r"\bremove (this|that|the) memory\b",
+            r"\bforget memory\s*#?\d*\b",
+            r"\bdelete memory\s*#?\d*\b",
+            r"\berase (this|that|the) memory\b",
+        ],
+    ),
+    
+    # REMINDER DELETE
+    NLPattern(
+        name="reminder_delete",
+        cmd_name="remind-delete",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\b(delete|remove|cancel) (the |that |my )?reminder\b",
+            r"\breminder.*(delete|remove|cancel)\b",
+            r"\bget rid of (the |that |my )?reminder\b",
+        ],
+    ),
+    
+    # WORKFLOW DELETE
+    NLPattern(
+        name="workflow_delete",
+        cmd_name="workflow-delete",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\b(delete|remove) (the |that |my )?(\w+\s+)?workflow\b",
+            r"\bworkflow.*(delete|remove)\b",
+            r"\bget rid of (the |that )?(\w+\s+)?workflow\b",
+        ],
+    ),
+    
+    # MODULE DISMANTLE
+    NLPattern(
+        name="dismantle_module",
+        cmd_name="dismantle",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\b(delete|remove|dismantle) (the |that |my )?module\b",
+            r"\bmodule.*(delete|remove|dismantle)\b",
+            r"\bget rid of (the |that )?module\b",
+        ],
+    ),
+    
+    # SNAPSHOT RESTORE
+    NLPattern(
+        name="snapshot_restore",
+        cmd_name="restore",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\brestore (from )?(a )?snapshot\b",
+            r"\broll\s*back\b",
+            r"\brevert (to |from )?(a )?snapshot\b",
+            r"\bload (a )?snapshot\b",
+            r"\bundo to (a )?snapshot\b",
+        ],
+    ),
+    
+    # COMMAND REMOVE
+    NLPattern(
+        name="command_remove",
+        cmd_name="command-remove",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\b(delete|remove) (the |that |my )?(custom )?command\b",
+            r"\bcommand.*(delete|remove)\b",
+        ],
+    ),
+    
+    # IDENTITY CLEAR HISTORY
+    NLPattern(
+        name="identity_clear_history",
+        cmd_name="identity-clear-history",
+        use_wizard=True,
+        confidence=0.85,
+        destructive=True,
+        patterns=[
+            r"\b(clear|reset|wipe) (my )?identity history\b",
+            r"\bidentity.*(clear|reset|wipe)\b",
+            r"\bdelete (my )?identity (history|snapshots)\b",
+        ],
+    ),
+]
+
+
+# =============================================================================
+# GROUP A: WIZARD COMMANDS (guided input)
 # =============================================================================
 
 WIZARD_PATTERNS: List[NLPattern] = [
@@ -120,8 +255,10 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\bremind me\b",
             r"\bset a reminder\b",
             r"\bcreate a reminder\b",
-            r"\breminder for\b",
+            r"\breminder (for|to|about)\b",
             r"\bdon't let me forget\b",
+            r"\bmake sure i (remember|don't forget)\b",
+            r"\bping me (about|when|to)\b",
         ],
     ),
     NLPattern(
@@ -132,16 +269,7 @@ WIZARD_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\b(edit|update|change|modify) (the |that |my )?reminder\b",
             r"\breminder.*(edit|update|change)\b",
-        ],
-    ),
-    NLPattern(
-        name="reminder_delete",
-        cmd_name="remind-delete",
-        use_wizard=True,
-        confidence=0.85,
-        patterns=[
-            r"\b(delete|remove|cancel) (the |that |my )?reminder\b",
-            r"\breminder.*(delete|remove|cancel)\b",
+            r"\breschedule (the |that |my )?reminder\b",
         ],
     ),
     
@@ -155,25 +283,14 @@ WIZARD_PATTERNS: List[NLPattern] = [
         confidence=0.85,
         patterns=[
             r"\bremember (this|that)\b",
-            r"\bremember:?\s+.{10,}",  # "remember X" with substantial content
+            r"\bremember:?\s+.{10,}",
             r"\bstore (this|that)( as)?\b",
             r"\bsave (this|that)( as| for)?\b",
             r"\bkeep (this|that) in memory\b",
-            r"\bmake a (note|memory)\b",
+            r"\bmake a (note|memory)( of| about)?\b",
             r"\bnote (this|that) down\b",
-        ],
-    ),
-    NLPattern(
-        name="memory_forget",
-        cmd_name="forget",
-        use_wizard=True,
-        confidence=0.85,
-        patterns=[
-            r"\bforget (this|that|the) memory\b",
-            r"\bdelete (this|that|the) memory\b",
-            r"\bremove (this|that|the) memory\b",
-            r"\bforget memory\s*#?\d*\b",
-            r"\bdelete memory\s*#?\d*\b",
+            r"\bdon't forget (this|that)\b",
+            r"\bhold onto (this|that)\b",
         ],
     ),
     NLPattern(
@@ -186,6 +303,7 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\blink (these |the |those )?memories\b",
             r"\bcluster (these |the |those )?memories\b",
             r"\bgroup (these |the |those )?memories\b",
+            r"\bconnect (these |the |those )?memories\b",
         ],
     ),
     
@@ -201,9 +319,9 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\blog (how i('m| am)|my)\s*(feeling|doing|state|energy|stress)\b",
             r"\bcheck(-|\s)?in\b",
             r"\brecord (my |how i('m| am) )?(state|feeling|energy)\b",
-            r"\bupdate my (state|energy|stress)\b",
-            r"\bhow('m| am) i (doing|feeling)\??\s*log\b",
-            r"\blog (my )?(current )?(state|mood|energy)\b",
+            r"\bupdate my (state|energy|stress|mood)\b",
+            r"\blog (my )?(current )?(state|mood|energy|vibe)\b",
+            r"\btrack (my )?(energy|stress|mood|state)\b",
         ],
     ),
     
@@ -218,8 +336,33 @@ WIZARD_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\b(set|update|change) my (goals?|values?|roles?|name|strengths?)\b",
             r"\bmy (goals?|values?|roles?) (are|is|should be)\b",
-            r"\badd.*(goal|value|role)\b",
+            r"\badd (a )?(goal|value|role)\b",
             r"\bupdate (my )?identity\b",
+            r"\bchange my (identity|profile)\b",
+        ],
+    ),
+    NLPattern(
+        name="identity_restore",
+        cmd_name="identity-restore",
+        use_wizard=True,
+        confidence=0.82,
+        patterns=[
+            r"\brestore (my )?identity\b",
+            r"\brevert (my )?identity\b",
+            r"\bidentity.*(restore|revert)\b",
+            r"\bgo back to (an )?old(er)? identity\b",
+        ],
+    ),
+    NLPattern(
+        name="identity_snapshot",
+        cmd_name="identity-snapshot",
+        use_wizard=True,
+        confidence=0.82,
+        patterns=[
+            r"\bsnapshot (my )?identity\b",
+            r"\bsave (my )?identity\b",
+            r"\bcapture (my )?identity\b",
+            r"\bidentity snapshot\b",
         ],
     ),
     
@@ -232,9 +375,11 @@ WIZARD_PATTERNS: List[NLPattern] = [
         use_wizard=True,
         confidence=0.85,
         patterns=[
-            r"\b(start|begin|run|launch) (the |a |that |my )?workflow\b",
+            r"\b(start|begin|run|launch) (the |a |that |my )?(\w+\s+)?workflow\b",
+            r"\b(start|begin|run|launch) (the |a |that |my )?\w+ workflow\b",
             r"\bworkflow.*(start|begin|run|launch)\b",
-            r"\bkick off (the |a )?workflow\b",
+            r"\bkick off (the |a )?(\w+\s+)?workflow\b",
+            r"\bactivate (the |a )?(\w+\s+)?workflow\b",
         ],
     ),
     NLPattern(
@@ -247,16 +392,31 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\bworkflow for\b",
             r"\bset up a workflow\b",
             r"\bcompose (a )?workflow\b",
+            r"\bnew workflow (for|to|that)\b",
         ],
     ),
     NLPattern(
-        name="workflow_delete",
-        cmd_name="workflow-delete",
+        name="workflow_advance",
+        cmd_name="advance",
         use_wizard=True,
-        confidence=0.85,
+        confidence=0.80,
         patterns=[
-            r"\b(delete|remove) (the |that |my )?workflow\b",
-            r"\bworkflow.*(delete|remove)\b",
+            r"\bnext step\b",
+            r"\badvance (the )?workflow\b",
+            r"\bcontinue (the )?workflow\b",
+            r"\bmove (to )?(the )?next step\b",
+            r"\bproceed\b",
+        ],
+    ),
+    NLPattern(
+        name="workflow_halt",
+        cmd_name="halt",
+        use_wizard=True,
+        confidence=0.80,
+        patterns=[
+            r"\b(stop|pause|halt) (the )?workflow\b",
+            r"\bworkflow.*(stop|pause|halt)\b",
+            r"\bput (the )?workflow on hold\b",
         ],
     ),
     
@@ -273,6 +433,19 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\bmodule for\b",
             r"\bset up (a )?module\b",
             r"\bnew module (for|called|named)\b",
+            r"\bspin up (a )?module\b",
+        ],
+    ),
+    NLPattern(
+        name="module_inspect",
+        cmd_name="inspect",
+        use_wizard=True,
+        confidence=0.80,
+        patterns=[
+            r"\binspect (the |that |this )?module\b",
+            r"\bmodule (details|info|inspect)\b",
+            r"\bexamine (the |that )?module\b",
+            r"\blook at (the |that )?module\b",
         ],
     ),
     
@@ -289,18 +462,7 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\bsnapshot (nova|novaos|the system|state)\b",
             r"\bsave (nova('s)?|the system('s)?|current) state\b",
             r"\bbackup (nova|novaos|state)\b",
-        ],
-    ),
-    NLPattern(
-        name="snapshot_restore",
-        cmd_name="restore",
-        use_wizard=True,
-        confidence=0.85,
-        patterns=[
-            r"\brestore (from )?(a )?snapshot\b",
-            r"\broll\s*back\b",
-            r"\brevert (to |from )?(a )?snapshot\b",
-            r"\bload (a )?snapshot\b",
+            r"\bcapture (the )?current state\b",
         ],
     ),
     
@@ -316,17 +478,13 @@ WIZARD_PATTERNS: List[NLPattern] = [
             r"\b(create|make|add) (a )?(new )?(custom )?command\b",
             r"\bnew command (for|that|called|named)\b",
             r"\bset up (a )?command\b",
+            r"\bdefine (a )?(new )?command\b",
         ],
     ),
-]
-
-
-# =============================================================================
-# GROUP B: Optional Wizard Commands (add if user says "wizard" or no args)
-# These have lower confidence and are less common
-# =============================================================================
-
-OPTIONAL_WIZARD_PATTERNS: List[NLPattern] = [
+    
+    # -------------------------------------------------------------------------
+    # MODE
+    # -------------------------------------------------------------------------
     NLPattern(
         name="mode_set",
         cmd_name="mode",
@@ -336,51 +494,13 @@ OPTIONAL_WIZARD_PATTERNS: List[NLPattern] = [
             r"\b(switch|change|set) (to )?(deep[_\s]?work|reflection|debug|normal) mode\b",
             r"\b(enter|go into) (deep[_\s]?work|reflection|debug|normal) mode\b",
             r"\bchange mode\b",
+            r"\bactivate (deep[_\s]?work|reflection|debug) mode\b",
         ],
     ),
-    NLPattern(
-        name="dismantle_module",
-        cmd_name="dismantle",
-        use_wizard=True,
-        confidence=0.82,
-        patterns=[
-            r"\b(delete|remove|dismantle) (the |that |my )?module\b",
-            r"\bmodule.*(delete|remove|dismantle)\b",
-        ],
-    ),
-    NLPattern(
-        name="identity_restore",
-        cmd_name="identity-restore",
-        use_wizard=True,
-        confidence=0.82,
-        patterns=[
-            r"\brestore (my )?identity\b",
-            r"\brevert (my )?identity\b",
-            r"\bidentity.*(restore|revert)\b",
-        ],
-    ),
-    NLPattern(
-        name="workflow_advance",
-        cmd_name="advance",
-        use_wizard=True,
-        confidence=0.80,
-        patterns=[
-            r"\bnext step\b",
-            r"\badvance (the )?workflow\b",
-            r"\bcontinue (the )?workflow\b",
-            r"\bmove (to )?(the )?next step\b",
-        ],
-    ),
-    NLPattern(
-        name="workflow_halt",
-        cmd_name="halt",
-        use_wizard=True,
-        confidence=0.80,
-        patterns=[
-            r"\b(stop|pause|halt) (the )?workflow\b",
-            r"\bworkflow.*(stop|pause|halt)\b",
-        ],
-    ),
+    
+    # -------------------------------------------------------------------------
+    # MEMORY MANAGEMENT (optional wizard)
+    # -------------------------------------------------------------------------
     NLPattern(
         name="memory_trace",
         cmd_name="trace",
@@ -389,16 +509,7 @@ OPTIONAL_WIZARD_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\btrace (the |that |this )?memory\b",
             r"\bmemory (trace|history|lineage)\b",
-        ],
-    ),
-    NLPattern(
-        name="module_inspect",
-        cmd_name="inspect",
-        use_wizard=True,
-        confidence=0.80,
-        patterns=[
-            r"\binspect (the |that |this )?module\b",
-            r"\bmodule (details|info|inspect)\b",
+            r"\bwhere did (this |that )?memory come from\b",
         ],
     ),
     NLPattern(
@@ -409,57 +520,98 @@ OPTIONAL_WIZARD_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\bwhat do (i|you) (know|remember) about\b",
             r"\brecall (my )?memories\b",
-            r"\bshow (my )?memories\b",
-            r"\blist (my )?memories\b",
             r"\bsearch (my )?memories\b",
+            r"\bfind (that |the )?memory\b",
         ],
     ),
 ]
 
 
 # =============================================================================
-# NON-WIZARD PATTERNS (instant commands, no wizard needed)
+# GROUP B: INSTANT COMMANDS (no wizard needed)
 # =============================================================================
 
 INSTANT_PATTERNS: List[NLPattern] = [
-    # STATUS / SYSTEM
+    # -------------------------------------------------------------------------
+    # CONTINUITY (v0.6.1 NEW)
+    # -------------------------------------------------------------------------
     NLPattern(
-        name="system_status",
-        cmd_name="status",
+        name="continuity_preferences",
+        cmd_name="preferences",
         use_wizard=False,
         confidence=0.85,
         patterns=[
-            r"\bhow('s| is| are) (nova|novaos|the system|everything)\b",
-            r"\bsystem (status|check)\b",
-            r"\bwhat('s| is) (my |the )?(current )?status\b",
+            r"\b(show|my|what are my) preferences\b",
+            r"\bwhat (do i|are my) priorit(y|ies)\b",
+            r"\bmy priorities\b",
+            r"\bwhat matters to me\b",
         ],
     ),
-    
-    # HELP
     NLPattern(
-        name="help",
-        cmd_name="help",
+        name="continuity_projects",
+        cmd_name="projects",
         use_wizard=False,
         confidence=0.85,
         patterns=[
-            r"\bwhat can you do\b",
-            r"\bshow( me)? (the )?commands\b",
-            r"\bavailable commands\b",
-            r"\blist (the )?commands\b",
+            r"\b(show|my|what are my|active|list) projects\b",
+            r"\bwhat('s| is) on my plate\b",
+            r"\bwhat am i working on\b",
+            r"\bmy active projects\b",
+            r"\bcurrent projects\b",
+        ],
+    ),
+    NLPattern(
+        name="continuity_context",
+        cmd_name="continuity-context",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\b(give me|show) (my )?continuity (view|context)\b",
+            r"\bfull context\b",
+            r"\bwhat do you know about me\b",
+            r"\bmy (full )?context\b",
+        ],
+    ),
+    NLPattern(
+        name="reconfirm_prompts",
+        cmd_name="reconfirm-prompts",
+        use_wizard=False,
+        confidence=0.80,
+        patterns=[
+            r"\bwhat should i (focus on|do) (today|now|next)\b",
+            r"\breconfirm (my )?priorities\b",
+            r"\bhelp me (get back on|stay on) track\b",
+            r"\bwhat('s| is) important (right )?now\b",
+            r"\bremind me what matters\b",
+        ],
+    ),
+    NLPattern(
+        name="suggest_workflow",
+        cmd_name="suggest-workflow",
+        use_wizard=False,
+        confidence=0.80,
+        patterns=[
+            r"\bsuggest (a )?workflow (for|to)\b",
+            r"\bworkflow suggestion\b",
+            r"\brecommend (a )?workflow\b",
+            r"\bwhat workflow (should i|for)\b",
         ],
     ),
     
-    # IDENTITY (getters)
+    # -------------------------------------------------------------------------
+    # IDENTITY GETTERS (v0.6.1 NEW)
+    # -------------------------------------------------------------------------
     NLPattern(
-        name="identity_why",
-        cmd_name="why",
+        name="identity_history",
+        cmd_name="identity-history",
         use_wizard=False,
-        confidence=0.88,
+        confidence=0.92,  # Much higher than identity-show (0.85) to win margin check
         patterns=[
-            r"\bwho are you\b",
-            r"\bwhat is nova(os)?\b",
-            r"\byour (purpose|identity|mission)\b",
-            r"\bwhy (do you |are you |nova)\b",
+            r"\b(show|my) identity (history|timeline)\b",
+            r"\bidentity (snapshots|versions|history)\b",
+            r"\bhow has my identity changed\b",
+            r"\bidentity evolution\b",
+            r"\bmy identity (history|timeline)\b",
         ],
     ),
     NLPattern(
@@ -470,10 +622,195 @@ INSTANT_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\b(show|display|view)( my)? identity\b",
             r"\bmy identity( profile)?\b",
+            r"\bwho am i( to you)?\b",
+            r"\bwhat do you know about me\b",
         ],
     ),
     
-    # MEMORY (getters)
+    # -------------------------------------------------------------------------
+    # SYSTEM INFO (v0.6.1 NEW)
+    # -------------------------------------------------------------------------
+    NLPattern(
+        name="system_env",
+        cmd_name="env",
+        use_wizard=False,
+        confidence=0.85,
+        patterns=[
+            r"\bwhat mode am i in\b",
+            r"\bcurrent mode\b",
+            r"\b(show|my) environment\b",
+            r"\benv(ironment)? (settings|state)\b",
+            r"\bwhat('s| is) (the )?debug (mode|state)\b",
+        ],
+    ),
+    NLPattern(
+        name="system_model_info",
+        cmd_name="model-info",
+        use_wizard=False,
+        confidence=0.85,
+        patterns=[
+            r"\bwhat model (are you|is this)\b",
+            r"\bmodel info\b",
+            r"\bwhat (llm|ai) (are you|is this)\b",
+            r"\bwhich model\b",
+            r"\bmodel (version|routing)\b",
+        ],
+    ),
+    NLPattern(
+        name="help",
+        cmd_name="help",
+        use_wizard=False,
+        confidence=0.85,
+        patterns=[
+            r"\bwhat can you do\b",
+            r"\bshow( me)? (the )?commands\b",
+            r"\bavailable commands\b",
+            r"\blist (the )?commands\b",
+            r"\bwhat (are your|commands do you have)\b",
+            r"\bhelp me (understand|with) commands\b",
+        ],
+    ),
+    NLPattern(
+        name="system_status",
+        cmd_name="status",
+        use_wizard=False,
+        confidence=0.85,
+        patterns=[
+            r"\bhow('s| is| are) (nova|novaos|the system|everything)\b",
+            r"\bsystem (status|check|health)\b",
+            r"\bwhat('s| is) (my |the )?(current )?status\b",
+            r"\bare you (okay|working|running)\b",
+        ],
+    ),
+    
+    # -------------------------------------------------------------------------
+    # MODULE LISTING
+    # -------------------------------------------------------------------------
+    NLPattern(
+        name="module_list",
+        cmd_name="map",
+        use_wizard=False,
+        confidence=0.88,
+        patterns=[
+            r"\b(show|list)( my| the| all)? modules\b",
+            r"\bwhat modules\b",
+            r"\bmodule (list|map)\b",
+            r"\bwhich modules\b",
+        ],
+    ),
+    
+    # -------------------------------------------------------------------------
+    # TIME RHYTHM (v0.6.1 NEW)
+    # -------------------------------------------------------------------------
+    NLPattern(
+        name="time_presence",
+        cmd_name="presence",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\b(give me|show) (my )?presence (snapshot|check)\b",
+            r"\btime (rhythm )?presence\b",
+            r"\bwhere am i (in time|temporally)\b",
+            r"\btemporal (context|snapshot)\b",
+            r"\bpresence check\b",
+        ],
+    ),
+    NLPattern(
+        name="time_pulse",
+        cmd_name="pulse",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\b(run|do|give me) (a )?pulse (check|diagnostic)\b",
+            r"\bpulse (check|status)\b",
+            r"\bcheck (my |the )?pulse\b",
+            r"\bworkflow pulse\b",
+        ],
+    ),
+    NLPattern(
+        name="time_align",
+        cmd_name="align",
+        use_wizard=False,
+        confidence=0.80,
+        patterns=[
+            r"\bhow aligned am i\b",
+            r"\balignment (check|status)\b",
+            r"\balign me\b",
+            r"\bam i aligned\b",
+            r"\bcheck (my )?alignment\b",
+        ],
+    ),
+    
+    # -------------------------------------------------------------------------
+    # INTERPRETATION (v0.6.1 NEW)
+    # -------------------------------------------------------------------------
+    NLPattern(
+        name="interpret",
+        cmd_name="interpret",
+        use_wizard=False,
+        confidence=0.80,
+        patterns=[
+            r"\b(help me )?understand (this|that)\b",
+            r"\bwhat does (this|that) mean\b",
+            r"\binterpret (this|that)\b",
+            r"\bexplain (this|that) to me\b",
+            # Note: "break down" moved to derive for first-principles usage
+        ],
+    ),
+    NLPattern(
+        name="derive",
+        cmd_name="derive",
+        use_wizard=False,
+        confidence=0.85,  # Higher than interpret (0.80) to win in specificity
+        patterns=[
+            r"\b(first principles|from basics)\b",
+            r"\bderive (this|that)\b",
+            r"\bbreak (this|that|it) down (to|into) (basics|fundamentals|first principles)\b",
+            r"\bfundamental(s|ly)\b.*\b(this|that|it)\b",
+            r"\bdown to basics\b",
+        ],
+    ),
+    NLPattern(
+        name="synthesize",
+        cmd_name="synthesize",
+        use_wizard=False,
+        confidence=0.80,
+        patterns=[
+            r"\bsynthesize (this|that|these)\b",
+            r"\bcombine (these |the )?ideas\b",
+            r"\bput (this|these) together\b",
+            r"\bintegrate (this|these|that)\b",
+        ],
+    ),
+    NLPattern(
+        name="frame",
+        cmd_name="frame",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\breframe (this|that|it)\b",
+            r"\bframe (this|that) differently\b",
+            r"\blook at (this|that|it) (another|different) way\b",
+            r"\bnew perspective on (this|that)\b",
+        ],
+    ),
+    NLPattern(
+        name="forecast",
+        cmd_name="forecast",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\bpredict (what|if|how)\b",
+            r"\bforecast\b",
+            r"\bwhat (happens|would happen) if\b",
+            r"\bwhat('s| is) (the )?likely outcome\b",
+            r"\bproject (this|that) forward\b",
+        ],
+    ),
+    
+    # -------------------------------------------------------------------------
+    # MEMORY GETTERS
+    # -------------------------------------------------------------------------
     NLPattern(
         name="memory_stats",
         cmd_name="memory-stats",
@@ -483,10 +820,24 @@ INSTANT_PATTERNS: List[NLPattern] = [
             r"\bmemory stats\b",
             r"\bmemory statistics\b",
             r"\bhow (much|many) memories\b",
+            r"\bmemory (count|health)\b",
+        ],
+    ),
+    NLPattern(
+        name="memory_list",
+        cmd_name="recall",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\bshow (my |all )?memories\b",
+            r"\blist (my |all )?memories\b",
+            r"\bwhat (do i|have you) remember(ed)?\b",
         ],
     ),
     
-    # WORKFLOWS (getters)
+    # -------------------------------------------------------------------------
+    # WORKFLOW GETTERS
+    # -------------------------------------------------------------------------
     NLPattern(
         name="workflow_list",
         cmd_name="workflow-list",
@@ -495,10 +846,14 @@ INSTANT_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\b(show|list)( my| the| all)? workflows\b",
             r"\bwhat workflows\b",
+            r"\bwhich workflows\b",
+            r"\bactive workflows\b",
         ],
     ),
     
-    # REMINDERS (getters)
+    # -------------------------------------------------------------------------
+    # REMINDER GETTERS
+    # -------------------------------------------------------------------------
     NLPattern(
         name="reminder_list",
         cmd_name="remind-list",
@@ -507,45 +862,14 @@ INSTANT_PATTERNS: List[NLPattern] = [
         patterns=[
             r"\b(show|list)( my| the| all)? reminders\b",
             r"\bwhat reminders\b",
+            r"\bupcoming reminders\b",
+            r"\bwhat (do i|am i) reminded (of|about)\b",
         ],
     ),
     
-    # MODULES (getters)
-    NLPattern(
-        name="module_list",
-        cmd_name="map",
-        use_wizard=False,
-        confidence=0.88,
-        patterns=[
-            r"\b(show|list)( my| the| all)? modules\b",
-            r"\bwhat modules\b",
-        ],
-    ),
-    
-    # TIME RHYTHM
-    NLPattern(
-        name="time_presence",
-        cmd_name="presence",
-        use_wizard=False,
-        confidence=0.82,
-        patterns=[
-            r"\b(where am i|what time|time presence|temporal)\b.*\b(in time|context|phase)\b",
-            r"\btime (rhythm |presence |context )\b",
-        ],
-    ),
-    NLPattern(
-        name="time_align",
-        cmd_name="align",
-        use_wizard=False,
-        confidence=0.78,
-        patterns=[
-            r"\bwhat should i (do|focus on|work on)\b",
-            r"\b(suggest|recommend|prioritize)( what| next)?\b",
-            r"\balign me\b",
-        ],
-    ),
-    
-    # HUMAN STATE (getters)
+    # -------------------------------------------------------------------------
+    # HUMAN STATE GETTERS
+    # -------------------------------------------------------------------------
     NLPattern(
         name="state_evolution",
         cmd_name="evolution-status",
@@ -553,8 +877,9 @@ INSTANT_PATTERNS: List[NLPattern] = [
         confidence=0.82,
         patterns=[
             r"\b(evolution|my) status\b",
-            r"\bhow am i doing\b",
+            r"\bhow am i (doing|progressing)\b",
             r"\bmy (current )?state\b",
+            r"\bhow('s| is) my (energy|stress)\b",
         ],
     ),
     NLPattern(
@@ -566,26 +891,83 @@ INSTANT_PATTERNS: List[NLPattern] = [
             r"\b(my|check|show|what('s| is)) (my )?capacity\b",
             r"\bhow much capacity\b",
             r"\bam i (over)?loaded\b",
+            r"\bdo i have (band)?width\b",
+            r"\bcan i take on more\b",
         ],
     ),
     
-    # CONTINUITY
+    # -------------------------------------------------------------------------
+    # IDENTITY INFO
+    # -------------------------------------------------------------------------
     NLPattern(
-        name="continuity_preferences",
-        cmd_name="preferences",
+        name="identity_why",
+        cmd_name="why",
         use_wizard=False,
         confidence=0.88,
         patterns=[
-            r"\b(show|my|what are my) preferences\b",
+            r"\bwho are you\b",
+            r"\bwhat is nova(os)?\b",
+            r"\byour (purpose|identity|mission)\b",
+            r"\bwhy (do you |are you |nova)\b",
+            r"\btell me about (yourself|nova)\b",
+        ],
+    ),
+]
+
+
+# =============================================================================
+# PSYCHOLOGICAL / EMOTIONAL PATTERNS (v0.6.1 NEW)
+# High confidence required (0.80+) since these are implicit
+# =============================================================================
+
+PSYCHOLOGICAL_PATTERNS: List[NLPattern] = [
+    NLPattern(
+        name="psych_lost_direction",
+        cmd_name="reconfirm-prompts",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\bi feel (lost|stuck|confused|overwhelmed)\b",
+            r"\bi (need|want) direction\b",
+            r"\bwhat should i (be doing|focus on)\b",
+            r"\bi('m| am) (not sure|unsure) what to do\b",
+            r"\bhelp me (figure out|decide) what to do\b",
         ],
     ),
     NLPattern(
-        name="continuity_projects",
-        cmd_name="projects",
-        use_wizard=False,
-        confidence=0.88,
+        name="psych_check_in",
+        cmd_name="log-state",
+        use_wizard=True,
+        confidence=0.82,
         patterns=[
-            r"\b(show|my|what are my|active) projects\b",
+            r"\bi('m| am) (feeling|doing) (really )?(bad|terrible|awful|great|amazing|good)\b",
+            r"\bi('m| am) (exhausted|burnt out|burned out|energized|pumped)\b",
+            r"\bi('m| am) (stressed|anxious|calm|relaxed)\b",
+            r"\bfeeling (off|weird|strange|good|bad) (today|rn|right now)\b",
+        ],
+    ),
+    NLPattern(
+        name="psych_capacity_check",
+        cmd_name="capacity",
+        use_wizard=False,
+        confidence=0.80,
+        patterns=[
+            r"\bi can't (think|focus|handle) (rn|right now|anymore)\b",
+            r"\bi('m| am) (too|so) tired\b",
+            r"\bi('m| am) running on (empty|fumes)\b",
+            r"\bdo i have (any )?(space|room|capacity)\b",
+        ],
+    ),
+    NLPattern(
+        name="psych_get_back_on_track",
+        cmd_name="reconfirm-prompts",
+        use_wizard=False,
+        confidence=0.82,
+        patterns=[
+            r"\bhelp me get back on track\b",
+            r"\bi need to (refocus|get organized|prioritize)\b",
+            r"\bwhere (was i|did i leave off)\b",
+            r"\blet('s| me) (refocus|regroup)\b",
         ],
     ),
 ]
@@ -595,7 +977,40 @@ INSTANT_PATTERNS: List[NLPattern] = [
 # Combine all patterns
 # =============================================================================
 
-ALL_PATTERNS: List[NLPattern] = WIZARD_PATTERNS + OPTIONAL_WIZARD_PATTERNS + INSTANT_PATTERNS
+ALL_PATTERNS: List[NLPattern] = (
+    DESTRUCTIVE_PATTERNS + 
+    WIZARD_PATTERNS + 
+    INSTANT_PATTERNS + 
+    PSYCHOLOGICAL_PATTERNS
+)
+
+
+# =============================================================================
+# Conflict Detection
+# =============================================================================
+
+# Commands that conflict with each other (if both match, return no match)
+CONFLICTING_COMMANDS: List[Set[str]] = [
+    {"store", "forget"},  # Can't remember and forget same thing
+    {"remind-add", "remind-delete"},  # Can't add and delete reminder
+    {"workflow-delete", "flow"},  # Can't start and delete workflow
+    {"forge", "dismantle"},  # Can't create and delete module
+    {"snapshot", "restore"},  # Can't snapshot and restore at once
+]
+
+
+def has_conflict(matches: List[IntentMatch]) -> bool:
+    """Check if matches contain conflicting commands."""
+    if len(matches) < 2:
+        return False
+    
+    matched_commands = {m.command for m in matches}
+    
+    for conflict_set in CONFLICTING_COMMANDS:
+        if len(matched_commands & conflict_set) > 1:
+            return True
+    
+    return False
 
 
 # -----------------------------------------------------------------------------
@@ -604,26 +1019,26 @@ ALL_PATTERNS: List[NLPattern] = WIZARD_PATTERNS + OPTIONAL_WIZARD_PATTERNS + INS
 
 class NaturalLanguageRouter:
     """
-    v0.6 Natural Language Router (Wizard-Aware)
+    v0.6.1 Natural Language Router (Wizard-Aware, Expanded Coverage)
     
     Routes natural language input to syscommands via pattern matching.
     Supports wizard triggering for commands that benefit from guided input.
+    Enforces safety rules for destructive commands.
     """
     
-    # Minimum confidence to accept a match
     MIN_CONFIDENCE = 0.75
+    CONFLICT_MARGIN = 0.05  # If top two matches within this margin, treat as ambiguous
     
     def __init__(self):
         self._compiled_patterns: List[Tuple[NLPattern, List[re.Pattern]]] = []
         
-        # Compile all patterns
         for nl_pattern in ALL_PATTERNS:
             compiled_regexes = []
             for regex_str in nl_pattern.patterns:
                 try:
                     compiled_regexes.append(re.compile(regex_str, re.IGNORECASE))
                 except re.error:
-                    pass  # Skip invalid patterns
+                    pass
             if compiled_regexes:
                 self._compiled_patterns.append((nl_pattern, compiled_regexes))
     
@@ -631,7 +1046,10 @@ class NaturalLanguageRouter:
         """
         Route natural language text to a CommandRequest.
         
-        Returns None if no confident match found.
+        Returns None if:
+        - No confident match found
+        - Mixed/conflicting intent detected
+        - Ambiguous (two matches with similar confidence)
         """
         text = text.strip()
         if not text:
@@ -641,11 +1059,11 @@ class NaturalLanguageRouter:
         if text.startswith("#") or text.startswith("/"):
             return None
         
-        # Strip preambles for better matching
+        # Strip preambles
         cleaned_text = strip_preambles(text)
         
-        # Find best match
-        best_match: Optional[IntentMatch] = None
+        # Find all matches
+        all_matches: List[IntentMatch] = []
         
         for nl_pattern, compiled_regexes in self._compiled_patterns:
             for compiled in compiled_regexes:
@@ -657,21 +1075,45 @@ class NaturalLanguageRouter:
                     length_factor = min(1.0, match_len / max(text_len * 0.4, 1))
                     adjusted_confidence = nl_pattern.confidence * (0.85 + 0.15 * length_factor)
                     
-                    if best_match is None or adjusted_confidence > best_match.confidence:
-                        best_match = IntentMatch(
-                            command=nl_pattern.cmd_name,
-                            confidence=adjusted_confidence,
-                            args={},  # Wizard will collect args
-                            matched_pattern=match.group(0),
-                            use_wizard=nl_pattern.use_wizard,
-                        )
-                    break  # Only need first match per pattern group
+                    # Destructive commands always use wizard
+                    use_wizard = nl_pattern.use_wizard or nl_pattern.destructive
+                    
+                    all_matches.append(IntentMatch(
+                        command=nl_pattern.cmd_name,
+                        confidence=adjusted_confidence,
+                        args={},
+                        matched_pattern=match.group(0),
+                        use_wizard=use_wizard,
+                    ))
+                    break  # Only first match per pattern group
         
-        if best_match and best_match.confidence >= self.MIN_CONFIDENCE:
+        if not all_matches:
+            return None
+        
+        # Sort by confidence
+        all_matches.sort(key=lambda m: -m.confidence)
+        
+        # Check for conflicts
+        if has_conflict(all_matches[:3]):  # Check top 3 matches
+            return None  # Mixed intent
+        
+        # Check for ambiguity (two high matches too close)
+        if len(all_matches) >= 2:
+            top = all_matches[0]
+            second = all_matches[1]
+            if (top.confidence >= self.MIN_CONFIDENCE and 
+                second.confidence >= self.MIN_CONFIDENCE and
+                top.confidence - second.confidence < self.CONFLICT_MARGIN and
+                top.command != second.command):
+                return None  # Ambiguous
+        
+        best_match = all_matches[0]
+        
+        if best_match.confidence >= self.MIN_CONFIDENCE:
             return CommandRequest(
                 cmd_name=best_match.command,
                 args=best_match.args,
-                session_id="",  # Will be set by caller
+                session_id="",
                 raw_text=text,
                 meta={
                     "source": "nl_router",
@@ -685,9 +1127,7 @@ class NaturalLanguageRouter:
         return None
     
     def get_intent_debug(self, text: str) -> Dict[str, Any]:
-        """
-        Debug helper: show all matching intents with confidence scores.
-        """
+        """Debug helper: show all matching intents with confidence scores."""
         cleaned_text = strip_preambles(text)
         matches = []
         
@@ -704,21 +1144,33 @@ class NaturalLanguageRouter:
                         "name": nl_pattern.name,
                         "command": nl_pattern.cmd_name,
                         "confidence": round(adjusted_confidence, 3),
-                        "use_wizard": nl_pattern.use_wizard,
+                        "use_wizard": nl_pattern.use_wizard or nl_pattern.destructive,
+                        "destructive": nl_pattern.destructive,
                         "pattern": compiled.pattern,
                         "matched": match.group(0),
                     })
                     break
         
-        # Sort by confidence
         matches.sort(key=lambda m: -m["confidence"])
+        
+        has_conflicts = has_conflict([
+            IntentMatch(m["command"], m["confidence"], {}, m["matched"], m["use_wizard"])
+            for m in matches[:3]
+        ])
+        
+        would_route = (
+            len(matches) > 0 and 
+            matches[0]["confidence"] >= self.MIN_CONFIDENCE and
+            not has_conflicts
+        )
         
         return {
             "input": text,
             "cleaned": cleaned_text,
             "matches": matches[:10],
             "best_match": matches[0] if matches else None,
-            "would_route": matches[0]["confidence"] >= self.MIN_CONFIDENCE if matches else False,
+            "has_conflict": has_conflicts,
+            "would_route": would_route,
         }
 
 
@@ -731,10 +1183,6 @@ def route_natural_language(text: str) -> Optional[CommandRequest]:
     Main entry point for NL routing.
     
     Returns CommandRequest if confident match found, None otherwise.
-    The returned CommandRequest.meta will include:
-    - use_wizard: bool - whether to trigger wizard mode
-    - confidence: float - match confidence
-    - matched_pattern: str - the regex that matched
     """
     return _nl_router.route(text)
 

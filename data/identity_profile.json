@@ -1,0 +1,21 @@
+{
+  "version": "0.5.5",
+  "current_profile": {
+    "id": "profile-20251204002551-5e89cc",
+    "created_at": "2025-12-04T00:25:51.224777+00:00",
+    "updated_at": "2025-12-04T00:25:51.224782+00:00",
+    "traits": {
+      "name": null,
+      "goals": [],
+      "values": [],
+      "context": null,
+      "roles": [],
+      "strengths": [],
+      "growth_areas": [],
+      "custom": {}
+    },
+    "notes": "Initial empty profile",
+    "version": 1
+  },
+  "history": []
+}
