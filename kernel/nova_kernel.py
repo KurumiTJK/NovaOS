@@ -296,8 +296,28 @@ class NovaKernel:
         nl_request = route_natural_language(stripped)
         if nl_request is not None:
             nl_request.session_id = session_id
-            if nl_request.meta is None:
-                nl_request.meta = self.commands.get(nl_request.cmd_name)
+            
+            # Check if NL router wants to trigger a wizard
+            use_wizard = nl_request.meta.get("use_wizard", False) if nl_request.meta else False
+            
+            if use_wizard and is_wizard_command(nl_request.cmd_name):
+                # Start wizard for this command
+                result = start_wizard(session_id, nl_request.cmd_name)
+                return {
+                    "ok": result.get("ok", True),
+                    "command": "wizard",
+                    "summary": result.get("summary", ""),
+                    "content": {"command": "wizard", "summary": result.get("summary", "")},
+                    "extra": result.get("extra", {}),
+                }
+            
+            # Otherwise execute command directly
+            if nl_request.meta is None or "source" in nl_request.meta:
+                # Preserve NL router meta but add command meta
+                nl_meta = nl_request.meta or {}
+                cmd_meta = self.commands.get(nl_request.cmd_name) or {}
+                nl_request.meta = {**cmd_meta, **nl_meta}
+            
             response = self.router.route(nl_request, kernel=self)
             self.logger.log_response(session_id, nl_request.cmd_name, response.to_dict())
             return response.to_dict()
