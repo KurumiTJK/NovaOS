@@ -4047,91 +4047,257 @@ def handle_workflow_list(cmd_name, args, session_id, context, kernel, meta) -> K
 
 def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
-    Ask the LLM to generate a workflow spec for a goal.
+    Create a workflow with optional LLM-generated steps.
+    
+    v0.7.10: Full wizard support with confirmation step.
 
-    Usage:
-        compose goal="improve cybersecurity"
-        compose id="wf-1" goal="improve cybersecurity"   # v0.4.4: also creates a workflow
+    Usage (Direct - power user):
+        #compose name="Morning Routine" goal="Standardize my mornings"
+        #compose name="Morning Routine" goal="Standardize my mornings" module="health"
+    
+    Wizard Mode (no args or NL-triggered):
+        #compose
+        → Step-by-step wizard: name → goal → manual/auto steps → confirm
     """
-    goal = None
-    wf_id = None
-
-    if isinstance(args, dict):
-        goal = args.get("goal") or args.get("_", [None])[0]
-        wf_id = args.get("id") or args.get("workflow")
-
-    if not goal:
-        return _base_response(cmd_name, "compose requires goal=<text>.", {"ok": False})
-
-    prompt = (
-        "Generate a workflow plan as a JSON list of steps. "
-        "Each step must have: title, description. "
-        f"Goal: {goal}"
-    )
-
-    llm_result = kernel.llm_client.complete(
-        system="You generate structured workflow plans in JSON.",
-        user=prompt,
-        session_id=session_id,
-    )
-
-    text = llm_result.get("text", "").strip()
-
-    try:
-        steps = json.loads(text)
-    except Exception:
-        summary = (
-            "LLM returned non-JSON. Inspect 'raw' field. "
-            "You may need to edit manually."
+    import uuid
+    
+    # Parse arguments
+    args = args if isinstance(args, dict) else {}
+    
+    # Check if from wizard
+    from_wizard = args.get("_from_wizard", False)
+    
+    if from_wizard:
+        # =====================================================================
+        # WIZARD FLOW
+        # =====================================================================
+        name = args.get("name", "").strip()
+        goal = args.get("goal", "").strip()
+        step_mode = args.get("step_mode", "2")
+        manual_steps = args.get("manual_steps", "").strip()
+        confirm = args.get("confirm", "").lower().strip()
+        
+        # Handle cancel
+        if confirm in ["no", "n"]:
+            return _base_response(cmd_name, "Okay, not creating anything.", {"ok": True, "cancelled": True})
+        
+        # Handle edit request
+        if confirm == "edit":
+            return _base_response(
+                cmd_name, 
+                "To edit, please run #compose again and provide updated values.",
+                {"ok": True, "edit_requested": True}
+            )
+        
+        # Must have confirmed
+        if confirm not in ["yes", "y"]:
+            return _base_response(cmd_name, "Please confirm with 'yes' or 'no'.", {"ok": False})
+        
+        # Build steps
+        steps = []
+        
+        if step_mode == "1" and manual_steps:
+            # Manual steps: parse bullet lines
+            for line in manual_steps.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                # Remove bullet markers
+                for prefix in ["-", "*", "•", "→"]:
+                    if line.startswith(prefix):
+                        line = line[len(prefix):].strip()
+                        break
+                # Remove numbered markers like "1." or "1)"
+                import re
+                line = re.sub(r"^\d+[\.\)]\s*", "", line)
+                
+                if line:
+                    steps.append({
+                        "title": line,
+                        "description": "",
+                    })
+        else:
+            # Auto-generate steps using LLM
+            prompt = (
+                f"Generate a workflow plan as a JSON array of steps. "
+                f"Each step must have: title, description. "
+                f"Workflow name: {name}\n"
+                f"Goal: {goal}\n"
+                f"Return ONLY valid JSON array, no markdown, no explanation."
+            )
+            
+            try:
+                llm_result = kernel.llm_client.complete(
+                    system="You generate structured workflow plans in JSON. Return only a JSON array.",
+                    user=prompt,
+                    session_id=session_id,
+                )
+                
+                text = llm_result.get("text", "").strip()
+                # Try to extract JSON from response
+                if "```" in text:
+                    # Extract from code block
+                    import re
+                    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+                    if match:
+                        text = match.group(1).strip()
+                
+                steps = json.loads(text)
+                if not isinstance(steps, list):
+                    steps = [steps]
+            except Exception as e:
+                return _base_response(
+                    cmd_name, 
+                    f"Failed to generate steps: {e}\nPlease try again or provide manual steps.",
+                    {"ok": False, "error": str(e)}
+                )
+        
+        if not steps:
+            return _base_response(cmd_name, "No steps provided. Workflow not created.", {"ok": False})
+        
+        # Generate workflow ID
+        wf_id = f"wf-{uuid.uuid4().hex[:8]}"
+        
+        # Create workflow
+        wf_engine = kernel.workflow_engine
+        wf = wf_engine.start(
+            workflow_id=wf_id,
+            name=name,
+            steps=steps,
+            meta={
+                "source": "compose",
+                "goal": goal,
+                "session_id": session_id,
+            },
         )
-        extra = {"raw": text}
-        return _base_response(cmd_name, summary, extra)
-
-    # v0.4.6: build a human-readable steps block (dynamic step count)
-    formatted_steps = []
-    for idx, step in enumerate(steps, start=1):
-        title = step.get("title", f"Step {idx}")
-        desc = step.get("description", "")
-        formatted_steps.append(F.item(idx, title, desc))
-
-    steps_block = F.list(formatted_steps)
-
-    # If no id is provided, keep behavior: just show the plan (but now pretty)
-    if not wf_id:
-        header = F.header(f"Workflow plan for: {goal} ({len(steps)} steps)")
-        summary = header + steps_block
-        extra = {"steps": steps}
-        return _base_response(cmd_name, summary, extra)
-
-    # v0.4.4: if id is provided, also create a real workflow in the engine.
-    wf_engine = kernel.workflow_engine
-    wf_id_str = str(wf_id)
-
-    wf = wf_engine.start(
-        workflow_id=wf_id_str,
-        name=str(goal),
-        steps=steps,
-        meta={
-            "source": "compose",
-            "session_id": session_id,
-        },
-    )
-
-    header = F.header(
-        f"Created workflow '{wf.id}' for goal: {goal} ({len(wf.steps)} steps)"
-    )
-    summary = header + steps_block
-    extra = {
-        "workflow": wf.to_dict(),
-        "steps_count": len(wf.steps),
-    }
-    return _base_response(cmd_name, summary, extra)
+        
+        # Format output
+        formatted_steps = []
+        for idx, step in enumerate(steps, start=1):
+            title = step.get("title", f"Step {idx}")
+            desc = step.get("description", "")
+            if desc:
+                formatted_steps.append(f"  {idx}. {title}\n     {desc}")
+            else:
+                formatted_steps.append(f"  {idx}. {title}")
+        
+        lines = [
+            F.header(f"Created workflow \"{name}\""),
+            "",
+            f"ID: {wf_id}",
+            f"Goal: {goal}",
+            f"Steps: {len(steps)}",
+            "",
+        ]
+        lines.extend(formatted_steps)
+        lines.append("")
+        lines.append(f"Use #flow id={wf_id} to start it.")
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "ok": True,
+            "workflow_id": wf_id,
+            "workflow": wf.to_dict(),
+        })
+    
+    else:
+        # =====================================================================
+        # DIRECT CALL (power user mode)
+        # =====================================================================
+        name = args.get("name", "").strip()
+        goal = args.get("goal", "").strip()
+        
+        # Backward compat: support old 'id' + 'goal' syntax
+        wf_id = args.get("id") or args.get("workflow")
+        
+        # If only goal provided (old syntax), use goal as both name and goal
+        if goal and not name:
+            name = goal
+        
+        if not name or not goal:
+            return _base_response(
+                cmd_name, 
+                "compose requires name=<text> goal=<text>\n\n"
+                "Example: #compose name=\"Morning Routine\" goal=\"Standardize my mornings\"\n\n"
+                "Or run #compose without arguments to start the wizard.",
+                {"ok": False}
+            )
+        
+        # Auto-generate steps
+        prompt = (
+            f"Generate a workflow plan as a JSON array of steps. "
+            f"Each step must have: title, description. "
+            f"Workflow name: {name}\n"
+            f"Goal: {goal}\n"
+            f"Return ONLY valid JSON array, no markdown."
+        )
+        
+        try:
+            llm_result = kernel.llm_client.complete(
+                system="You generate structured workflow plans in JSON. Return only a JSON array.",
+                user=prompt,
+                session_id=session_id,
+            )
+            
+            text = llm_result.get("text", "").strip()
+            # Extract JSON
+            if "```" in text:
+                import re
+                match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
+                if match:
+                    text = match.group(1).strip()
+            
+            steps = json.loads(text)
+            if not isinstance(steps, list):
+                steps = [steps]
+        except Exception as e:
+            return _base_response(
+                cmd_name,
+                f"Failed to generate steps: {e}",
+                {"ok": False, "error": str(e)}
+            )
+        
+        # Generate ID if not provided
+        if not wf_id:
+            wf_id = f"wf-{uuid.uuid4().hex[:8]}"
+        
+        # Create workflow
+        wf_engine = kernel.workflow_engine
+        wf = wf_engine.start(
+            workflow_id=str(wf_id),
+            name=name,
+            steps=steps,
+            meta={
+                "source": "compose",
+                "goal": goal,
+                "session_id": session_id,
+            },
+        )
+        
+        # Format output
+        formatted_steps = []
+        for idx, step in enumerate(steps, start=1):
+            title = step.get("title", f"Step {idx}")
+            formatted_steps.append(f"  {idx}. {title}")
+        
+        lines = [
+            f"Created workflow \"{name}\" with id={wf_id}",
+            f"Goal: {goal}",
+            "",
+        ]
+        lines.extend(formatted_steps)
+        lines.append("")
+        lines.append(f"Use #flow id={wf_id} to start it.")
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "ok": True,
+            "workflow_id": wf_id,
+            "workflow": wf.to_dict(),
+        })
 
 
 # ---------------------------------------------------------------------
 # v0.4 — Time Rhythm Engine handlers
 # ---------------------------------------------------------------------
-
 
 def handle_presence(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """

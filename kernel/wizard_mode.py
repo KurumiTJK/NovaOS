@@ -93,6 +93,22 @@ class WizardManager:
             step = wizard_def.steps[session.current_step]
             session.collected[step.key] = value
             session.current_step += 1
+            
+            # =============================================================
+            # COMPOSE WIZARD BRANCHING:
+            # When step_mode=2 (auto), skip the manual_steps step
+            # =============================================================
+            if session.command == "compose" and step.key == "step_mode" and value == "2":
+                # User chose auto-generate, skip manual_steps step
+                # Find and skip the manual_steps step
+                while session.current_step < len(wizard_def.steps):
+                    next_step = wizard_def.steps[session.current_step]
+                    if next_step.key == "manual_steps":
+                        # Skip this step by setting empty value and advancing
+                        session.collected["manual_steps"] = ""
+                        session.current_step += 1
+                    else:
+                        break
         
         return session
     
@@ -223,13 +239,30 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
         steps=[
             WizardStep(
                 key="name",
-                prompt="What should this workflow be called?",
+                prompt="What do you want to call this workflow?\n(Example: \"Morning Routine\", \"Weekly Review\", \"Deep Work Block\")",
                 required=True,
             ),
             WizardStep(
-                key="description",
-                prompt="Describe what this workflow should accomplish.\n(The more detail, the better the generated steps)",
+                key="goal",
+                prompt="In 1-2 sentences, what is this workflow for?\n(Example: \"Make sure I start every weekday with focus and energy.\")",
                 required=True,
+            ),
+            WizardStep(
+                key="step_mode",
+                prompt="Do you want to:\n  1. List the main steps yourself\n  2. Have Nova propose a starter set of steps\n\nEnter 1 or 2:",
+                required=True,
+                options=["1", "2"],
+            ),
+            WizardStep(
+                key="manual_steps",
+                prompt="List your steps as short bullet lines (one per line).\nExample:\n- wake up\n- drink water\n- 10-minute stretch\n\nWhen you're done, send all steps in one message.",
+                required=True,  # Required when shown (manual mode only)
+            ),
+            WizardStep(
+                key="confirm",
+                prompt="Create this workflow? (yes / no)",
+                required=True,
+                options=["yes", "no", "y", "n"],
             ),
         ],
     ),
@@ -756,7 +789,7 @@ def process_wizard_input(session_id: str, user_input: str) -> Dict[str, Any]:
     value = user_input.strip()
     
     # Use default if empty and step has default
-    if not value and step.default:
+    if not value and step.default is not None:
         value = step.default
     
     # Check required
@@ -800,6 +833,73 @@ def process_wizard_input(session_id: str, user_input: str) -> Dict[str, Any]:
     # Show next step
     next_step = session.get_current_step(wizard_def)
     step_num = session.current_step + 1
+    
+    # =================================================================
+    # SPECIAL HANDLING: Compose wizard confirmation step
+    # Show summary before asking for confirmation
+    # =================================================================
+    if session.command == "compose" and next_step.key == "confirm":
+        name = session.collected.get("name", "Untitled")
+        goal = session.collected.get("goal", "No goal specified")
+        step_mode = session.collected.get("step_mode", "2")
+        manual_steps = session.collected.get("manual_steps", "")
+        
+        # Calculate effective step count (auto mode skips manual_steps)
+        effective_total = 4 if step_mode == "2" else 5
+        effective_step = 4 if step_mode == "2" else 5
+        
+        lines = [
+            "━" * 40,
+            "Here's the workflow I'm about to create:",
+            "━" * 40,
+            "",
+            f"Name: {name}",
+            f"Purpose: {goal}",
+            "",
+        ]
+        
+        if step_mode == "1" and manual_steps:
+            # Count and show manual steps
+            step_count = 0
+            step_lines = []
+            for line in manual_steps.split("\n"):
+                line = line.strip()
+                if line:
+                    # Clean up bullet markers
+                    for prefix in ["-", "*", "•", "→"]:
+                        if line.startswith(prefix):
+                            line = line[len(prefix):].strip()
+                            break
+                    import re
+                    line = re.sub(r"^\d+[\.\)]\s*", "", line)
+                    if line:
+                        step_count += 1
+                        step_lines.append(f"  • {line}")
+            
+            lines.append(f"Steps ({step_count} steps, manual):")
+            lines.extend(step_lines)
+        else:
+            lines.append("Steps: auto-generate with Nova")
+        
+        lines.append("")
+        lines.append("━" * 40)
+        lines.append("")
+        lines.append(f"Step {effective_step}/{effective_total}:")
+        lines.append(next_step.prompt)
+        lines.append("")
+        lines.append("(Type 'cancel' to exit wizard)")
+        
+        return {
+            "ok": True,
+            "command": "wizard",
+            "summary": "\n".join(lines),
+            "extra": {
+                "wizard_active": True,
+                "wizard_command": session.command,
+                "step": effective_step,
+                "total_steps": effective_total,
+            },
+        }
     
     lines = [
         f"Step {step_num}/{len(wizard_def.steps)}:",
@@ -872,9 +972,14 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
         return {"id": collected.get("id", "")}
     
     elif command == "compose":
+        # Full wizard data: name, goal, step_mode, manual_steps, confirm
         return {
             "name": collected.get("name", ""),
-            "description": collected.get("description", ""),
+            "goal": collected.get("goal", ""),
+            "step_mode": collected.get("step_mode", "2"),  # Default to auto
+            "manual_steps": collected.get("manual_steps", ""),
+            "confirm": collected.get("confirm", "no"),
+            "_from_wizard": True,  # Flag to indicate wizard origin
         }
     
     elif command == "snapshot":
