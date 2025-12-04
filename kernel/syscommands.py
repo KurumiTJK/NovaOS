@@ -618,6 +618,225 @@ def handle_behavior_debug(cmd_name, args, session_id, context, kernel, meta) -> 
         return _base_response(cmd_name, f"Error reading Behavior Layer: {e}", {"ok": False})
 
 
+# ---------------------------------------------------------------------
+# v0.7.3 — New WM/Behavior Commands
+# ---------------------------------------------------------------------
+
+def handle_wm_clear_cmd(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Clear all working memory for this session.
+    
+    Usage: #wm-clear
+    """
+    try:
+        wm_clear(session_id)
+        behavior_clear(session_id)
+        return _base_response(cmd_name, "Working memory and behavior state cleared for this session.")
+    except Exception as e:
+        return _base_response(cmd_name, f"Error clearing working memory: {e}", {"ok": False})
+
+
+def handle_wm_clear_topic(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Clear only the current topic, keep entities and pronouns.
+    
+    Usage: #wm-clear-topic
+    """
+    try:
+        from .nova_wm import wm_clear_topic
+        message = wm_clear_topic(session_id)
+        return _base_response(cmd_name, message)
+    except ImportError:
+        return _base_response(cmd_name, "WM topic clearing not available.", {"ok": False})
+    except Exception as e:
+        return _base_response(cmd_name, f"Error clearing topic: {e}", {"ok": False})
+
+
+def handle_behavior_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Get or set behavior mode.
+    
+    Usage:
+        #behavior-mode           → show current mode
+        #behavior-mode mode=minimal
+        #behavior-mode mode=debug
+        #behavior-mode mode=normal
+    """
+    try:
+        from .nova_wm_behavior import behavior_get_mode, behavior_set_mode
+        
+        # Check if setting a mode
+        target_mode = None
+        if isinstance(args, dict):
+            target_mode = args.get("mode")
+            if not target_mode and "_" in args and args["_"]:
+                target_mode = args["_"][0]
+        
+        if target_mode:
+            # Set mode
+            success = behavior_set_mode(session_id, target_mode)
+            if success:
+                return _base_response(cmd_name, f"Behavior mode set to: {target_mode.lower()}")
+            else:
+                return _base_response(
+                    cmd_name, 
+                    f"Invalid mode '{target_mode}'. Valid modes: normal, minimal, debug",
+                    {"ok": False}
+                )
+        else:
+            # Show current mode
+            current_mode = behavior_get_mode(session_id)
+            lines = [
+                F.header("Behavior Mode"),
+                F.key_value("Current mode", current_mode),
+                "",
+                "Available modes:",
+                "  • normal — Full conversational continuity (default)",
+                "  • minimal — Fewer follow-up questions, less hand-holding",
+                "  • debug — More explicit about goals/state in responses",
+                "",
+                "Set with: #behavior-mode mode=<mode>",
+            ]
+            return _base_response(cmd_name, "\n".join(lines))
+    
+    except ImportError:
+        return _base_response(cmd_name, "Behavior Layer not available.", {"ok": False})
+    except Exception as e:
+        return _base_response(cmd_name, f"Error with behavior mode: {e}", {"ok": False})
+
+
+def handle_wm_snapshot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Save current topic + participants as an episodic memory.
+    
+    Usage:
+        #wm-snapshot
+        #wm-snapshot topic="project with Steven"
+        #wm-snapshot label="important decision"
+    """
+    try:
+        from .nova_wm import wm_get_snapshot
+        
+        # Get label/topic from args
+        label = None
+        if isinstance(args, dict):
+            label = args.get("topic") or args.get("label")
+            if not label and "_" in args and args["_"]:
+                label = " ".join(args["_"])
+        
+        # Get snapshot summary
+        snapshot_text = wm_get_snapshot(session_id, label)
+        
+        # Store in episodic memory via MemoryManager
+        if hasattr(kernel, 'memory_manager') and kernel.memory_manager:
+            tags = ["wm-snapshot", "module:general"]
+            if label:
+                tags.append(f"topic:{label.replace(' ', '-')[:30]}")
+            
+            kernel.memory_manager.store(
+                type="episodic",
+                payload=snapshot_text,
+                tags=tags,
+            )
+            
+            lines = [
+                F.header("WM Snapshot Saved"),
+                "",
+                snapshot_text,
+                "",
+                "Snapshot stored to episodic memory.",
+            ]
+        else:
+            lines = [
+                F.header("WM Snapshot (Preview)"),
+                "",
+                snapshot_text,
+                "",
+                "Note: MemoryManager not available, snapshot not persisted.",
+            ]
+        
+        return _base_response(cmd_name, "\n".join(lines))
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error creating snapshot: {e}", {"ok": False})
+
+
+def handle_wm_topics(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: List active/recent conversation topics.
+    
+    Usage: #wm-topics
+    """
+    try:
+        from .nova_wm import wm_list_topics
+        
+        topics = wm_list_topics(session_id)
+        
+        if not topics:
+            return _base_response(cmd_name, "No topics in working memory yet.")
+        
+        lines = [
+            F.header("Conversation Topics"),
+            "",
+        ]
+        
+        for i, topic in enumerate(topics, 1):
+            active_marker = " ← ACTIVE" if topic.get("is_active") else ""
+            status = topic.get("status", "unknown")
+            lines.append(f"{i}) {topic['id']}: {topic['name']} [{status}]{active_marker}")
+        
+        lines.append("")
+        lines.append("Switch with: #wm-switch topic=<id or name>")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"topics": topics})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error listing topics: {e}", {"ok": False})
+
+
+def handle_wm_switch(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Switch active topic by ID or name.
+    
+    Usage:
+        #wm-switch topic=project
+        #wm-switch topic=t1
+    """
+    try:
+        from .nova_wm import wm_switch_topic, get_wm
+        
+        # Get topic identifier from args
+        topic_id = None
+        if isinstance(args, dict):
+            topic_id = args.get("topic") or args.get("id") or args.get("name")
+            if not topic_id and "_" in args and args["_"]:
+                topic_id = args["_"][0]
+        
+        if not topic_id:
+            return _base_response(
+                cmd_name, 
+                "Usage: #wm-switch topic=<id or name>\n\nUse #wm-topics to see available topics.",
+                {"ok": False}
+            )
+        
+        result = wm_switch_topic(session_id, topic_id)
+        
+        if result:
+            wm = get_wm(session_id)
+            topic = wm.topics.get(result, {})
+            topic_name = topic.name if hasattr(topic, 'name') else result
+            return _base_response(cmd_name, f"Switched to topic: {topic_name}")
+        else:
+            return _base_response(
+                cmd_name, 
+                f"Topic '{topic_id}' not found. Use #wm-topics to see available topics.",
+                {"ok": False}
+            )
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error switching topic: {e}", {"ok": False})
+
+
 def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     cmds = []
     formatted = []
@@ -3646,6 +3865,13 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_status": handle_status,
     "handle_wm_debug": handle_wm_debug,  # v0.7: Working Memory debug
     "handle_behavior_debug": handle_behavior_debug,  # v0.7.2: Behavior Layer debug
+    # v0.7.3: New WM/Behavior commands
+    "handle_wm_clear_cmd": handle_wm_clear_cmd,
+    "handle_wm_clear_topic": handle_wm_clear_topic,
+    "handle_behavior_mode": handle_behavior_mode,
+    "handle_wm_snapshot": handle_wm_snapshot,
+    "handle_wm_topics": handle_wm_topics,
+    "handle_wm_switch": handle_wm_switch,
     "handle_help": handle_help,
     "handle_reset": handle_reset,
     "handle_store": handle_store,

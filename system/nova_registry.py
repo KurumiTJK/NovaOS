@@ -99,6 +99,49 @@ BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
         "description": "Open the DEBUG section menu for diagnostics commands",
         "args": [],
     },
+    # v0.7.3: New WM/Behavior commands
+    "wm-clear": {
+        "handler": "handle_wm_clear_cmd",
+        "category": "debug",
+        "section": "debug",
+        "description": "Clear working memory for this session",
+        "args": [],
+    },
+    "wm-clear-topic": {
+        "handler": "handle_wm_clear_topic",
+        "category": "debug",
+        "section": "debug",
+        "description": "Forget only the current topic, keep entities",
+        "args": [],
+    },
+    "behavior-mode": {
+        "handler": "handle_behavior_mode",
+        "category": "debug",
+        "section": "debug",
+        "description": "Get or set Behavior Layer mode (normal, minimal, debug)",
+        "args": [{"name": "mode", "type": "string", "required": False}],
+    },
+    "wm-snapshot": {
+        "handler": "handle_wm_snapshot",
+        "category": "debug",
+        "section": "debug",
+        "description": "Save current topic + participants as an episodic memory",
+        "args": [{"name": "topic", "type": "string", "required": False}],
+    },
+    "wm-topics": {
+        "handler": "handle_wm_topics",
+        "category": "debug",
+        "section": "debug",
+        "description": "List active/recent conversation topics",
+        "args": [],
+    },
+    "wm-switch": {
+        "handler": "handle_wm_switch",
+        "category": "debug",
+        "section": "debug",
+        "description": "Switch active topic by id or name",
+        "args": [{"name": "topic", "type": "string", "required": True}],
+    },
 }
 
 # ------------------------------------------------------------

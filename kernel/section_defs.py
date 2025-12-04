@@ -488,6 +488,7 @@ SECTION_DEFS: List[SectionDef] = [
         ],
     ),
     # v0.7.2: Debug section for diagnostics and introspection
+    # v0.7.3: Added wm-clear, wm-clear-topic, behavior-mode, wm-snapshot, wm-topics, wm-switch
     SectionDef(
         key="debug",
         title="DEBUG",
@@ -502,6 +503,36 @@ SECTION_DEFS: List[SectionDef] = [
                 name="behavior-debug",
                 description="Show behavior layer state (goals, open questions, user state).",
                 example="#behavior-debug",
+            ),
+            CommandDef(
+                name="wm-clear",
+                description="Clear working memory for this session.",
+                example="#wm-clear",
+            ),
+            CommandDef(
+                name="wm-clear-topic",
+                description="Forget only the current topic, keep entities.",
+                example="#wm-clear-topic",
+            ),
+            CommandDef(
+                name="behavior-mode",
+                description="Get or set Behavior Layer mode (normal, minimal, debug).",
+                example="#behavior-mode mode=minimal",
+            ),
+            CommandDef(
+                name="wm-snapshot",
+                description="Save current topic + participants as an episodic memory.",
+                example='#wm-snapshot topic="project with Steven"',
+            ),
+            CommandDef(
+                name="wm-topics",
+                description="List active/recent conversation topics.",
+                example="#wm-topics",
+            ),
+            CommandDef(
+                name="wm-switch",
+                description="Switch active topic by id or name.",
+                example="#wm-switch topic=project",
             ),
         ],
     ),
@@ -614,12 +645,24 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         "toggle": "command-toggle",
     },
     # v0.7.2: Debug section routes
+    # v0.7.3: Added new WM/Behavior commands
     "debug": {
         "wm-debug": "wm-debug",
         "wm": "wm-debug",
-        "memory": "wm-debug",
         "behavior-debug": "behavior-debug",
         "behavior": "behavior-debug",
+        "wm-clear": "wm-clear",
+        "clear": "wm-clear",
+        "wm-clear-topic": "wm-clear-topic",
+        "clear-topic": "wm-clear-topic",
+        "behavior-mode": "behavior-mode",
+        "mode": "behavior-mode",
+        "wm-snapshot": "wm-snapshot",
+        "snapshot": "wm-snapshot",
+        "wm-topics": "wm-topics",
+        "topics": "wm-topics",
+        "wm-switch": "wm-switch",
+        "switch": "wm-switch",
     },
 }
 

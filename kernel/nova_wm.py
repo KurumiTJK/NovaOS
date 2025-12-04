@@ -54,6 +54,7 @@ class EntityType(Enum):
     ORGANIZATION = "organization"
     TIME = "time"
     CONCEPT = "concept"
+    GROUP = "group"        # v0.7.3: Multiple people (e.g., "Steven and Sarah")
     UNKNOWN = "unknown"
 
 
@@ -485,7 +486,11 @@ class NovaWorkingMemory:
         
         # Active state
         self.active_topic_id: Optional[str] = None
+        self.topic_stack: List[str] = []  # v0.7.3: For multi-topic navigation
         self.emotional_tone: EmotionalTone = EmotionalTone.NEUTRAL
+        
+        # v0.7.3: Group entities (e.g., "Steven and Sarah")
+        self.groups: Dict[str, List[str]] = {}  # group_entity_id → member_entity_ids
         
         # Timestamps
         self.created_at: datetime = datetime.now()
@@ -496,6 +501,7 @@ class NovaWorkingMemory:
         self._topic_counter = 0
         self._goal_counter = 0
         self._question_counter = 0
+        self._group_counter = 0  # v0.7.3
     
     # =========================================================================
     # ID GENERATION
@@ -1513,9 +1519,273 @@ class NovaWorkingMemory:
         self.turn_history.clear()
         self.last_turn_summary = None
         self.active_topic_id = None
+        self.topic_stack.clear()  # v0.7.3
+        self.groups.clear()       # v0.7.3
         self.emotional_tone = EmotionalTone.NEUTRAL
         self.turn_count = 0
         self.last_updated = datetime.now()
+    
+    # =========================================================================
+    # v0.7.3 — TOPIC MANAGEMENT EXTENSIONS
+    # =========================================================================
+    
+    def clear_topic(self) -> str:
+        """
+        v0.7.3: Clear only the current topic, keep entities and pronouns.
+        
+        Returns:
+            Confirmation message
+        """
+        old_topic_name = None
+        if self.active_topic_id and self.active_topic_id in self.topics:
+            old_topic_name = self.topics[self.active_topic_id].name
+            del self.topics[self.active_topic_id]
+        
+        self.active_topic_id = None
+        
+        # Clear topic-specific questions but keep entity-related ones
+        topic_questions = [
+            qid for qid, q in self.questions.items()
+            if not q.related_entities  # Only questions without entity relations
+        ]
+        for qid in topic_questions:
+            del self.questions[qid]
+        
+        if old_topic_name:
+            return f"Topic '{old_topic_name}' cleared. People and entities remain remembered."
+        return "Current topic cleared. People and entities remain remembered."
+    
+    def push_topic(self, new_topic_name: str) -> str:
+        """
+        v0.7.3: Create or activate a topic, push current topic to stack.
+        
+        Args:
+            new_topic_name: Name for the new topic
+        
+        Returns:
+            The new topic ID
+        """
+        # Push current topic to stack if exists
+        if self.active_topic_id:
+            self.topic_stack.append(self.active_topic_id)
+            # Keep stack bounded
+            if len(self.topic_stack) > 5:
+                self.topic_stack = self.topic_stack[-5:]
+        
+        # Check if topic already exists
+        for tid, topic in self.topics.items():
+            if topic.name.lower() == new_topic_name.lower():
+                topic.status = TopicStatus.ACTIVE
+                topic.last_mentioned = self.turn_count
+                self.active_topic_id = tid
+                return tid
+        
+        # Create new topic
+        new_topic = WMTopic(
+            id=self._gen_topic_id(),
+            name=new_topic_name,
+            status=TopicStatus.ACTIVE,
+            first_mentioned=self.turn_count,
+            last_mentioned=self.turn_count,
+        )
+        self.topics[new_topic.id] = new_topic
+        self.active_topic_id = new_topic.id
+        return new_topic.id
+    
+    def pop_topic(self) -> Optional[str]:
+        """
+        v0.7.3: Return to previous topic from stack.
+        
+        Returns:
+            The previous topic ID, or None if stack is empty
+        """
+        if not self.topic_stack:
+            return None
+        
+        # Mark current topic as paused
+        if self.active_topic_id and self.active_topic_id in self.topics:
+            self.topics[self.active_topic_id].status = TopicStatus.PAUSED
+        
+        # Pop and activate previous topic
+        prev_topic_id = self.topic_stack.pop()
+        if prev_topic_id in self.topics:
+            self.topics[prev_topic_id].status = TopicStatus.ACTIVE
+            self.topics[prev_topic_id].last_mentioned = self.turn_count
+            self.active_topic_id = prev_topic_id
+            return prev_topic_id
+        
+        self.active_topic_id = None
+        return None
+    
+    def list_topics(self) -> List[Dict[str, Any]]:
+        """
+        v0.7.3: Return list of recent topics with metadata.
+        
+        Returns:
+            List of topic dicts with id, name, status, is_active
+        """
+        result = []
+        for tid, topic in self.topics.items():
+            result.append({
+                "id": tid,
+                "name": topic.name,
+                "status": topic.status.value,
+                "is_active": tid == self.active_topic_id,
+                "first_mentioned": topic.first_mentioned,
+                "last_mentioned": topic.last_mentioned,
+            })
+        # Sort by last_mentioned descending
+        result.sort(key=lambda x: x["last_mentioned"], reverse=True)
+        return result
+    
+    def switch_topic(self, topic_identifier: str) -> Optional[str]:
+        """
+        v0.7.3: Switch to a topic by ID or name.
+        
+        Args:
+            topic_identifier: Topic ID (e.g., "t1") or name
+        
+        Returns:
+            Topic ID if found, None otherwise
+        """
+        # Try by ID first
+        if topic_identifier in self.topics:
+            if self.active_topic_id and self.active_topic_id != topic_identifier:
+                self.topic_stack.append(self.active_topic_id)
+            self.topics[topic_identifier].status = TopicStatus.ACTIVE
+            self.topics[topic_identifier].last_mentioned = self.turn_count
+            self.active_topic_id = topic_identifier
+            return topic_identifier
+        
+        # Try by name (case-insensitive)
+        identifier_lower = topic_identifier.lower()
+        for tid, topic in self.topics.items():
+            if topic.name.lower() == identifier_lower or identifier_lower in topic.name.lower():
+                if self.active_topic_id and self.active_topic_id != tid:
+                    self.topic_stack.append(self.active_topic_id)
+                topic.status = TopicStatus.ACTIVE
+                topic.last_mentioned = self.turn_count
+                self.active_topic_id = tid
+                return tid
+        
+        return None
+    
+    # =========================================================================
+    # v0.7.3 — GROUP ENTITY SUPPORT
+    # =========================================================================
+    
+    def register_group(self, name: str, member_names: List[str]) -> Optional[str]:
+        """
+        v0.7.3: Create a GROUP entity representing multiple people.
+        
+        Args:
+            name: Group name (e.g., "Steven and Sarah")
+            member_names: List of member entity names
+        
+        Returns:
+            Group entity ID, or None if no valid members found
+        
+        TODO v0.7.4: Improve automatic group detection from patterns like
+        "Steven and Sarah", "the team", "my parents", etc.
+        """
+        # Find member entity IDs
+        member_ids = []
+        for member_name in member_names:
+            entity = self._find_entity_by_name(member_name)
+            if entity:
+                member_ids.append(entity.id)
+        
+        if not member_ids:
+            return None
+        
+        # Create group entity
+        self._group_counter += 1
+        group_id = f"grp{self._group_counter}"
+        
+        group_entity = WMEntity(
+            id=group_id,
+            name=name,
+            entity_type=EntityType.GROUP,
+            description=f"Group of {len(member_ids)} people",
+            pronouns=["they", "them", "their"],
+            gender_hint=GenderHint.NEUTRAL,
+            first_mentioned=self.turn_count,
+            last_mentioned=self.turn_count,
+        )
+        
+        self.entities[group_id] = group_entity
+        self.groups[group_id] = member_ids
+        
+        # Add to neutral pronoun group with high priority
+        candidate = ReferentCandidate(
+            entity_id=group_id,
+            entity_name=name,
+            score=2.0,  # Higher than individual entities
+            last_mentioned=self.turn_count,
+            gender_match=True,
+        )
+        self.pronoun_groups["neutral"].add_candidate(candidate)
+        
+        return group_id
+    
+    def get_group_members(self, group_id: str) -> List[WMEntity]:
+        """Get member entities for a group."""
+        member_ids = self.groups.get(group_id, [])
+        return [self.entities[mid] for mid in member_ids if mid in self.entities]
+    
+    # =========================================================================
+    # v0.7.3 — SNAPSHOT SUPPORT
+    # =========================================================================
+    
+    def get_snapshot_summary(self, label: Optional[str] = None) -> str:
+        """
+        v0.7.3: Generate a text summary suitable for episodic memory storage.
+        
+        Args:
+            label: Optional label for the snapshot
+        
+        Returns:
+            Formatted summary string
+        """
+        lines = ["[WM SNAPSHOT]"]
+        
+        # Topic
+        topic_name = label
+        if not topic_name and self.active_topic_id and self.active_topic_id in self.topics:
+            topic_name = self.topics[self.active_topic_id].name
+        if not topic_name:
+            topic_name = "conversation snapshot"
+        
+        # Get participants
+        people = self.get_entities_by_type(EntityType.PERSON)
+        participant_strs = []
+        for p in people[:5]:
+            gender = f" ({p.gender_hint.value})" if p.gender_hint != GenderHint.NEUTRAL else ""
+            participant_strs.append(f"{p.name}{gender}")
+        
+        if participant_strs:
+            lines.append(f"Topic: {topic_name} with {' and '.join(participant_strs)}")
+            lines.append(f"Participants: {', '.join(participant_strs)}")
+        else:
+            lines.append(f"Topic: {topic_name}")
+        
+        # Goals
+        active_goals = self.get_active_goals()
+        if active_goals:
+            lines.append(f"Goal: {active_goals[0].description}")
+        
+        # Unresolved questions
+        unresolved = self.get_unresolved_questions()
+        if unresolved:
+            lines.append("Unresolved questions:")
+            for q in unresolved[:3]:
+                lines.append(f"  - {q.question[:80]}")
+        
+        # Turn info
+        lines.append(f"Turns: {self.turn_count}")
+        lines.append(f"Snapshot time: {datetime.now().isoformat()}")
+        
+        return "\n".join(lines)
     
     # =========================================================================
     # SERIALIZATION
@@ -1533,6 +1803,8 @@ class NovaWorkingMemory:
             "pronoun_groups": {k: v.to_dict() for k, v in self.pronoun_groups.items()},
             "referents": {k: {"entity": v.entity_id, "confidence": v.confidence} for k, v in self.referents.items()},
             "active_topic_id": self.active_topic_id,
+            "topic_stack": self.topic_stack,  # v0.7.3
+            "groups": self.groups,            # v0.7.3
             "emotional_tone": self.emotional_tone.value,
             "turn_history_count": len(self.turn_history),
         }
@@ -1622,3 +1894,92 @@ def wm_clear(session_id: str) -> None:
 def wm_delete(session_id: str) -> None:
     """Delete Working Memory for a session."""
     _wm_manager.delete(session_id)
+
+
+# =============================================================================
+# v0.7.3 PUBLIC API ADDITIONS
+# =============================================================================
+
+def wm_clear_topic(session_id: str) -> str:
+    """
+    v0.7.3: Clear only the current topic, keep entities and pronouns.
+    
+    Returns:
+        Confirmation message
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.clear_topic()
+
+
+def wm_push_topic(session_id: str, new_topic_name: str) -> str:
+    """
+    v0.7.3: Create or activate a topic, push current topic to stack.
+    
+    Returns:
+        The new topic ID
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.push_topic(new_topic_name)
+
+
+def wm_pop_topic(session_id: str) -> Optional[str]:
+    """
+    v0.7.3: Return to previous topic from stack.
+    
+    Returns:
+        The previous topic ID, or None if stack is empty
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.pop_topic()
+
+
+def wm_list_topics(session_id: str) -> List[Dict[str, Any]]:
+    """
+    v0.7.3: Return list of recent topics.
+    
+    Returns:
+        List of topic dicts
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.list_topics()
+
+
+def wm_switch_topic(session_id: str, topic_identifier: str) -> Optional[str]:
+    """
+    v0.7.3: Switch to a topic by ID or name.
+    
+    Returns:
+        Topic ID if found, None otherwise
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.switch_topic(topic_identifier)
+
+
+def wm_register_group(session_id: str, name: str, members: List[str]) -> Optional[str]:
+    """
+    v0.7.3: Create a GROUP entity representing multiple people.
+    
+    Returns:
+        Group entity ID, or None if no valid members found
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.register_group(name, members)
+
+
+def wm_get_snapshot(session_id: str, label: Optional[str] = None) -> str:
+    """
+    v0.7.3: Get a snapshot summary for episodic storage.
+    
+    Args:
+        session_id: Session identifier
+        label: Optional label/topic for the snapshot
+    
+    Returns:
+        Formatted snapshot string
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.get_snapshot_summary(label)
+
+
+# TODO v0.7.4: On new sessions, optionally reload recent wm-snapshot memories
+# and inject into WM/Behavior when entering relevant modules (cyber/business/etc.).

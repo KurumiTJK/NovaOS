@@ -419,6 +419,9 @@ class WMBehaviorEngine:
         
         # Implicit reply mapping
         self.last_implicit_mapping: Optional[Dict[str, Any]] = None
+        
+        # v0.7.3: Behavior mode
+        self.behavior_mode: str = "normal"  # "normal" | "minimal" | "debug"
     
     # =========================================================================
     # ID GENERATION
@@ -1038,6 +1041,98 @@ class WMBehaviorEngine:
         self.thread_summary = ThreadSummary()
         self.last_nova_response = None
         self.last_implicit_mapping = None
+        # v0.7.3: Keep behavior_mode on clear (intentional)
+    
+    # =========================================================================
+    # v0.7.3 — BEHAVIOR MODE
+    # =========================================================================
+    
+    def get_mode(self) -> str:
+        """Get current behavior mode."""
+        return self.behavior_mode
+    
+    def set_mode(self, mode: str) -> bool:
+        """
+        Set behavior mode.
+        
+        Args:
+            mode: "normal", "minimal", or "debug"
+        
+        Returns:
+            True if valid mode, False otherwise
+        """
+        valid_modes = {"normal", "minimal", "debug"}
+        if mode.lower() not in valid_modes:
+            return False
+        self.behavior_mode = mode.lower()
+        return True
+    
+    def is_minimal_mode(self) -> bool:
+        """Check if in minimal mode (fewer follow-up questions)."""
+        return self.behavior_mode == "minimal"
+    
+    def is_debug_mode(self) -> bool:
+        """Check if in debug mode (more explicit about state)."""
+        return self.behavior_mode == "debug"
+    
+    # =========================================================================
+    # v0.7.3 — SUMMARY HELPERS FOR META-QUESTIONS
+    # =========================================================================
+    
+    def summarize_thread(self) -> str:
+        """
+        v0.7.3: Get a comprehensive thread summary for meta-questions.
+        
+        Called when user asks "what were we talking about?"
+        """
+        parts = []
+        
+        # Topic
+        if self.thread_summary.topic:
+            parts.append(f"We were discussing {self.thread_summary.topic}.")
+        
+        # Participants
+        if self.thread_summary.participants:
+            parts.append(f"People involved: {', '.join(self.thread_summary.participants[:3])}.")
+        
+        # Goal
+        if self.thread_summary.goal:
+            parts.append(f"Your goal was: {self.thread_summary.goal}")
+        
+        # Unresolved questions
+        if self.thread_summary.unresolved_questions:
+            parts.append(f"Still open: {self.thread_summary.unresolved_questions[0]}")
+        
+        if not parts:
+            return "We haven't established a specific topic yet."
+        
+        return " ".join(parts)
+    
+    def summarize_entity(self, entity_name: str, wm_context: Dict[str, Any] = None) -> Optional[str]:
+        """
+        v0.7.3: Summarize what we know about a specific entity.
+        
+        Called when user asks "what do you remember about X?"
+        """
+        if not wm_context:
+            return None
+        
+        # Look for entity in WM context
+        entities = wm_context.get("entities", {})
+        all_entities = entities.get("all", []) + entities.get("people", []) + entities.get("projects", [])
+        
+        for entity in all_entities:
+            if entity.get("name", "").lower() == entity_name.lower():
+                parts = [f"{entity['name']}"]
+                if entity.get("type"):
+                    parts[0] += f" ({entity['type']})"
+                if entity.get("description"):
+                    parts.append(f"Context: {entity['description']}")
+                if entity.get("gender_hint") and entity.get("gender_hint") != "neutral":
+                    parts.append(f"Uses {entity['gender_hint']} pronouns")
+                return ". ".join(parts) + "."
+        
+        return None
     
     # =========================================================================
     # SERIALIZATION
@@ -1048,6 +1143,7 @@ class WMBehaviorEngine:
         return {
             "session_id": self.session_id,
             "turn_count": self.turn_count,
+            "behavior_mode": self.behavior_mode,  # v0.7.3
             "open_questions": [q.to_dict() for q in self.open_questions],
             "active_goal_id": self.active_goal_id,
             "goals": {k: v.to_dict() for k, v in self.goals.items()},
@@ -1154,3 +1250,53 @@ def behavior_clear(session_id: str) -> None:
 def behavior_delete(session_id: str) -> None:
     """Delete Behavior Engine for a session."""
     _behavior_manager.delete(session_id)
+
+
+# =============================================================================
+# v0.7.3 PUBLIC API ADDITIONS
+# =============================================================================
+
+def behavior_get_mode(session_id: str) -> str:
+    """
+    v0.7.3: Get current behavior mode for session.
+    
+    Returns:
+        "normal", "minimal", or "debug"
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.get_mode()
+
+
+def behavior_set_mode(session_id: str, mode: str) -> bool:
+    """
+    v0.7.3: Set behavior mode for session.
+    
+    Args:
+        mode: "normal", "minimal", or "debug"
+    
+    Returns:
+        True if valid mode, False otherwise
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.set_mode(mode)
+
+
+def behavior_summarize_thread(session_id: str) -> str:
+    """
+    v0.7.3: Get thread summary for meta-questions like "what were we talking about?"
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.summarize_thread()
+
+
+def behavior_summarize_entity(session_id: str, entity_name: str, wm_context: Dict[str, Any] = None) -> Optional[str]:
+    """
+    v0.7.3: Get summary of what we know about a specific entity.
+    """
+    engine = _behavior_manager.get(session_id)
+    return engine.summarize_entity(entity_name, wm_context)
+
+
+# TODO v0.7.4: Add behavior_explain_memory_model_if_needed() helper
+# to detect when user over-attributes human-like memory and provide
+# a gentle explanation of the working memory + episodic model.
