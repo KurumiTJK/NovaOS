@@ -74,12 +74,34 @@ def _normalize_custom_command(name: str, meta: dict | None) -> dict:
     return meta
 
 # ------------------------------------------------------------
-# Commands loader (v0.3)
+# v0.7 — Built-in commands that don't require commands.json
+# ------------------------------------------------------------
+BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
+    "wm-debug": {
+        "handler": "handle_wm_debug",
+        "category": "system",
+        "section": "system",
+        "description": "Show current Working Memory state (entities, pronouns, topics)",
+        "args": [],
+    },
+    "behavior-debug": {
+        "handler": "handle_behavior_debug",
+        "category": "system",
+        "section": "system",
+        "description": "Show Behavior Layer state (open questions, goals, user state)",
+        "args": [],
+    },
+}
+
+# ------------------------------------------------------------
+# Commands loader (v0.3, updated v0.7)
 # ------------------------------------------------------------
 def load_commands(config: Config | None = None) -> Dict[str, Dict[str, Any]]:
     """
     Load commands.json from config.data_dir/commands.json.
     Always returns a dict {cmd_name: meta_dict}.
+    
+    v0.7: Merges BUILTIN_COMMANDS as defaults.
     """
     if config is None:
         raise ValueError("load_commands() requires a Config instance.")
@@ -89,11 +111,15 @@ def load_commands(config: Config | None = None) -> Dict[str, Dict[str, Any]]:
 
     raw = _load_json(commands_path, fallback=default_commands)
 
+    # Start with builtin commands
+    result: Dict[str, Dict[str, Any]] = dict(BUILTIN_COMMANDS)
+
     if isinstance(raw, dict):
-        return raw
+        # Merge JSON commands (they override builtins)
+        result.update(raw)
+        return result
 
     # Handle old v0.2 list formats
-    normalized: Dict[str, Dict[str, Any]] = {}
     if isinstance(raw, list):
         for entry in raw:
             if not isinstance(entry, dict):
@@ -107,17 +133,17 @@ def load_commands(config: Config | None = None) -> Dict[str, Dict[str, Any]]:
                     for k, v in entry.items()
                     if k not in ("name", "command", "cmd")
                 }
-                normalized[name] = meta
+                result[name] = meta
                 continue
 
             # Case 2: {"boot": {...}}
             if len(entry) == 1:
                 k, v = next(iter(entry.items()))
                 if isinstance(v, dict):
-                    normalized[k] = v
+                    result[k] = v
                     continue
 
-    return normalized
+    return result
 
 # ------------------------------------------------------------
 # Custom Commands loader (v0.5)

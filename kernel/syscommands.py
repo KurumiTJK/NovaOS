@@ -4,14 +4,25 @@ from typing import Dict, Any, Callable
 
 from .command_types import CommandResponse
 from .formatting import OutputFormatter as F
-# v0.6.1: Working Memory integration
+# v0.7: Working Memory Engine integration
 try:
-    from .working_memory import clear_working_memory
+    from .nova_wm import wm_clear
     _HAS_WORKING_MEMORY = True
 except ImportError:
     _HAS_WORKING_MEMORY = False
-    def clear_working_memory(session_id: str) -> None:
+    def wm_clear(session_id: str) -> None:
         pass  # No-op if WM not installed
+
+# v0.7.2: Behavior Layer integration
+try:
+    from .nova_wm_behavior import behavior_clear, get_behavior_engine
+    _HAS_BEHAVIOR_LAYER = True
+except ImportError:
+    _HAS_BEHAVIOR_LAYER = False
+    def behavior_clear(session_id: str) -> None:
+        pass  # No-op if Behavior Layer not installed
+    def get_behavior_engine(session_id: str):
+        return None
 
 KernelResponse = CommandResponse
 
@@ -458,6 +469,155 @@ def handle_status(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
     return _base_response(cmd_name, summary, extra)
 
 
+def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.1: Debug command to show current Working Memory state.
+    
+    Shows entities with gender hints and pronoun group resolution.
+    
+    Usage: #wm-debug
+    """
+    try:
+        from .nova_wm import get_wm
+        wm = get_wm(session_id)
+        
+        state = wm.to_dict()
+        
+        lines = [
+            F.header("Working Memory State"),
+            F.key_value("Session", state['session_id']),
+            F.key_value("Turn count", state['turn_count']),
+            F.key_value("Emotional tone", state['emotional_tone']),
+            "",
+        ]
+        
+        # Entities with gender hints
+        if state['entities']:
+            lines.append(F.subheader("Entities"))
+            for eid, entity in state['entities'].items():
+                desc = f" ({entity.get('description')})" if entity.get('description') else ""
+                gender = f" [{entity.get('gender_hint', 'neutral')}]" if entity.get('type') == 'person' else ""
+                lines.append(f"  • {entity['name']} [{entity['type']}]{gender}{desc}")
+            lines.append("")
+        
+        # v0.7.1: Pronoun Groups (gender-aware)
+        pronoun_groups = state.get('pronoun_groups', {})
+        if pronoun_groups:
+            lines.append(F.subheader("Pronoun Resolution"))
+            for group_name, group in pronoun_groups.items():
+                best_match = group.get('best_match')
+                if best_match:
+                    pronouns = "/".join(sorted(group.get('pronouns', [])))
+                    lines.append(f"  • {pronouns} → {best_match}")
+            lines.append("")
+        
+        # Active topic
+        if state.get('active_topic_id'):
+            topic = state['topics'].get(state['active_topic_id'], {})
+            lines.append(F.key_value("Active Topic", topic.get('name', 'unknown')))
+            lines.append("")
+        
+        # Goals
+        if state.get('goals'):
+            lines.append(F.subheader("Active Goals"))
+            for gid, goal in state['goals'].items():
+                if goal.get('status') == 'active':
+                    lines.append(f"  • {goal.get('description', 'unknown')[:60]}")
+            lines.append("")
+        
+        lines.append(F.key_value("Turn history", f"{state['turn_history_count']} turns stored"))
+        
+        return _base_response(cmd_name, "\n".join(lines), {"wm_state": state})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error reading Working Memory: {e}", {"ok": False})
+
+
+def handle_behavior_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.2: Debug command to show current Behavior Layer state.
+    
+    Shows open questions, goals, user state, and topic transitions.
+    
+    Usage: #behavior-debug
+    """
+    if not _HAS_BEHAVIOR_LAYER:
+        return _base_response(cmd_name, "Behavior Layer not installed.", {"ok": False})
+    
+    try:
+        engine = get_behavior_engine(session_id)
+        if engine is None:
+            return _base_response(cmd_name, "Behavior Engine not initialized.", {"ok": False})
+        
+        state = engine.to_dict()
+        
+        lines = [
+            F.header("Behavior Layer State"),
+            F.key_value("Session", state['session_id']),
+            F.key_value("Turn count", state['turn_count']),
+            "",
+        ]
+        
+        # Open Questions
+        open_qs = [q for q in state['open_questions'] if not q.get('answered')]
+        if open_qs:
+            lines.append(F.subheader("Open Questions (Awaiting Response)"))
+            for q in open_qs:
+                text = q.get('text', '')[:60]
+                lines.append(f"  • \"{text}...\"" if len(q.get('text', '')) > 60 else f"  • \"{text}\"")
+            lines.append("")
+        
+        # Active Goal
+        if state.get('active_goal_id') and state.get('goals'):
+            goal = state['goals'].get(state['active_goal_id'], {})
+            lines.append(F.subheader("Active Goal"))
+            lines.append(f"  Type: {goal.get('type', 'unknown')}")
+            lines.append(f"  Description: {goal.get('description', 'none')[:70]}")
+            lines.append("")
+        
+        # Goal Stack
+        if state.get('goal_stack'):
+            lines.append(F.key_value("Goal Stack Depth", len(state['goal_stack'])))
+            lines.append("")
+        
+        # User State
+        user_state = state.get('user_state', {})
+        if user_state:
+            lines.append(F.subheader("User State"))
+            lines.append(f"  Clarity: {user_state.get('clarity_level', 0.5):.1%}")
+            lines.append(f"  Decisiveness: {user_state.get('decisiveness', 0.5):.1%}")
+            lines.append(f"  Stress: {user_state.get('stress_level', 0):.1%}")
+            lines.append(f"  Engagement: {user_state.get('engagement', 0.5):.1%}")
+            lines.append(f"  Urgency: {user_state.get('urgency', 0):.1%}")
+            if user_state.get('signals'):
+                lines.append(f"  Signals: {', '.join(user_state['signals'])}")
+            lines.append("")
+        
+        # Topic Transitions
+        if state.get('topic_transitions'):
+            lines.append(F.subheader("Recent Topic Transitions"))
+            for t in state['topic_transitions'][-3:]:
+                lines.append(f"  • [{t.get('trigger', '?')}] '{t.get('from', '?')}' → '{t.get('to', '?')}'")
+            lines.append("")
+        
+        # Thread Summary
+        summary = state.get('thread_summary', {})
+        if summary.get('topic') or summary.get('participants'):
+            lines.append(F.subheader("Thread Summary"))
+            if summary.get('topic'):
+                lines.append(f"  Topic: {summary['topic']}")
+            if summary.get('participants'):
+                lines.append(f"  Participants: {', '.join(summary['participants'])}")
+            if summary.get('unresolved_questions'):
+                lines.append(f"  Unresolved: {len(summary['unresolved_questions'])} questions")
+            lines.append("")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"behavior_state": state})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error reading Behavior Layer: {e}", {"ok": False})
+
+
 def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     cmds = []
     formatted = []
@@ -583,8 +743,8 @@ def _handle_section_menu(section_key: str, cmd_name, args, session_id, context, 
     if not section:
         return _base_response(cmd_name, f"Unknown section '{section_key}'.", {"ok": False})
     
-    # v0.6.1: Clear Working Memory when entering section menu
-    clear_working_memory(session_id)
+    # v0.7: Clear Working Memory when entering section menu
+    wm_clear(session_id)
     
     # Set active section for this session
     _section_menu_state[session_id] = section_key
@@ -666,10 +826,12 @@ def get_section_command_names(section_key: str) -> list:
 
 
 def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    # v0.6.1: Clear Working Memory on reset
-    clear_working_memory(session_id)
+    # v0.7: Clear Working Memory on reset
+    wm_clear(session_id)
+    # v0.7.2: Clear Behavior Layer on reset
+    behavior_clear(session_id)
     kernel.context_manager.reset_session(session_id)
-    summary = "Session context reset. Working memory cleared. Modules and workflows reloaded from disk."
+    summary = "Session context reset. Working memory and behavior layer cleared. Modules and workflows reloaded from disk."
     return _base_response(cmd_name, summary)
 
 # ---------------------------------------------------------------------
@@ -3474,6 +3636,8 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_why": handle_why,
     "handle_boot": handle_boot,
     "handle_status": handle_status,
+    "handle_wm_debug": handle_wm_debug,  # v0.7: Working Memory debug
+    "handle_behavior_debug": handle_behavior_debug,  # v0.7.2: Behavior Layer debug
     "handle_help": handle_help,
     "handle_reset": handle_reset,
     "handle_store": handle_store,

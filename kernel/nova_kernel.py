@@ -32,11 +32,24 @@ from .wizard_mode import (
     cancel_wizard,
     build_command_args_from_wizard,
 )
-# v0.6.1 Working Memory
-from .working_memory import (
-    process_for_persona,
-    record_nova_response,
-    clear_working_memory,
+# v0.7: Working Memory Engine (NovaWM)
+from .nova_wm import (
+    get_wm,
+    wm_update,
+    wm_record_response,
+    wm_get_context,
+    wm_get_context_string,
+    wm_answer_reference,
+    wm_clear,
+)
+# v0.7.2: Behavior Layer
+from .nova_wm_behavior import (
+    behavior_update,
+    behavior_after_response,
+    behavior_get_context,
+    behavior_get_context_string,
+    behavior_answer_reference,
+    behavior_clear,
 )
 # InterpretationEngine is kept for explicit #interpret, #derive, etc. commands
 # but is NO LONGER used for automatic NL → command routing
@@ -262,8 +275,8 @@ class NovaKernel:
                 
                 # 4) Wizard mode for no-arg commands
                 if not args_dict and is_wizard_command(cmd_name):
-                    # v0.6.1: Clear Working Memory when wizard starts
-                    clear_working_memory(session_id)
+                    # v0.7: Clear Working Memory when wizard starts
+                    wm_clear(session_id)
                     result = start_wizard(session_id, cmd_name)
                     return {
                         "ok": result.get("ok", True),
@@ -309,8 +322,8 @@ class NovaKernel:
             use_wizard = nl_request.meta.get("use_wizard", False) if nl_request.meta else False
             
             if use_wizard and is_wizard_command(nl_request.cmd_name):
-                # v0.6.1: Clear Working Memory when wizard starts
-                clear_working_memory(session_id)
+                # v0.7: Clear Working Memory when wizard starts
+                wm_clear(session_id)
                 # Start wizard for this command
                 result = start_wizard(session_id, nl_request.cmd_name)
                 return {
@@ -355,18 +368,43 @@ class NovaKernel:
             }
         
         # -------------------------------------------------------------
-        # 7) Persona Fallback (normal chat) with Working Memory
+        # 7) Persona Fallback (normal chat) with NovaWM v0.7.2
         # -------------------------------------------------------------
         self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
 
-        # v0.6.1: Process message through Working Memory for context enrichment
-        wm_context = process_for_persona(session_id, stripped)
+        # v0.7: Check if Working Memory can answer directly (reference questions)
+        direct_answer = wm_answer_reference(session_id, stripped)
+        
+        # v0.7.2: Also check Behavior Layer for reference questions
+        if not direct_answer:
+            direct_answer = behavior_answer_reference(session_id, stripped)
+        
+        # v0.7: Update Working Memory with user message
+        wm_result = wm_update(session_id, stripped)
+        
+        # v0.7: Get WM context for behavior layer
+        wm_context = wm_get_context(session_id)
+        
+        # v0.7.2: Update Behavior Layer (AFTER wm_update)
+        behavior_result = behavior_update(session_id, stripped, wm_context)
+        
+        # v0.7: Get formatted context string for persona system prompt
+        wm_context_string = wm_get_context_string(session_id)
+        
+        # v0.7.2: Get behavior context string
+        behavior_context_string = behavior_get_context_string(session_id)
+        
+        # Combine context strings
+        combined_context = wm_context_string
+        if behavior_context_string:
+            combined_context = combined_context + "\n\n" + behavior_context_string
         
         policy_meta = {
             "session_id": session_id,
             "source": "persona_fallback",
             "env": getattr(self, "env_state", None),
-            "working_memory": wm_context,  # v0.6.1: Pass WM context
+            "wm_turn": wm_result.get("turn", 0),
+            "behavior": behavior_result,  # v0.7.2
         }
 
         # Pre-LLM sanitization
@@ -377,16 +415,19 @@ class NovaKernel:
             except Exception as e:
                 self.logger.log_error(session_id, f"policy.pre_llm error (persona): {e}")
 
-        # Persona LLM call with Working Memory context
+        # Persona LLM call with NovaWM + Behavior context
         reply = self.persona.generate_response(
             safe_input,
             session_id=session_id,
-            working_memory=wm_context,  # v0.6.1: Pass WM to persona
+            wm_context_string=combined_context,  # v0.7.2: Combined context
+            direct_answer=direct_answer,
         )
 
-        # v0.6.1: Record Nova's response in Working Memory
+        # v0.7: Record Nova's response in Working Memory
         if reply:
-            record_nova_response(session_id, reply)
+            wm_record_response(session_id, reply)
+            # v0.7.2: Process response in Behavior Layer (extract questions)
+            behavior_after_response(session_id, reply)
 
         # Post-LLM correction/stabilization
         if self.policy_engine is not None:
@@ -409,10 +450,17 @@ class NovaKernel:
             },
             "meta": {
                 "source": "persona_fallback",
-                "working_memory": {
-                    "topic": wm_context.get("current_topic"),
-                    "turn_count": wm_context.get("turn_count", 0),
-                    "is_continuation": wm_context.get("is_continuation", False),
+                "wm": {
+                    "turn": wm_result.get("turn", 0),
+                    "entities": wm_result.get("entities_extracted", []),
+                    "pronouns_resolved": wm_result.get("pronouns_resolved", {}),
+                    "emotional_tone": wm_result.get("emotional_tone"),
+                },
+                "behavior": {  # v0.7.2
+                    "implicit_reply": behavior_result.get("implicit_reply"),
+                    "goal_detected": behavior_result.get("goal_detected"),
+                    "topic_switch": behavior_result.get("topic_switch"),
+                    "user_state": behavior_result.get("user_state_signals"),
                 },
             },
         }

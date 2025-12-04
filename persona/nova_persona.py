@@ -1,12 +1,18 @@
 # persona/nova_persona.py
 """
-v0.6.1 — Nova Persona with Working Memory Support
+NovaOS v0.7 — Nova Persona with Working Memory Engine
 
 The persona layer that gives Nova its voice, tone, and conversational continuity.
-Now integrates with Working Memory for multi-turn conversation awareness.
+Integrates with NovaWM for true multi-turn conversation awareness.
+
+Key capabilities:
+- Uses NovaWM context for coherent responses
+- Answers reference questions directly when possible
+- Maintains natural conversation flow
+- Resolves pronouns automatically
 """
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
 from backend.llm_client import LLMClient
 
@@ -54,108 +60,11 @@ Always think like an operating system copilot, not a casual chat model.
 """
 
 
-def build_working_memory_context(wm: Optional[Dict[str, Any]]) -> str:
-    """
-    Build a context string from Working Memory state.
-    
-    This helps Nova understand the ongoing conversation and respond naturally.
-    """
-    if not wm:
-        return ""
-    
-    lines = []
-    
-    # Check if this is a continuation
-    if wm.get("is_continuation") and wm.get("previous_topic"):
-        lines.append("[CONVERSATION CONTEXT]")
-        lines.append(f"We were just discussing: {wm.get('previous_topic')}")
-        
-        if wm.get("turn_count", 0) > 1:
-            lines.append(f"This is turn {wm.get('turn_count')} in this topic.")
-        
-        if wm.get("previous_entities"):
-            entities = ", ".join(wm.get("previous_entities", [])[:5])
-            lines.append(f"Key things mentioned: {entities}")
-        
-        if wm.get("previous_message"):
-            prev_msg = wm.get("previous_message", "")[:100]
-            if len(wm.get("previous_message", "")) > 100:
-                prev_msg += "..."
-            lines.append(f"User's last message: \"{prev_msg}\"")
-        
-        if wm.get("previous_response"):
-            prev_resp = wm.get("previous_response", "")[:150]
-            if len(wm.get("previous_response", "")) > 150:
-                prev_resp += "..."
-            lines.append(f"Your last response: \"{prev_resp}\"")
-        
-        # Intent tracking
-        if wm.get("previous_intent"):
-            lines.append(f"Their intent seems to be: {wm.get('previous_intent')}")
-        
-        lines.append("")
-        lines.append("The user's current message continues or relates to this context.")
-        lines.append("Respond naturally as if in an ongoing conversation, not starting fresh.")
-        
-    elif wm.get("current_topic"):
-        # New topic
-        lines.append("[CONVERSATION CONTEXT]")
-        lines.append(f"New topic: {wm.get('current_topic')}")
-        lines.append(f"Intent: {wm.get('current_intent', 'unknown')}")
-        
-        # Mention topic history if relevant
-        if wm.get("topic_history"):
-            recent = wm.get("topic_history", [])[-2:]
-            if recent:
-                lines.append(f"We previously talked about: {', '.join(recent)}")
-    
-    if not lines:
-        return ""
-    
-    return "\n".join(lines) + "\n"
-
-
-def build_entity_resolution_hints(wm: Optional[Dict[str, Any]], text: str) -> str:
-    """
-    Build hints for resolving pronouns and references.
-    
-    Helps Nova understand what "that", "it", "those" refer to.
-    """
-    if not wm:
-        return ""
-    
-    # Check for pronouns that need resolution
-    pronouns = ["that", "it", "this", "those", "these", "they", "them", "the one", "earlier"]
-    text_lower = text.lower()
-    
-    has_pronouns = any(p in text_lower for p in pronouns)
-    if not has_pronouns:
-        return ""
-    
-    lines = ["[REFERENCE RESOLUTION]"]
-    lines.append("The user's message contains references that may need context:")
-    
-    if wm.get("previous_topic"):
-        lines.append(f"- 'it/that/this' likely refers to: {wm.get('previous_topic')}")
-    
-    if wm.get("previous_entities"):
-        entities = wm.get("previous_entities", [])
-        if entities:
-            lines.append(f"- 'they/those/these' may refer to: {', '.join(entities[:3])}")
-    
-    if wm.get("previous_message"):
-        lines.append(f"- 'the earlier one' may refer to something in: \"{wm.get('previous_message', '')[:50]}...\"")
-    
-    lines.append("")
-    
-    return "\n".join(lines)
-
-
 class NovaPersona:
     """
     Nova's persona and conversational layer.
     
-    v0.6.1: Now supports Working Memory for multi-turn conversation continuity.
+    v0.7: Uses NovaWM for comprehensive working memory.
     """
 
     def __init__(self, llm_client: LLMClient, system_prompt: Optional[str] = None) -> None:
@@ -166,40 +75,39 @@ class NovaPersona:
         self,
         text: str,
         session_id: str,
-        working_memory: Optional[Dict[str, Any]] = None,
+        wm_context: Optional[Dict[str, Any]] = None,
+        wm_context_string: Optional[str] = None,
+        direct_answer: Optional[str] = None,
     ) -> str:
         """
         Generate a conversational reply using the Nova persona prompt.
         
-        v0.6.1: Now accepts working_memory context for conversation continuity.
-        
         Args:
             text: The user's current message
             session_id: Session identifier
-            working_memory: Working Memory context dict with:
-                - is_continuation: bool
-                - previous_topic: str
-                - previous_intent: str
-                - previous_entities: List[str]
-                - previous_message: str
-                - previous_response: str
-                - turn_count: int
-                - current_topic: str
-                - current_intent: str
-                - current_entities: List[str]
+            wm_context: Working memory context bundle (dict)
+            wm_context_string: Pre-formatted context string for system prompt
+            direct_answer: If WM can answer directly, this is the answer
         
         Returns:
             Nova's response as a string
         """
-        # Build enriched system prompt with Working Memory context
+        # If working memory can provide a direct answer to a reference question
+        if direct_answer:
+            # Return it directly for simple recalls
+            # For more complex questions, we might still want LLM to phrase it nicely
+            return direct_answer
+        
+        # Build system prompt with working memory context
         system = self.system_prompt
         
-        if working_memory:
-            wm_context = build_working_memory_context(working_memory)
-            entity_hints = build_entity_resolution_hints(working_memory, text)
-            
-            if wm_context or entity_hints:
-                system = self.system_prompt + "\n\n" + wm_context + entity_hints
+        if wm_context_string:
+            system = self.system_prompt + "\n\n" + wm_context_string
+        elif wm_context:
+            # Build context string from bundle
+            context_str = self._build_context_from_bundle(wm_context)
+            if context_str:
+                system = self.system_prompt + "\n\n" + context_str
         
         # Call the LLM
         result: Dict[str, Any] = self.llm_client.complete(
@@ -218,40 +126,67 @@ class NovaPersona:
 
         return reply
     
-    def generate_with_context(
-        self,
-        text: str,
-        session_id: str,
-        additional_context: str = "",
-        working_memory: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        """
-        Generate response with additional context prepended.
+    def _build_context_from_bundle(self, bundle: Dict[str, Any]) -> str:
+        """Build context string from WM bundle if no pre-formatted string provided."""
+        if not bundle:
+            return ""
         
-        Useful for system-injected context beyond Working Memory.
-        """
-        system = self.system_prompt
+        lines = ["[WORKING MEMORY CONTEXT]"]
         
-        if additional_context:
-            system = self.system_prompt + "\n\n" + additional_context
+        # Turn count
+        if bundle.get("turn_count"):
+            lines.append(f"Turn {bundle['turn_count']} in this conversation.")
         
-        if working_memory:
-            wm_context = build_working_memory_context(working_memory)
-            entity_hints = build_entity_resolution_hints(working_memory, text)
-            system += "\n\n" + wm_context + entity_hints
+        # Active topic
+        if bundle.get("active_topic"):
+            topic = bundle["active_topic"]
+            lines.append(f"Current topic: {topic.get('name', 'unknown')}")
         
-        result: Dict[str, Any] = self.llm_client.complete(
-            system=system,
-            user=text,
-            session_id=session_id,
-        )
+        # People
+        people = bundle.get("entities", {}).get("people", [])
+        if people:
+            lines.append("People mentioned:")
+            for p in people[:3]:
+                desc = f" ({p.get('description')})" if p.get('description') else ""
+                lines.append(f"  - {p.get('name')}{desc}")
+        
+        # Projects
+        projects = bundle.get("entities", {}).get("projects", [])
+        if projects:
+            lines.append("Projects/topics:")
+            for p in projects[:3]:
+                lines.append(f"  - {p.get('name')}")
+        
+        # Pronoun resolution
+        referents = bundle.get("referents", {})
+        if referents:
+            lines.append("Pronoun resolution:")
+            for pronoun, name in list(referents.items())[:5]:
+                lines.append(f"  - '{pronoun}' → {name}")
+        
+        # Goals
+        goals = bundle.get("goals", [])
+        if goals:
+            lines.append("User goals:")
+            for g in goals[:2]:
+                lines.append(f"  - {g.get('description', '')[:60]}")
+        
+        # Instructions
+        lines.append("")
+        lines.append("Use this context to maintain conversation continuity.")
+        lines.append("Resolve pronouns using the mapping above.")
+        
+        return "\n".join(lines)
 
-        raw = result.get("text")
-        if raw is None:
-            return f"(persona-fallback) I heard: {text}"
 
-        reply = str(raw).strip()
-        if not reply:
-            return f"(persona-empty) I heard: {text}"
+# =============================================================================
+# INTEGRATION WITH NOVA KERNEL
+# =============================================================================
 
-        return reply
+def create_persona_with_wm(llm_client: LLMClient) -> NovaPersona:
+    """
+    Create a NovaPersona instance configured for working memory.
+    
+    This is the factory function the kernel should use.
+    """
+    return NovaPersona(llm_client)
