@@ -1,9 +1,15 @@
 # kernel/nova_wm_behavior.py
 """
-NovaOS v0.7.7 — Working Memory Behavior Layer
+NovaOS v0.7.9 — Working Memory Behavior Layer
 
 This layer sits above the entity/topic/pronoun memory from v0.7.0–v0.7.1
 and provides human-like conversational continuity.
+
+v0.7.9 CHANGES:
+- Module-aware behavior: goals, threads tagged with optional module
+- Module-scoped context generation for persona
+- Meta-queries use current module to prioritize relevant topics
+- Backward compatible: module=None treated as global
 
 v0.7.7 CHANGES:
 - Event-specific recall ("what did Sarah say?", "remind me what Steven suggested")
@@ -34,6 +40,7 @@ Key Capabilities:
 - Conversation thread memory with summaries
 - Meta-question routing and handling
 - Event-specific recall (v0.7.7)
+- Module-aware context (v0.7.9)
 
 Integration:
     from nova_wm_behavior import (
@@ -44,8 +51,8 @@ Integration:
     )
     
     # In persona fallback flow:
-    wm_update(session_id, user_message)
-    behavior_update(session_id, user_message)
+    wm_update(session_id, user_message, module="business")
+    behavior_update(session_id, user_message, module="business")
     # ... generate response ...
     behavior_after_response(session_id, nova_response)
 
@@ -451,6 +458,8 @@ class WMBehaviorEngine:
     - Conversation goals
     - Topic transitions
     - User state inference
+    
+    v0.7.9: Module-aware behavior tracking.
     """
     
     def __init__(self, session_id: str):
@@ -485,6 +494,10 @@ class WMBehaviorEngine:
         
         # v0.7.3: Behavior mode
         self.behavior_mode: str = "normal"  # "normal" | "minimal" | "debug"
+        
+        # v0.7.9: Module awareness
+        self.current_module: Optional[str] = None
+        self.module_history: List[str] = []
     
     # =========================================================================
     # ID GENERATION
@@ -502,7 +515,7 @@ class WMBehaviorEngine:
     # UPDATE FROM USER MESSAGE
     # =========================================================================
     
-    def update(self, user_message: str, wm_context: Dict[str, Any] = None) -> Dict[str, Any]:
+    def update(self, user_message: str, wm_context: Dict[str, Any] = None, module: Optional[str] = None) -> Dict[str, Any]:
         """
         Update behavior state based on user message.
         
@@ -511,12 +524,19 @@ class WMBehaviorEngine:
         Args:
             user_message: The user's message
             wm_context: Context from NovaWM (entities, pronouns, etc.)
+            module: v0.7.9 - Optional module context
         
         Returns:
             Dict with behavior analysis results
         """
         self.turn_count += 1
         wm_context = wm_context or {}
+        
+        # v0.7.9: Track module changes
+        if module and module != self.current_module:
+            self.current_module = module
+            if module not in self.module_history:
+                self.module_history.append(module)
         
         result = {
             "turn": self.turn_count,
@@ -525,6 +545,7 @@ class WMBehaviorEngine:
             "goal_detected": None,
             "topic_switch": None,
             "user_state_signals": [],
+            "module": module or self.current_module,  # v0.7.9
         }
         
         message_lower = user_message.lower().strip()
@@ -971,10 +992,13 @@ class WMBehaviorEngine:
     # CONTEXT GENERATION
     # =========================================================================
     
-    def get_context(self) -> Dict[str, Any]:
+    def get_context(self, module: Optional[str] = None) -> Dict[str, Any]:
         """
         Get behavior context bundle for persona injection.
+        
+        v0.7.9: Added optional module parameter.
         """
+        target_module = module or self.current_module
         active_goal = self.get_active_goal()
         
         return {
@@ -987,16 +1011,24 @@ class WMBehaviorEngine:
             "thread_summary": self.thread_summary.to_dict(),
             "topic_transitions": [t.to_dict() for t in self.topic_transitions[-3:]],
             "last_implicit_reply": self.last_implicit_mapping,
+            "module": target_module,  # v0.7.9
         }
     
-    def build_context_string(self) -> str:
+    def build_context_string(self, module: Optional[str] = None) -> str:
         """
         Build a formatted context string for persona system prompt.
+        
+        v0.7.9: Added optional module parameter.
         """
-        ctx = self.get_context()
+        target_module = module or self.current_module
+        ctx = self.get_context(module=target_module)
         lines = []
         
         lines.append("[BEHAVIOR LAYER - CONVERSATIONAL CONTINUITY]")
+        
+        # v0.7.9: Show module context
+        if target_module:
+            lines.append(f"ACTIVE MODULE: {target_module}")
         lines.append("")
         
         # Active goal
@@ -1036,7 +1068,7 @@ class WMBehaviorEngine:
             last_transition = ctx["topic_transitions"][-1]
             lines.append(f"TOPIC SHIFT: '{last_transition.get('from')}' → '{last_transition.get('to')}'")
         
-        if len(lines) <= 2:  # Only header
+        if len(lines) <= 3:  # Only header + module
             return ""  # No behavior context needed
         
         lines.append("")
@@ -1454,15 +1486,18 @@ def get_behavior_engine(session_id: str) -> WMBehaviorEngine:
 def behavior_update(
     session_id: str, 
     user_message: str, 
-    wm_context: Dict[str, Any] = None
+    wm_context: Dict[str, Any] = None,
+    module: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Update Behavior Layer with user message.
     
     Call AFTER wm_update() in the kernel flow.
+    
+    v0.7.9: Added optional module parameter.
     """
     engine = _behavior_manager.get(session_id)
-    return engine.update(user_message, wm_context)
+    return engine.update(user_message, wm_context, module=module)
 
 
 def behavior_after_response(session_id: str, nova_response: str) -> Dict[str, Any]:
@@ -1475,16 +1510,24 @@ def behavior_after_response(session_id: str, nova_response: str) -> Dict[str, An
     return engine.after_response(nova_response)
 
 
-def behavior_get_context(session_id: str) -> Dict[str, Any]:
-    """Get behavior context bundle."""
+def behavior_get_context(session_id: str, module: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Get behavior context bundle.
+    
+    v0.7.9: Added optional module parameter.
+    """
     engine = _behavior_manager.get(session_id)
-    return engine.get_context()
+    return engine.get_context(module=module)
 
 
-def behavior_get_context_string(session_id: str) -> str:
-    """Get formatted behavior context string for persona system prompt."""
+def behavior_get_context_string(session_id: str, module: Optional[str] = None) -> str:
+    """
+    Get formatted behavior context string for persona system prompt.
+    
+    v0.7.9: Added optional module parameter.
+    """
     engine = _behavior_manager.get(session_id)
-    return engine.build_context_string()
+    return engine.build_context_string(module=module)
 
 
 def behavior_answer_reference(session_id: str, question: str) -> Optional[str]:

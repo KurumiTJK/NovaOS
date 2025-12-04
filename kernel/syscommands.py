@@ -475,11 +475,20 @@ def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> Kernel
     
     Shows entities with gender hints and pronoun group resolution.
     
-    Usage: #wm-debug
+    v0.7.9: Added optional module=<n> filter.
+    
+    Usage: 
+        #wm-debug
+        #wm-debug module=business
     """
     try:
         from .nova_wm import get_wm
         wm = get_wm(session_id)
+        
+        # v0.7.9: Get module filter
+        module_filter = None
+        if isinstance(args, dict):
+            module_filter = args.get("module")
         
         state = wm.to_dict()
         
@@ -488,16 +497,31 @@ def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> Kernel
             F.key_value("Session", state['session_id']),
             F.key_value("Turn count", state['turn_count']),
             F.key_value("Emotional tone", state['emotional_tone']),
-            "",
         ]
         
-        # Entities with gender hints
+        # v0.7.9: Show module info
+        current_mod = getattr(wm, 'current_module', None)
+        if current_mod:
+            lines.append(F.key_value("Current Module", current_mod))
+        if module_filter:
+            lines.append(F.key_value("Scope", f"module={module_filter} (includes global)"))
+        lines.append("")
+        
+        # Entities with gender hints (optionally filtered by module)
         if state['entities']:
             lines.append(F.subheader("Entities"))
             for eid, entity in state['entities'].items():
+                # v0.7.9: Filter by module if specified
+                entity_module = entity.get('module')
+                if module_filter:
+                    # Include if matches filter OR is global (None)
+                    if entity_module != module_filter and entity_module is not None:
+                        continue
+                
                 desc = f" ({entity.get('description')})" if entity.get('description') else ""
                 gender = f" [{entity.get('gender_hint', 'neutral')}]" if entity.get('type') == 'person' else ""
-                lines.append(f"  • {entity['name']} [{entity['type']}]{gender}{desc}")
+                mod_tag = f" @{entity_module}" if entity_module else ""
+                lines.append(f"  • {entity['name']} [{entity['type']}]{gender}{mod_tag}{desc}")
             lines.append("")
         
         # v0.7.1: Pronoun Groups (gender-aware)
@@ -514,15 +538,22 @@ def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         # Active topic
         if state.get('active_topic_id'):
             topic = state['topics'].get(state['active_topic_id'], {})
-            lines.append(F.key_value("Active Topic", topic.get('name', 'unknown')))
+            topic_mod = topic.get('module', '')
+            mod_str = f" @{topic_mod}" if topic_mod else ""
+            lines.append(F.key_value("Active Topic", f"{topic.get('name', 'unknown')}{mod_str}"))
             lines.append("")
         
-        # Goals
+        # Goals (filtered by module if specified)
         if state.get('goals'):
             lines.append(F.subheader("Active Goals"))
             for gid, goal in state['goals'].items():
                 if goal.get('status') == 'active':
-                    lines.append(f"  • {goal.get('description', 'unknown')[:60]}")
+                    goal_mod = goal.get('module')
+                    if module_filter:
+                        if goal_mod != module_filter and goal_mod is not None:
+                            continue
+                    mod_tag = f" @{goal_mod}" if goal_mod else ""
+                    lines.append(f"  • {goal.get('description', 'unknown')[:60]}{mod_tag}")
             lines.append("")
         
         lines.append(F.key_value("Turn history", f"{state['turn_history_count']} turns stored"))
@@ -1271,6 +1302,416 @@ def handle_wm_groups(cmd_name, args, session_id, context, kernel, meta) -> Kerne
     
     except Exception as e:
         return _base_response(cmd_name, f"Error: {e}", {"ok": False})
+
+
+# ---------------------------------------------------------------------
+# v0.7.9 — Module-Aware Working Memory
+# ---------------------------------------------------------------------
+
+def handle_wm_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.9: Show comprehensive WM status including module breakdown.
+    
+    Usage: #wm-status
+    """
+    try:
+        from .nova_wm import wm_get_status
+        
+        status = wm_get_status(session_id)
+        
+        lines = [
+            F.header("Working Memory Status"),
+            "",
+            F.key_value("Session", status['session_id']),
+            F.key_value("Turn count", status['turn_count']),
+            "",
+        ]
+        
+        # Current module
+        current = status.get('current_module')
+        if current:
+            lines.append(F.key_value("Current Module", current))
+        else:
+            lines.append(F.key_value("Current Module", "(global)"))
+        
+        # Module history
+        history = status.get('module_history', [])
+        if history:
+            lines.append(F.key_value("Module History", " → ".join(history)))
+        lines.append("")
+        
+        # Totals
+        lines.append(F.subheader("Totals"))
+        lines.append(f"  Entities: {status['total_entities']}")
+        lines.append(f"  Topics: {status['total_topics']}")
+        lines.append(f"  Goals: {status['total_goals']}")
+        lines.append(f"  Questions: {status['total_questions']}")
+        lines.append(f"  Groups: {status['groups']}")
+        lines.append("")
+        
+        # Per-module breakdown
+        module_stats = status.get('module_stats', {})
+        if module_stats:
+            lines.append(F.subheader("Per-Module Breakdown"))
+            for mod, stats in module_stats.items():
+                total = stats['entities'] + stats['topics'] + stats['goals'] + stats['questions']
+                if total > 0:
+                    lines.append(f"  {mod}:")
+                    lines.append(f"    entities={stats['entities']} topics={stats['topics']} goals={stats['goals']} questions={stats['questions']}")
+            lines.append("")
+        
+        # Snapshots
+        if status['snapshots_saved'] > 0 or status['snapshots_loaded'] > 0:
+            lines.append(F.subheader("Persistence"))
+            lines.append(f"  Snapshots saved: {status['snapshots_saved']}")
+            lines.append(f"  Snapshots loaded: {status['snapshots_loaded']}")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"status": status})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error: {e}", {"ok": False})
+
+
+# ---------------------------------------------------------------------
+# v0.7.8 — Self-Test + Stability
+# ---------------------------------------------------------------------
+
+def handle_self_test(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.8: Run internal diagnostics suite for WM/Behavior/Topic/Pronouns.
+    
+    Usage:
+        #self-test
+        #diagnostics
+    
+    Runs a series of sanity checks and reports PASS/WARN/FAIL for each.
+    """
+    from datetime import datetime
+    
+    # Import WM/Behavior config
+    try:
+        from .wm_behavior_config import WM_ENABLED, BEHAVIOR_ENABLED
+    except ImportError:
+        WM_ENABLED = True
+        BEHAVIOR_ENABLED = True
+    
+    results = []
+    all_passed = True
+    
+    def add_result(name: str, status: str, note: str):
+        nonlocal all_passed
+        if status == "FAIL":
+            all_passed = False
+        results.append({"name": name, "status": status, "note": note})
+    
+    # =========================================================================
+    # TEST 1: WM/Behavior Config Sanity
+    # =========================================================================
+    try:
+        config_note = f"WM_ENABLED={WM_ENABLED}, BEHAVIOR_ENABLED={BEHAVIOR_ENABLED}"
+        if not WM_ENABLED and not BEHAVIOR_ENABLED:
+            add_result("Config Flags", "WARN", f"{config_note} — both disabled")
+        else:
+            add_result("Config Flags", "PASS", config_note)
+    except Exception as e:
+        add_result("Config Flags", "FAIL", f"Error reading config: {e}")
+    
+    # =========================================================================
+    # TEST 2: Pronoun Resolution (using isolated test WM)
+    # =========================================================================
+    try:
+        from .nova_wm import NovaWorkingMemory, EntityType, GenderHint, WMEntity, ReferentCandidate
+        
+        # Create isolated test WM (not tied to session)
+        test_wm = NovaWorkingMemory("__self_test__")
+        
+        # Manually inject test entities for reliable testing
+        # This bypasses extraction patterns which may vary
+        steven = WMEntity(
+            id="test_e1",
+            name="Steven",
+            entity_type=EntityType.PERSON,
+            gender_hint=GenderHint.MASCULINE,
+            first_mentioned=1,
+            last_mentioned=1,
+        )
+        sarah = WMEntity(
+            id="test_e2",
+            name="Sarah",
+            entity_type=EntityType.PERSON,
+            gender_hint=GenderHint.FEMININE,
+            first_mentioned=2,
+            last_mentioned=2,
+        )
+        
+        test_wm.entities["test_e1"] = steven
+        test_wm.entities["test_e2"] = sarah
+        
+        # Add to pronoun groups
+        test_wm.pronoun_groups["masculine"].add_candidate(
+            ReferentCandidate(
+                entity_id="test_e1",
+                entity_name="Steven",
+                score=1.0,
+                last_mentioned=1,
+                gender_match=True,
+            )
+        )
+        test_wm.pronoun_groups["feminine"].add_candidate(
+            ReferentCandidate(
+                entity_id="test_e2",
+                entity_name="Sarah",
+                score=1.0,
+                last_mentioned=2,
+                gender_match=True,
+            )
+        )
+        
+        # Test pronoun resolution
+        he_result = test_wm.resolve_pronoun("he")
+        she_result = test_wm.resolve_pronoun("she")
+        
+        he_ok = he_result and "steven" in he_result.name.lower()
+        she_ok = she_result and "sarah" in she_result.name.lower()
+        
+        if he_ok and she_ok:
+            add_result(
+                "Pronoun Resolution", 
+                "PASS", 
+                f"he→{he_result.name}, she→{she_result.name}"
+            )
+        else:
+            details = []
+            if not he_ok:
+                details.append(f"he→{he_result.name if he_result else 'None'} (expected Steven)")
+            if not she_ok:
+                details.append(f"she→{she_result.name if she_result else 'None'} (expected Sarah)")
+            add_result("Pronoun Resolution", "FAIL", "; ".join(details))
+        
+        # Clean up test WM
+        del test_wm
+        
+    except Exception as e:
+        add_result("Pronoun Resolution", "FAIL", f"Exception: {e}")
+    
+    # =========================================================================
+    # TEST 3: Topic Stack Operations
+    # =========================================================================
+    try:
+        from .nova_wm import NovaWorkingMemory
+        
+        test_wm = NovaWorkingMemory("__self_test_topics__")
+        
+        # Push topic 1
+        t1 = test_wm.push_topic("project with Steven")
+        
+        # Push topic 2 (simulate tangent)
+        t2 = test_wm.push_topic("side note about Sarah")
+        
+        # Verify stack has t1
+        stack_ok = t1 in test_wm.topic_stack
+        active_is_t2 = test_wm.active_topic_id == t2
+        
+        # Pop back
+        popped = test_wm.pop_topic()
+        active_is_t1 = test_wm.active_topic_id == t1
+        
+        if stack_ok and active_is_t2 and active_is_t1:
+            add_result(
+                "Topic Stack", 
+                "PASS", 
+                f"push({t1})→push({t2})→pop→active={t1}"
+            )
+        else:
+            details = []
+            if not stack_ok:
+                details.append(f"stack missing {t1}")
+            if not active_is_t2:
+                details.append(f"after push, active was {test_wm.active_topic_id}, expected {t2}")
+            if not active_is_t1:
+                details.append(f"after pop, active was {test_wm.active_topic_id}, expected {t1}")
+            add_result("Topic Stack", "FAIL", "; ".join(details))
+        
+        del test_wm
+        
+    except Exception as e:
+        add_result("Topic Stack", "FAIL", f"Exception: {e}")
+    
+    # =========================================================================
+    # TEST 4: Group Entity Detection
+    # =========================================================================
+    try:
+        from .nova_wm import NovaWorkingMemory
+        
+        test_wm = NovaWorkingMemory("__self_test_groups__")
+        result = test_wm.update("Steven and Sarah both agreed on the proposal")
+        
+        groups = test_wm.get_all_groups()
+        they_result = test_wm.resolve_pronoun("they")
+        
+        if groups and they_result:
+            add_result(
+                "Group Entities", 
+                "PASS", 
+                f"Detected group '{groups[0]['name']}', they→{they_result.name}"
+            )
+        elif groups:
+            add_result(
+                "Group Entities", 
+                "WARN", 
+                f"Group detected but 'they' didn't resolve (may be expected)"
+            )
+        else:
+            add_result("Group Entities", "FAIL", "No group created from 'X and Y' pattern")
+        
+        del test_wm
+        
+    except Exception as e:
+        add_result("Group Entities", "FAIL", f"Exception: {e}")
+    
+    # =========================================================================
+    # TEST 5: Episodic Snapshot (dry run)
+    # =========================================================================
+    try:
+        from .nova_wm import NovaWorkingMemory, wm_create_snapshot
+        
+        test_wm = NovaWorkingMemory("__self_test_snapshot__")
+        test_wm.update("Testing snapshot functionality")
+        
+        # Create snapshot payload (does NOT persist to memory)
+        snapshot = test_wm.create_snapshot_payload(label="self-test-snapshot")
+        
+        if snapshot and "payload" in snapshot and "type" in snapshot:
+            add_result(
+                "Episodic Snapshot", 
+                "PASS", 
+                f"Payload created with {len(snapshot.get('tags', []))} tags"
+            )
+        else:
+            add_result("Episodic Snapshot", "FAIL", "Snapshot payload malformed")
+        
+        del test_wm
+        
+    except Exception as e:
+        add_result("Episodic Snapshot", "FAIL", f"Exception: {e}")
+    
+    # =========================================================================
+    # TEST 6: Behavior Layer Meta-Query
+    # =========================================================================
+    try:
+        from .nova_wm_behavior import WMBehaviorEngine
+        
+        test_be = WMBehaviorEngine("__self_test_behavior__")
+        test_be.thread_summary.topic = "test project"
+        test_be.thread_summary.participants = ["Steven", "Sarah"]
+        
+        # Check meta-question detection
+        meta = test_be.check_meta_question("what were we talking about?")
+        
+        if meta and meta.get("type") == "topic_recall":
+            # Try to get summary
+            summary = test_be.summarize_thread()
+            if summary:
+                add_result(
+                    "Behavior Meta-Query", 
+                    "PASS", 
+                    f"Detected 'topic_recall', summary length={len(summary)}"
+                )
+            else:
+                add_result("Behavior Meta-Query", "WARN", "Meta detected but no summary returned")
+        else:
+            add_result("Behavior Meta-Query", "FAIL", f"Meta-question not detected: {meta}")
+        
+        del test_be
+        
+    except Exception as e:
+        add_result("Behavior Meta-Query", "FAIL", f"Exception: {e}")
+    
+    # =========================================================================
+    # TEST 7: Event Recording (v0.7.7)
+    # =========================================================================
+    try:
+        from .nova_wm import NovaWorkingMemory
+        
+        test_wm = NovaWorkingMemory("__self_test_events__")
+        test_wm.update("I spoke with Sarah today")
+        
+        # Find Sarah and record event
+        sarah = test_wm._find_entity_by_name("Sarah")
+        if sarah:
+            test_wm.record_entity_event(sarah.id, "said", "The project is on track")
+            events = test_wm.get_entity_events("Sarah")
+            
+            if events and len(events) > 0:
+                add_result(
+                    "Event Recording", 
+                    "PASS", 
+                    f"Recorded {len(events)} event(s) for Sarah"
+                )
+            else:
+                add_result("Event Recording", "FAIL", "Event not retrieved after recording")
+        else:
+            add_result("Event Recording", "WARN", "Sarah entity not found (extraction may differ)")
+        
+        del test_wm
+        
+    except Exception as e:
+        add_result("Event Recording", "FAIL", f"Exception: {e}")
+    
+    # =========================================================================
+    # BUILD REPORT
+    # =========================================================================
+    lines = [
+        F.header("NovaOS v0.7.8 Self-Test Report"),
+        "",
+        f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"Session: {session_id}",
+        "",
+    ]
+    
+    # Summary counts
+    pass_count = sum(1 for r in results if r["status"] == "PASS")
+    warn_count = sum(1 for r in results if r["status"] == "WARN")
+    fail_count = sum(1 for r in results if r["status"] == "FAIL")
+    
+    lines.append(F.subheader("Summary"))
+    lines.append(f"  PASS: {pass_count}  |  WARN: {warn_count}  |  FAIL: {fail_count}")
+    lines.append("")
+    
+    # Detailed results
+    lines.append(F.subheader("Test Results"))
+    for r in results:
+        status_icon = {"PASS": "✓", "WARN": "⚠", "FAIL": "✗"}.get(r["status"], "?")
+        lines.append(f"  {status_icon} [{r['status']}] {r['name']}")
+        lines.append(f"      {r['note']}")
+    
+    lines.append("")
+    
+    # Final verdict
+    if all_passed and warn_count == 0:
+        lines.append("✅ All tests passed.")
+    elif all_passed:
+        lines.append(f"✅ All tests passed with {warn_count} warning(s).")
+    else:
+        lines.append(f"⚠️ {fail_count} test(s) failed. Review details above.")
+    
+    return _base_response(
+        cmd_name, 
+        "\n".join(lines), 
+        {
+            "results": results,
+            "pass": pass_count,
+            "warn": warn_count,
+            "fail": fail_count,
+            "all_passed": all_passed,
+        }
+    )
+
+
+# Alias handler
+def handle_diagnostics(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """Alias for #self-test."""
+    return handle_self_test("self-test", args, session_id, context, kernel, meta)
 
 
 def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -4318,6 +4759,11 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_wm_bridge": handle_wm_bridge,
     # v0.7.7: Group Entity Layer
     "handle_wm_groups": handle_wm_groups,
+    # v0.7.8: Self-Test + Stability
+    "handle_self_test": handle_self_test,
+    "handle_diagnostics": handle_diagnostics,
+    # v0.7.9: Module-Aware Working Memory
+    "handle_wm_status": handle_wm_status,
     "handle_help": handle_help,
     "handle_reset": handle_reset,
     "handle_store": handle_store,

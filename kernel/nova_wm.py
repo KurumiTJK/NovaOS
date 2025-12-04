@@ -1,9 +1,17 @@
 # kernel/nova_wm.py
 """
-NovaOS v0.7.7 — Working Memory Engine (NovaWM)
+NovaOS v0.7.9 — Working Memory Engine (NovaWM)
 
 A robust conversational memory system that makes Nova feel "alive" and continuous.
 Tracks entities, topics, pronouns, goals, and conversation state across turns.
+
+v0.7.9 CHANGES:
+- Module-aware WM: entities, topics, goals, questions tagged with optional module
+- Module-scoped context generation (wm_get_context_string with module param)
+- Per-module entity/topic filtering and prioritization
+- #wm-status command for module breakdown
+- #wm-debug module=<name> for focused debugging
+- Backward compatible: module=None treated as global
 
 v0.7.7 CHANGES:
 - Enhanced group entity layer with explicit members list
@@ -46,6 +54,7 @@ Key Capabilities:
 - Turn-by-turn summaries with compression
 - Context bundle generation for persona
 - Episodic snapshot persistence (v0.7.6)
+- Module-aware context slicing (v0.7.9)
 
 Lifecycle:
 - Created per session
@@ -55,8 +64,8 @@ Lifecycle:
 
 Usage:
     wm = NovaWorkingMemory(session_id)
-    wm.update(user_message, assistant_response)
-    context = wm.get_context_bundle()
+    wm.update(user_message, assistant_response, module="business")
+    context = wm.get_context_bundle(module="business")
     resolved = wm.resolve_pronoun("him")
 """
 
@@ -179,6 +188,7 @@ class WMEntity:
     
     v0.7.1: Added gender_hint for pronoun-aware resolution.
     v0.7.7: Added members list for GROUP entities.
+    v0.7.9: Added module field for module-aware WM.
     """
     id: str
     name: str
@@ -194,6 +204,7 @@ class WMEntity:
     confidence: float = 1.0
     source_text: Optional[str] = None
     members: Optional[List[str]] = None  # v0.7.7: For GROUP entities, list of member entity_ids
+    module: Optional[str] = None  # v0.7.9: Module context (None = global)
     
     def matches(self, query: str) -> bool:
         """Check if this entity matches a query string."""
@@ -230,6 +241,9 @@ class WMEntity:
         # v0.7.7: Include members for GROUP entities
         if self.members:
             result["members"] = self.members
+        # v0.7.9: Include module
+        if self.module:
+            result["module"] = self.module
         return result
 
 
@@ -303,9 +317,10 @@ class WMTopic:
     first_mentioned: int = 0
     last_mentioned: int = 0
     key_points: List[str] = field(default_factory=list)
+    module: Optional[str] = None  # v0.7.9: Module context
     
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -316,6 +331,9 @@ class WMTopic:
             "last_mentioned": self.last_mentioned,
             "key_points": self.key_points,
         }
+        if self.module:
+            result["module"] = self.module
+        return result
 
 
 @dataclass
@@ -328,9 +346,10 @@ class WMGoal:
     related_topics: List[str] = field(default_factory=list)
     created_at: int = 0
     resolved_at: Optional[int] = None
+    module: Optional[str] = None  # v0.7.9: Module context
     
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "id": self.id,
             "description": self.description,
             "status": self.status.value,
@@ -339,6 +358,9 @@ class WMGoal:
             "created_at": self.created_at,
             "resolved_at": self.resolved_at,
         }
+        if self.module:
+            result["module"] = self.module
+        return result
 
 
 @dataclass
@@ -351,9 +373,10 @@ class WMQuestion:
     turn_answered: Optional[int] = None
     answer: Optional[str] = None
     related_entities: List[str] = field(default_factory=list)
+    module: Optional[str] = None  # v0.7.9: Module context
     
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "id": self.id,
             "question": self.question,
             "asker": self.asker,
@@ -361,6 +384,9 @@ class WMQuestion:
             "turn_answered": self.turn_answered,
             "answer": self.answer,
         }
+        if self.module:
+            result["module"] = self.module
+        return result
 
 
 @dataclass 
@@ -569,6 +595,7 @@ class NovaWorkingMemory:
     The main Working Memory engine for NovaOS.
     
     v0.7.1: Gender-aware pronoun resolution with multi-candidate tracking.
+    v0.7.9: Module-aware context with per-module entity/topic filtering.
     """
     
     def __init__(self, session_id: str, max_history: int = 30):
@@ -613,6 +640,10 @@ class NovaWorkingMemory:
         # v0.7.7: Event tracking for recall
         self.entity_events: Dict[str, List[Dict[str, Any]]] = {}  # entity_id → list of events
         
+        # v0.7.9: Module awareness
+        self.current_module: Optional[str] = None  # Currently active module
+        self.module_history: List[str] = []  # Track module switches
+        
         # Timestamps
         self.created_at: datetime = datetime.now()
         self.last_updated: datetime = datetime.now()
@@ -649,12 +680,23 @@ class NovaWorkingMemory:
     # MAIN UPDATE API
     # =========================================================================
     
-    def update(self, user_message: str, nova_response: Optional[str] = None) -> Dict[str, Any]:
+    def update(self, user_message: str, nova_response: Optional[str] = None, module: Optional[str] = None) -> Dict[str, Any]:
         """
         Update working memory with a new conversation turn.
+        
+        v0.7.9: Added optional module parameter for module-aware tagging.
         """
         self.turn_count += 1
         self.last_updated = datetime.now()
+        
+        # v0.7.9: Track module changes
+        if module and module != self.current_module:
+            self.current_module = module
+            if module not in self.module_history:
+                self.module_history.append(module)
+        
+        # Store current module for entity/topic tagging
+        active_module = module or self.current_module
         
         results = {
             "turn": self.turn_count,
@@ -668,6 +710,7 @@ class NovaWorkingMemory:
             "groups_detected": [],    # v0.7.5
             "tangent_detected": None, # v0.7.5
             "return_detected": None,  # v0.7.5
+            "module": active_module,  # v0.7.9
         }
         
         # v0.7.5: Check for tangent/return patterns FIRST (before entity extraction)
@@ -682,6 +725,8 @@ class NovaWorkingMemory:
         # 1. Extract entities from user message
         extracted_entities = self._extract_entities(user_message)
         for entity in extracted_entities:
+            # v0.7.9: Tag with module
+            entity.module = active_module
             self._add_or_update_entity(entity)
             results["entities_extracted"].append(entity.name)
         
@@ -693,23 +738,31 @@ class NovaWorkingMemory:
         groups_detected = self._detect_groups(user_message)
         for group_id in groups_detected:
             if group_id in self.entities:
+                # v0.7.9: Tag group with module
+                self.entities[group_id].module = active_module
                 results["groups_detected"].append(self.entities[group_id].name)
         
         # 4. Extract topics
         extracted_topics = self._extract_topics(user_message)
         for topic in extracted_topics:
+            # v0.7.9: Tag with module
+            topic.module = active_module
             self._add_or_update_topic(topic)
             results["topics_extracted"].append(topic.name)
         
         # 5. Detect goals/intentions
         detected_goals = self._extract_goals(user_message)
         for goal in detected_goals:
+            # v0.7.9: Tag with module
+            goal.module = active_module
             self._add_goal(goal)
             results["goals_detected"].append(goal.description)
         
         # 6. Detect questions
         detected_questions = self._extract_questions(user_message)
         for question in detected_questions:
+            # v0.7.9: Tag with module
+            question.module = active_module
             self._add_question(question)
             results["questions_detected"].append(question.question)
         
@@ -1420,12 +1473,20 @@ class NovaWorkingMemory:
     # CONTEXT BUNDLE (FOR PERSONA)
     # =========================================================================
     
-    def get_context_bundle(self) -> Dict[str, Any]:
-        """Get a complete context bundle for persona use."""
-        active_entities = self.get_active_entities(5)
+    def get_context_bundle(self, module: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get a complete context bundle for persona use.
+        
+        v0.7.9: Added optional module parameter for module-scoped context.
+        """
+        # Use provided module or current module
+        target_module = module or self.current_module
+        
+        # v0.7.9: Get module-filtered entities
+        active_entities = self._get_entities_for_module(target_module, limit=5)
         active_topic = self.get_active_topic()
-        active_goals = self.get_active_goals()
-        unresolved = self.get_unresolved_questions()
+        active_goals = self._get_goals_for_module(target_module)
+        unresolved = self._get_questions_for_module(target_module)
         referent_map = self.get_referent_map()
         
         recent_messages = []
@@ -1436,12 +1497,17 @@ class NovaWorkingMemory:
                 "nova": turn.nova_summary,
             })
         
+        # v0.7.9: Get module-filtered people/projects
+        people = self._get_entities_for_module(target_module, entity_type=EntityType.PERSON, limit=3)
+        projects = self._get_entities_for_module(target_module, entity_type=EntityType.PROJECT, limit=3)
+        
         return {
             "turn_count": self.turn_count,
+            "module": target_module,  # v0.7.9
             "entities": {
                 "all": [e.to_dict() for e in active_entities],
-                "people": [e.to_dict() for e in self.get_entities_by_type(EntityType.PERSON)[:3]],
-                "projects": [e.to_dict() for e in self.get_entities_by_type(EntityType.PROJECT)[:3]],
+                "people": [e.to_dict() for e in people],
+                "projects": [e.to_dict() for e in projects],
             },
             "active_topic": active_topic.to_dict() if active_topic else None,
             "goals": [g.to_dict() for g in active_goals],
@@ -1453,38 +1519,184 @@ class NovaWorkingMemory:
             "last_turn": self.last_turn_summary.to_dict() if self.last_turn_summary else None,
         }
     
-    def build_persona_context_string(self) -> str:
-        """Build a formatted context string for injection into persona system prompt."""
-        bundle = self.get_context_bundle()
+    # =========================================================================
+    # v0.7.9 — MODULE-AWARE FILTERING
+    # =========================================================================
+    
+    def _get_entities_for_module(
+        self, 
+        module: Optional[str], 
+        entity_type: Optional[EntityType] = None,
+        limit: int = 10
+    ) -> List[WMEntity]:
+        """
+        v0.7.9: Get entities filtered by module.
+        
+        Includes:
+        - Entities with matching module
+        - Global entities (module=None)
+        
+        Module-specific entities are prioritized over global ones.
+        """
+        results = []
+        
+        for entity in self.entities.values():
+            # Filter by type if specified
+            if entity_type and entity.entity_type != entity_type:
+                continue
+            
+            # Include if: matches module, or is global
+            if entity.module == module or entity.module is None:
+                results.append(entity)
+        
+        # Sort: module-specific first, then by last_mentioned
+        def sort_key(e: WMEntity):
+            module_match = 1 if e.module == module else 0
+            return (module_match, e.last_mentioned)
+        
+        results.sort(key=sort_key, reverse=True)
+        return results[:limit]
+    
+    def _get_topics_for_module(self, module: Optional[str], limit: int = 5) -> List[WMTopic]:
+        """v0.7.9: Get topics filtered by module."""
+        results = []
+        
+        for topic in self.topics.values():
+            if topic.module == module or topic.module is None:
+                results.append(topic)
+        
+        def sort_key(t: WMTopic):
+            module_match = 1 if t.module == module else 0
+            return (module_match, t.last_mentioned)
+        
+        results.sort(key=sort_key, reverse=True)
+        return results[:limit]
+    
+    def _get_goals_for_module(self, module: Optional[str]) -> List[WMGoal]:
+        """v0.7.9: Get active goals filtered by module."""
+        results = []
+        
+        for goal in self.goals.values():
+            if goal.status != GoalStatus.ACTIVE:
+                continue
+            if goal.module == module or goal.module is None:
+                results.append(goal)
+        
+        def sort_key(g: WMGoal):
+            module_match = 1 if g.module == module else 0
+            return (module_match, g.created_at)
+        
+        results.sort(key=sort_key, reverse=True)
+        return results
+    
+    def _get_questions_for_module(self, module: Optional[str]) -> List[WMQuestion]:
+        """v0.7.9: Get unresolved questions filtered by module."""
+        results = []
+        
+        for q in self.questions.values():
+            if q.turn_answered is not None:
+                continue
+            if q.module == module or q.module is None:
+                results.append(q)
+        
+        return results
+    
+    def get_module_stats(self) -> Dict[str, Dict[str, int]]:
+        """
+        v0.7.9: Get entity/topic/goal/question counts per module.
+        
+        Returns:
+            Dict[module_name, {"entities": N, "topics": N, ...}]
+        """
+        stats: Dict[str, Dict[str, int]] = {}
+        
+        # Initialize global and known modules
+        stats["global"] = {"entities": 0, "topics": 0, "goals": 0, "questions": 0}
+        for mod in self.module_history:
+            stats[mod] = {"entities": 0, "topics": 0, "goals": 0, "questions": 0}
+        
+        # Count entities
+        for e in self.entities.values():
+            mod = e.module or "global"
+            if mod not in stats:
+                stats[mod] = {"entities": 0, "topics": 0, "goals": 0, "questions": 0}
+            stats[mod]["entities"] += 1
+        
+        # Count topics
+        for t in self.topics.values():
+            mod = t.module or "global"
+            if mod not in stats:
+                stats[mod] = {"entities": 0, "topics": 0, "goals": 0, "questions": 0}
+            stats[mod]["topics"] += 1
+        
+        # Count goals
+        for g in self.goals.values():
+            mod = g.module or "global"
+            if mod not in stats:
+                stats[mod] = {"entities": 0, "topics": 0, "goals": 0, "questions": 0}
+            stats[mod]["goals"] += 1
+        
+        # Count questions
+        for q in self.questions.values():
+            mod = q.module or "global"
+            if mod not in stats:
+                stats[mod] = {"entities": 0, "topics": 0, "goals": 0, "questions": 0}
+            stats[mod]["questions"] += 1
+        
+        return stats
+    
+    def build_persona_context_string(self, module: Optional[str] = None) -> str:
+        """
+        Build a formatted context string for injection into persona system prompt.
+        
+        v0.7.9: Added optional module parameter for module-scoped context.
+        """
+        target_module = module or self.current_module
+        bundle = self.get_context_bundle(module=target_module)
         lines = []
         
         lines.append("[WORKING MEMORY - CONVERSATION CONTEXT]")
+        
+        # v0.7.9: Show module scope
+        if target_module:
+            lines.append(f"Scope: {target_module} module (with global spillover)")
+        else:
+            lines.append("Scope: global")
         lines.append("")
+        
         lines.append(f"Turn {self.turn_count} in this conversation.")
         lines.append("")
         
         # Active topic
         if bundle["active_topic"]:
             topic = bundle["active_topic"]
-            lines.append(f"CURRENT TOPIC: {topic['name']}")
+            topic_module = f" [{topic.get('module', 'global')}]" if topic.get('module') else ""
+            lines.append(f"CURRENT TOPIC: {topic['name']}{topic_module}")
             if topic.get("description"):
                 lines.append(f"  → {topic['description']}")
             lines.append("")
         
-        # People mentioned
+        # People mentioned - show module tag for clarity
         people = bundle["entities"]["people"]
         if people:
-            lines.append("PEOPLE IN THIS CONVERSATION:")
+            if target_module:
+                lines.append(f"PEOPLE ({target_module}-relevant):")
+            else:
+                lines.append("PEOPLE IN THIS CONVERSATION:")
             for p in people:
                 desc = f" ({p['description']})" if p.get('description') else ""
                 gender = f" [{p.get('gender_hint', 'neutral')}]"
-                lines.append(f"  • {p['name']}{desc}{gender}")
+                mod_tag = f" @{p.get('module')}" if p.get('module') else ""
+                lines.append(f"  • {p['name']}{desc}{gender}{mod_tag}")
             lines.append("")
         
         # Projects/things mentioned
         projects = bundle["entities"]["projects"]
         if projects:
-            lines.append("PROJECTS/THINGS MENTIONED:")
+            if target_module:
+                lines.append(f"PROJECTS/THINGS ({target_module}-relevant):")
+            else:
+                lines.append("PROJECTS/THINGS MENTIONED:")
             for p in projects:
                 desc = f" ({p['description']})" if p.get('description') else ""
                 lines.append(f"  • {p['name']}{desc}")
@@ -2698,10 +2910,14 @@ def get_wm(session_id: str) -> NovaWorkingMemory:
     return _wm_manager.get(session_id)
 
 
-def wm_update(session_id: str, user_message: str, nova_response: Optional[str] = None) -> Dict[str, Any]:
-    """Update Working Memory with a new turn."""
+def wm_update(session_id: str, user_message: str, nova_response: Optional[str] = None, module: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Update Working Memory with a new turn.
+    
+    v0.7.9: Added optional module parameter.
+    """
     wm = _wm_manager.get(session_id)
-    return wm.update(user_message, nova_response)
+    return wm.update(user_message, nova_response, module=module)
 
 
 def wm_record_response(session_id: str, response: str) -> None:
@@ -2710,16 +2926,24 @@ def wm_record_response(session_id: str, response: str) -> None:
     wm.record_nova_response(response)
 
 
-def wm_get_context(session_id: str) -> Dict[str, Any]:
-    """Get context bundle for persona."""
+def wm_get_context(session_id: str, module: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Get context bundle for persona.
+    
+    v0.7.9: Added optional module parameter for module-scoped context.
+    """
     wm = _wm_manager.get(session_id)
-    return wm.get_context_bundle()
+    return wm.get_context_bundle(module=module)
 
 
-def wm_get_context_string(session_id: str) -> str:
-    """Get formatted context string for persona system prompt."""
+def wm_get_context_string(session_id: str, module: Optional[str] = None) -> str:
+    """
+    Get formatted context string for persona system prompt.
+    
+    v0.7.9: Added optional module parameter for module-scoped context.
+    """
     wm = _wm_manager.get(session_id)
-    return wm.build_persona_context_string()
+    return wm.build_persona_context_string(module=module)
 
 
 def wm_resolve_pronoun(session_id: str, pronoun: str) -> Optional[str]:
@@ -2743,6 +2967,62 @@ def wm_clear(session_id: str) -> None:
 def wm_delete(session_id: str) -> None:
     """Delete Working Memory for a session."""
     _wm_manager.delete(session_id)
+
+
+# =============================================================================
+# v0.7.9 PUBLIC API ADDITIONS
+# =============================================================================
+
+def wm_set_module(session_id: str, module: Optional[str]) -> None:
+    """
+    v0.7.9: Set the current module for a session.
+    
+    Args:
+        session_id: Session identifier
+        module: Module name (None for global)
+    """
+    wm = _wm_manager.get(session_id)
+    wm.current_module = module
+    if module and module not in wm.module_history:
+        wm.module_history.append(module)
+
+
+def wm_get_module(session_id: str) -> Optional[str]:
+    """
+    v0.7.9: Get the current module for a session.
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.current_module
+
+
+def wm_get_module_stats(session_id: str) -> Dict[str, Dict[str, int]]:
+    """
+    v0.7.9: Get entity/topic/goal/question counts per module.
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.get_module_stats()
+
+
+def wm_get_status(session_id: str) -> Dict[str, Any]:
+    """
+    v0.7.9: Get comprehensive WM status including module breakdown.
+    """
+    wm = _wm_manager.get(session_id)
+    
+    return {
+        "session_id": session_id,
+        "turn_count": wm.turn_count,
+        "current_module": wm.current_module,
+        "module_history": wm.module_history,
+        "module_stats": wm.get_module_stats(),
+        "total_entities": len(wm.entities),
+        "total_topics": len(wm.topics),
+        "total_goals": len(wm.goals),
+        "total_questions": len(wm.questions),
+        "snapshots_saved": len(wm.snapshots_saved),
+        "snapshots_loaded": len(wm.snapshots_loaded),
+        "groups": len(wm.groups),
+    }
 
 
 # =============================================================================

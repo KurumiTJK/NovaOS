@@ -573,6 +573,23 @@ SECTION_DEFS: List[SectionDef] = [
                 description="Show all group entities in working memory.",
                 example="#wm-groups",
             ),
+            # v0.7.8: Self-Test + Stability
+            CommandDef(
+                name="self-test",
+                description="Run internal WM/Behavior/Topic diagnostics.",
+                example="#self-test",
+            ),
+            CommandDef(
+                name="diagnostics",
+                description="Alias for #self-test.",
+                example="#diagnostics",
+            ),
+            # v0.7.9: Module-Aware WM
+            CommandDef(
+                name="wm-status",
+                description="Show WM status including module breakdown.",
+                example="#wm-status",
+            ),
         ],
     ),
 ]
@@ -718,6 +735,13 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         # v0.7.7: Groups
         "wm-groups": "wm-groups",
         "groups": "wm-groups",
+        # v0.7.8: Self-Test
+        "self-test": "self-test",
+        "test": "self-test",
+        "diagnostics": "diagnostics",
+        # v0.7.9: Module-Aware WM
+        "wm-status": "wm-status",
+        "status": "wm-status",
     },
 }
 

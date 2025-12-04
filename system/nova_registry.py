@@ -194,6 +194,29 @@ BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
         "description": "Show all group entities in working memory",
         "args": [],
     },
+    # v0.7.8: Self-Test + Stability
+    "self-test": {
+        "handler": "handle_self_test",
+        "category": "debug",
+        "section": "debug",
+        "description": "Run internal WM/Behavior/Topic diagnostics",
+        "args": [],
+    },
+    "diagnostics": {
+        "handler": "handle_diagnostics",
+        "category": "debug",
+        "section": "debug",
+        "description": "Alias for #self-test",
+        "args": [],
+    },
+    # v0.7.9: Module-Aware Working Memory
+    "wm-status": {
+        "handler": "handle_wm_status",
+        "category": "debug",
+        "section": "debug",
+        "description": "Show WM status including module breakdown",
+        "args": [],
+    },
 }
 
 # ------------------------------------------------------------
