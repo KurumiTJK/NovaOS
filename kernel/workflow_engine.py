@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
 WorkflowStatus = str  # "pending" | "active" | "completed" | "paused" | "halted"
+
+# Default path for workflow persistence
+DEFAULT_WORKFLOWS_PATH = "data/workflows.json"
 
 
 @dataclass
@@ -95,11 +100,66 @@ class Workflow:
 
 class WorkflowEngine:
     """
-    In-memory workflow registry and lifecycle manager for v0.4.
+    Workflow registry and lifecycle manager with JSON persistence.
+    
+    v0.7.11: Added automatic JSON persistence for workflows.
     """
 
-    def __init__(self, workflows: Optional[Dict[str, Workflow]] = None) -> None:
-        self._workflows: Dict[str, Workflow] = workflows or {}
+    def __init__(
+        self, 
+        workflows: Optional[Dict[str, Workflow]] = None,
+        storage_path: Optional[str] = None,
+    ) -> None:
+        self._storage_path = storage_path or DEFAULT_WORKFLOWS_PATH
+        
+        if workflows is not None:
+            # Explicit workflows provided (e.g., from tests)
+            self._workflows: Dict[str, Workflow] = workflows
+        else:
+            # Load from disk if available
+            self._workflows = {}
+            self._load_from_disk()
+
+    # ---------- Persistence ----------
+
+    def _load_from_disk(self) -> None:
+        """Load workflows from JSON file if it exists."""
+        if not os.path.exists(self._storage_path):
+            return
+        
+        try:
+            with open(self._storage_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            raw = data.get("workflows") or {}
+            for wid, wf_data in raw.items():
+                try:
+                    self._workflows[wid] = Workflow.from_dict(wf_data)
+                except Exception:
+                    # Skip invalid entries safely
+                    continue
+        except Exception:
+            # If file is corrupted or unreadable, start fresh
+            pass
+
+    def _save_to_disk(self) -> None:
+        """Save all workflows to JSON file."""
+        try:
+            # Ensure data directory exists
+            dir_path = os.path.dirname(self._storage_path)
+            if dir_path:
+                os.makedirs(dir_path, exist_ok=True)
+            
+            data = {
+                "workflows": {wid: wf.to_dict() for wid, wf in self._workflows.items()},
+                "last_saved": datetime.now(timezone.utc).isoformat(),
+            }
+            
+            with open(self._storage_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+        except Exception:
+            # Silently fail persistence (better than crashing)
+            pass
 
     # ---------- Serialization ----------
 
@@ -130,11 +190,13 @@ class WorkflowEngine:
 
     def upsert(self, workflow: Workflow) -> Workflow:
         self._workflows[workflow.id] = workflow
+        self._save_to_disk()  # v0.7.11: Persist on change
         return workflow
 
     def delete(self, workflow_id: str) -> bool:
         if workflow_id in self._workflows:
             del self._workflows[workflow_id]
+            self._save_to_disk()  # v0.7.11: Persist on change
             return True
         return False
 
@@ -171,6 +233,7 @@ class WorkflowEngine:
             meta=meta or {},
         )
         self._workflows[workflow_id] = wf
+        self._save_to_disk()  # v0.7.11: Persist on change
         return wf
 
     def advance(self, workflow_id: str) -> Optional[Workflow]:
@@ -185,6 +248,7 @@ class WorkflowEngine:
         if not wf.steps:
             wf.status = "completed"
             wf.mark_updated()
+            self._save_to_disk()  # v0.7.11: Persist on change
             return wf
 
         if wf.status not in ("active", "pending"):
@@ -201,6 +265,7 @@ class WorkflowEngine:
             wf.current_step += 1
 
         wf.mark_updated()
+        self._save_to_disk()  # v0.7.11: Persist on change
         return wf
 
     def halt(self, workflow_id: str, status: WorkflowStatus = "paused") -> Optional[Workflow]:
@@ -213,6 +278,22 @@ class WorkflowEngine:
 
         wf.status = status
         wf.mark_updated()
+        self._save_to_disk()  # v0.7.11: Persist on change
+        return wf
+    
+    def resume(self, workflow_id: str) -> Optional[Workflow]:
+        """
+        Resume a paused/halted workflow (set status back to active).
+        """
+        wf = self._workflows.get(workflow_id)
+        if not wf:
+            return None
+        
+        if wf.status in ("paused", "halted", "pending"):
+            wf.status = "active"
+            wf.mark_updated()
+            self._save_to_disk()
+        
         return wf
 
     # ---------- Introspection / summaries ----------

@@ -96,9 +96,9 @@ class WizardManager:
             
             # =============================================================
             # COMPOSE WIZARD BRANCHING:
-            # When step_mode=2 (auto), skip the manual_steps step
+            # When step_mode=1 (auto), skip the manual_steps step
             # =============================================================
-            if session.command == "compose" and step.key == "step_mode" and value == "2":
+            if session.command == "compose" and step.key == "step_mode" and value == "1":
                 # User chose auto-generate, skip manual_steps step
                 # Find and skip the manual_steps step
                 while session.current_step < len(wizard_def.steps):
@@ -275,7 +275,7 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
             ),
             WizardStep(
                 key="step_mode",
-                prompt="Do you want to:\n  1. List the main steps yourself\n  2. Have Nova propose a starter set of steps\n\nEnter 1 or 2:",
+                prompt="Do you want to:\n  1. Have Nova propose a starter set of steps\n  2. List the main steps yourself\n\nEnter 1 or 2:",
                 required=True,
                 options=["1", "2"],
             ),
@@ -854,12 +854,13 @@ def process_wizard_input(session_id: str, user_input: str) -> Dict[str, Any]:
     if session.command == "compose" and next_step.key == "confirm":
         name = session.collected.get("name", "Untitled")
         goal = session.collected.get("goal", "No goal specified")
-        step_mode = session.collected.get("step_mode", "2")
+        step_mode = session.collected.get("step_mode", "1")  # Default to auto
         manual_steps = session.collected.get("manual_steps", "")
         
         # Calculate effective step count (auto mode skips manual_steps)
-        effective_total = 4 if step_mode == "2" else 5
-        effective_step = 4 if step_mode == "2" else 5
+        # step_mode=1 is auto (4 steps), step_mode=2 is manual (5 steps)
+        effective_total = 4 if step_mode == "1" else 5
+        effective_step = 4 if step_mode == "1" else 5
         
         lines = [
             "━" * 40,
@@ -871,7 +872,8 @@ def process_wizard_input(session_id: str, user_input: str) -> Dict[str, Any]:
             "",
         ]
         
-        if step_mode == "1" and manual_steps:
+        # step_mode=2 means manual steps
+        if step_mode == "2" and manual_steps:
             # Count and show manual steps
             step_count = 0
             step_lines = []
@@ -989,10 +991,11 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
     
     elif command == "compose":
         # Full wizard data: name, goal, step_mode, manual_steps, confirm
+        # step_mode: 1=auto-generate, 2=manual
         return {
             "name": collected.get("name", ""),
             "goal": collected.get("goal", ""),
-            "step_mode": collected.get("step_mode", "2"),  # Default to auto
+            "step_mode": collected.get("step_mode", "1"),  # Default to auto
             "manual_steps": collected.get("manual_steps", ""),
             "confirm": collected.get("confirm", "no"),
             "_from_wizard": True,  # Flag to indicate wizard origin

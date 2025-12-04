@@ -32,6 +32,14 @@ from .wizard_mode import (
     cancel_wizard,
     build_command_args_from_wizard,
 )
+# v0.7.11: Workflow selection state
+from .workflow_selection import (
+    set_workflow_selection,
+    get_workflow_selection,
+    clear_workflow_selection,
+    has_pending_selection,
+    resolve_selection,
+)
 # v0.7: Working Memory Engine (NovaWM)
 from .nova_wm import (
     get_wm,
@@ -247,6 +255,57 @@ class NovaKernel:
                 "content": {"command": "wizard", "summary": result.get("summary", "")},
                 "extra": result.get("extra", {}),
             }
+
+        # -------------------------------------------------------------
+        # 1.5) v0.7.11: Workflow Selection Check
+        # -------------------------------------------------------------
+        if has_pending_selection(session_id) and not stripped.startswith("#"):
+            selection_result = resolve_selection(session_id, stripped)
+            
+            if selection_result is None:
+                # Invalid input - show error and re-prompt
+                state = get_workflow_selection(session_id)
+                workflows = state.get("workflows", []) if state else []
+                return {
+                    "ok": False,
+                    "command": "workflow_selection",
+                    "summary": f"Invalid selection. Please enter a number from 1 to {len(workflows)}, or 'cancel' to exit.",
+                    "content": {
+                        "command": "workflow_selection",
+                        "summary": f"Invalid selection. Please enter a number from 1 to {len(workflows)}, or 'cancel' to exit.",
+                    },
+                    "extra": {"validation_error": True, "awaiting_selection": True},
+                }
+            
+            if selection_result.get("cancelled"):
+                return {
+                    "ok": True,
+                    "command": "workflow_selection",
+                    "summary": "Selection cancelled.",
+                    "content": {"command": "workflow_selection", "summary": "Selection cancelled."},
+                    "extra": {"cancelled": True},
+                }
+            
+            # Valid selection - execute the command with the selected workflow ID
+            cmd_name = selection_result["command"]
+            workflow_id = selection_result["workflow_id"]
+            
+            request = CommandRequest(
+                cmd_name=cmd_name,
+                args={"id": workflow_id, "_from_selection": True},
+                session_id=session_id,
+                raw_text=text,
+                meta=self.commands.get(cmd_name),
+            )
+            response = self.router.route(request, kernel=self)
+            
+            # Handle response (could be dict or CommandResponse)
+            if isinstance(response, dict):
+                self.logger.log_response(session_id, cmd_name, response)
+                return response
+            else:
+                self.logger.log_response(session_id, cmd_name, response.to_dict())
+                return response.to_dict()
 
         # -------------------------------------------------------------
         # 2) Active Section Menu Check

@@ -3871,9 +3871,9 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     """
     Start or resume a workflow.
     
-    v0.7.10: 
+    v0.7.11: 
     - Enhanced presentation showing goal, step count, and current step details.
-    - Selection wizard when no ID provided.
+    - Number-based selection wizard when no ID provided.
     
     Usage:
         flow                                     # Trigger selection wizard
@@ -3883,6 +3883,8 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     If workflow exists and no new steps provided, resumes it.
     If workflow doesn't exist or new steps provided, creates/recreates it.
     """
+    from .workflow_selection import set_workflow_selection
+    
     wf_engine = kernel.workflow_engine
 
     wf_id = None
@@ -3897,10 +3899,9 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
         from_wizard = args.get("_from_wizard", False)
 
     # =================================================================
-    # v0.7.10: Trigger selection wizard if no ID provided
+    # v0.7.11: Show wizard with number selection if no ID provided
     # =================================================================
     if not wf_id:
-        # Get all workflows
         workflows = wf_engine.summarize_all()
         
         if not workflows:
@@ -3910,7 +3911,10 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
                 {"ok": True, "no_workflows": True}
             )
         
-        # Build wizard display inline (avoid import issues)
+        # Store selection state for numeric input handling
+        set_workflow_selection(session_id, "flow", workflows)
+        
+        # Build wizard display
         lines = [
             "╔══ Workflow Start Wizard ══╗",
             "",
@@ -3946,13 +3950,15 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
             
             lines.append("")
         
-        lines.append("To start a workflow, use: #flow id=<workflow_id>")
-        lines.append("Example: #flow id=" + workflows[0].get("id", "wf-xxx"))
+        lines.append("Step 1/1:")
+        lines.append("Type a number to select a workflow, or 'cancel' to exit.")
         
         return _base_response(cmd_name, "\n".join(lines), {
             "ok": True,
             "workflows": workflows,
             "workflow_count": len(workflows),
+            "awaiting_selection": True,
+            "selection_command": "flow",
         })
 
     # Parse steps if provided
@@ -3989,11 +3995,8 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
                 lines.append(f"Current step [{current_idx}/{total}]:")
                 lines.append(f"  {current_idx}. {current.title}")
                 if current.description:
-                    # Show first 150 chars of description
-                    desc = current.description[:150]
-                    if len(current.description) > 150:
-                        desc += "..."
-                    lines.append(f"     {desc}")
+                    # v0.7.12: Show full description (no truncation)
+                    lines.append(f"   {current.description}")
                 lines.append("")
                 # v0.7.10: Updated hint text (no ID needed)
                 lines.append("(Type '#halt' to pause, '#advance' to go to the next step.)")
@@ -4024,10 +4027,8 @@ def handle_flow(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
             lines.append(f"Current step [1/{total}]:")
             lines.append(f"  1. {current.title}")
             if current.description:
-                desc = current.description[:150]
-                if len(current.description) > 150:
-                    desc += "..."
-                lines.append(f"     {desc}")
+                # v0.7.12: Show full description (no truncation)
+                lines.append(f"   {current.description}")
             lines.append("")
             # v0.7.10: Updated hint text (no ID needed)
             lines.append("(Type '#halt' to pause, '#advance' to go to the next step.)")
@@ -4040,14 +4041,17 @@ def handle_advance(cmd_name, args, session_id, context, kernel, meta) -> KernelR
     """
     Advance a workflow by one step.
     
-    v0.7.10: 
+    v0.7.11: 
     - Enhanced to show next step details.
-    - Shows workflow list when no ID provided.
+    - Number-based selection wizard when no ID provided.
+    - Auto-advances single active workflow without prompting.
     
     Usage:
-        advance                  # Show workflow list
+        advance                  # Show workflow list or auto-advance
         advance id=<workflow_id> # Advance specific workflow
     """
+    from .workflow_selection import set_workflow_selection
+    
     wf_engine = kernel.workflow_engine
     wf_id = None
     from_wizard = False
@@ -4057,7 +4061,7 @@ def handle_advance(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         from_wizard = args.get("_from_wizard", False)
 
     # =================================================================
-    # v0.7.10: Show workflow list if no ID provided
+    # v0.7.11: Show workflow list if no ID provided
     # =================================================================
     if not wf_id:
         all_workflows = wf_engine.summarize_all()
@@ -4070,39 +4074,49 @@ def handle_advance(cmd_name, args, session_id, context, kernel, meta) -> KernelR
                 {"ok": True, "no_workflows": True}
             )
         
-        lines = [
-            "╔══ Advance Workflow ══╗",
-            "",
-            "Select a workflow to advance:",
-            "",
-            "Active workflows:",
-            "",
-        ]
-        
-        for idx, wf in enumerate(active_workflows, start=1):
-            wf_id_str = wf.get("id", "?")
-            wf_name = wf.get("name", "Untitled")
-            wf_status = wf.get("status", "unknown")
-            total_steps = wf.get("total_steps", 0)
-            current_step_idx = wf.get("current_step_index", 0)
-            active_step_title = wf.get("active_step_title", "")
+        # v0.7.11: Auto-advance if only one active workflow
+        if len(active_workflows) == 1:
+            wf_id = active_workflows[0].get("id")
+            # Fall through to advance logic below
+        else:
+            # Store selection state for numeric input handling
+            set_workflow_selection(session_id, "advance", active_workflows)
             
-            lines.append(f"  {idx}) {wf_name}")
-            lines.append(f"     ID: {wf_id_str}")
-            if active_step_title:
-                lines.append(f"     Current: Step {current_step_idx + 1}/{total_steps} — {active_step_title}")
-            else:
-                lines.append(f"     Status: {wf_status} ({total_steps} steps)")
-            lines.append("")
-        
-        lines.append("To advance a workflow, use: #advance id=<workflow_id>")
-        lines.append("Example: #advance id=" + active_workflows[0].get("id", "wf-xxx"))
-        
-        return _base_response(cmd_name, "\n".join(lines), {
-            "ok": True,
-            "workflows": active_workflows,
-            "workflow_count": len(active_workflows),
-        })
+            lines = [
+                "╔══ Advance Workflow Wizard ══╗",
+                "",
+                "Select a workflow to advance:",
+                "",
+                "Active workflows:",
+                "",
+            ]
+            
+            for idx, wf in enumerate(active_workflows, start=1):
+                wf_id_str = wf.get("id", "?")
+                wf_name = wf.get("name", "Untitled")
+                wf_status = wf.get("status", "unknown")
+                total_steps = wf.get("total_steps", 0)
+                current_step_idx = wf.get("current_step_index", 0)
+                active_step_title = wf.get("active_step_title", "")
+                
+                lines.append(f"  {idx}) {wf_name}")
+                lines.append(f"     ID: {wf_id_str}")
+                if active_step_title:
+                    lines.append(f"     Current: Step {current_step_idx + 1}/{total_steps} — {active_step_title}")
+                else:
+                    lines.append(f"     Status: {wf_status} ({total_steps} steps)")
+                lines.append("")
+            
+            lines.append("Step 1/1:")
+            lines.append("Type a number to select a workflow, or 'cancel' to exit.")
+            
+            return _base_response(cmd_name, "\n".join(lines), {
+                "ok": True,
+                "workflows": active_workflows,
+                "workflow_count": len(active_workflows),
+                "awaiting_selection": True,
+                "selection_command": "advance",
+            })
 
     wf = wf_engine.advance(wf_id)
     if not wf:
@@ -4130,10 +4144,8 @@ def handle_advance(cmd_name, args, session_id, context, kernel, meta) -> KernelR
     if current:
         lines.append(f"  {current_idx}. {current.title}")
         if current.description:
-            desc = current.description[:150]
-            if len(current.description) > 150:
-                desc += "..."
-            lines.append(f"     {desc}")
+            # v0.7.12: Show full description (no truncation)
+            lines.append(f"   {current.description}")
     
     # v0.7.10: Add hint text
     lines.append("")
@@ -4147,13 +4159,15 @@ def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
     """
     Pause or halt a workflow.
     
-    v0.7.10: Shows workflow list when no ID provided.
+    v0.7.11: Number-based selection wizard when no ID provided.
     
     Usage:
         halt                             # Show workflow list
         halt id=<workflow_id>            # Halt specific workflow
         halt id=<workflow_id> status=paused
     """
+    from .workflow_selection import set_workflow_selection
+    
     wf_engine = kernel.workflow_engine
     wf_id = None
     new_status = "paused"
@@ -4165,7 +4179,7 @@ def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
         from_wizard = args.get("_from_wizard", False)
 
     # =================================================================
-    # v0.7.10: Show workflow list if no ID provided
+    # v0.7.11: Show workflow list if no ID provided
     # =================================================================
     if not wf_id:
         all_workflows = wf_engine.summarize_all()
@@ -4178,38 +4192,48 @@ def handle_halt(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
                 {"ok": True, "no_workflows": True}
             )
         
-        lines = [
-            "╔══ Halt Workflow ══╗",
-            "",
-            "Select a workflow to pause:",
-            "",
-            "Running workflows:",
-            "",
-        ]
-        
-        for idx, wf in enumerate(active_workflows, start=1):
-            wf_id_str = wf.get("id", "?")
-            wf_name = wf.get("name", "Untitled")
-            total_steps = wf.get("total_steps", 0)
-            current_step_idx = wf.get("current_step_index", 0)
-            active_step_title = wf.get("active_step_title", "")
+        # v0.7.11: Auto-halt if only one active workflow
+        if len(active_workflows) == 1:
+            wf_id = active_workflows[0].get("id")
+            # Fall through to halt logic below
+        else:
+            # Store selection state for numeric input handling
+            set_workflow_selection(session_id, "halt", active_workflows)
             
-            lines.append(f"  {idx}) {wf_name}")
-            lines.append(f"     ID: {wf_id_str}")
-            if active_step_title:
-                lines.append(f"     Current: Step {current_step_idx + 1}/{total_steps} — {active_step_title}")
-            else:
-                lines.append(f"     Progress: Step {current_step_idx + 1}/{total_steps}")
-            lines.append("")
-        
-        lines.append("To halt a workflow, use: #halt id=<workflow_id>")
-        lines.append("Example: #halt id=" + active_workflows[0].get("id", "wf-xxx"))
-        
-        return _base_response(cmd_name, "\n".join(lines), {
-            "ok": True,
-            "workflows": active_workflows,
-            "workflow_count": len(active_workflows),
-        })
+            lines = [
+                "╔══ Halt Workflow Wizard ══╗",
+                "",
+                "Select a workflow to pause:",
+                "",
+                "Running workflows:",
+                "",
+            ]
+            
+            for idx, wf in enumerate(active_workflows, start=1):
+                wf_id_str = wf.get("id", "?")
+                wf_name = wf.get("name", "Untitled")
+                total_steps = wf.get("total_steps", 0)
+                current_step_idx = wf.get("current_step_index", 0)
+                active_step_title = wf.get("active_step_title", "")
+                
+                lines.append(f"  {idx}) {wf_name}")
+                lines.append(f"     ID: {wf_id_str}")
+                if active_step_title:
+                    lines.append(f"     Current: Step {current_step_idx + 1}/{total_steps} — {active_step_title}")
+                else:
+                    lines.append(f"     Progress: Step {current_step_idx + 1}/{total_steps}")
+                lines.append("")
+            
+            lines.append("Step 1/1:")
+            lines.append("Type a number to select a workflow, or 'cancel' to exit.")
+            
+            return _base_response(cmd_name, "\n".join(lines), {
+                "ok": True,
+                "workflows": active_workflows,
+                "workflow_count": len(active_workflows),
+                "awaiting_selection": True,
+                "selection_command": "halt",
+            })
 
     wf = wf_engine.halt(wf_id, status=new_status)
     if not wf:
@@ -4415,7 +4439,7 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         # =====================================================================
         name = args.get("name", "").strip()
         goal = args.get("goal", "").strip()
-        step_mode = args.get("step_mode", "2")
+        step_mode = args.get("step_mode", "1")  # Default to auto (1=auto, 2=manual)
         manual_steps = args.get("manual_steps", "").strip()
         confirm = args.get("confirm", "").lower().strip()
         
@@ -4438,7 +4462,8 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
         # Build steps
         steps = []
         
-        if step_mode == "1" and manual_steps:
+        # step_mode=2 means manual steps
+        if step_mode == "2" and manual_steps:
             # Manual steps: parse bullet lines
             for line in manual_steps.split("\n"):
                 line = line.strip()
@@ -4459,7 +4484,7 @@ def handle_compose(cmd_name, args, session_id, context, kernel, meta) -> KernelR
                         "description": "",
                     })
         else:
-            # Auto-generate steps using LLM
+            # Auto-generate steps using LLM (step_mode=1)
             prompt = (
                 f"Generate a workflow plan as a JSON array of steps. "
                 f"Each step must have: title, description. "
