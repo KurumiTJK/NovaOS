@@ -142,6 +142,35 @@ BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
         "description": "Switch active topic by id or name",
         "args": [{"name": "topic", "type": "string", "required": True}],
     },
+    # v0.7.3: Episodic Memory Bridge (Option B)
+    "wm-restore": {
+        "handler": "handle_wm_restore",
+        "category": "debug",
+        "section": "debug",
+        "description": "Restore WM from a saved episodic memory",
+        "args": [{"name": "id", "type": "integer", "required": True}],
+    },
+    "wm-mode": {
+        "handler": "handle_wm_mode",
+        "category": "debug",
+        "section": "debug",
+        "description": "Enable or disable Working Memory (on/off)",
+        "args": [{"name": "mode", "type": "string", "required": False}],
+    },
+    "episodic-list": {
+        "handler": "handle_episodic_list",
+        "category": "debug",
+        "section": "debug",
+        "description": "List saved episodic snapshots",
+        "args": [{"name": "module", "type": "string", "required": False}],
+    },
+    "episodic-debug": {
+        "handler": "handle_episodic_debug",
+        "category": "debug",
+        "section": "debug",
+        "description": "Show episodic memory debug info",
+        "args": [],
+    },
 }
 
 # ------------------------------------------------------------

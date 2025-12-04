@@ -712,50 +712,76 @@ def handle_wm_snapshot(cmd_name, args, session_id, context, kernel, meta) -> Ker
     Usage:
         #wm-snapshot
         #wm-snapshot topic="project with Steven"
-        #wm-snapshot label="important decision"
+        #wm-snapshot module=cyber
     """
     try:
-        from .nova_wm import wm_get_snapshot
+        from .nova_wm import get_wm
+        from .nova_wm_behavior import get_behavior_engine
+        from .nova_wm_episodic import episodic_snapshot, is_episodic_enabled
         
-        # Get label/topic from args
-        label = None
+        if not is_episodic_enabled():
+            return _base_response(cmd_name, "Episodic memory is disabled.", {"ok": False})
+        
+        # Get args
+        topic = None
+        module = None
         if isinstance(args, dict):
-            label = args.get("topic") or args.get("label")
-            if not label and "_" in args and args["_"]:
-                label = " ".join(args["_"])
+            topic = args.get("topic") or args.get("label")
+            module = args.get("module")
+            if not topic and "_" in args and args["_"]:
+                topic = " ".join(args["_"])
         
-        # Get snapshot summary
-        snapshot_text = wm_get_snapshot(session_id, label)
+        # Get WM and Behavior instances
+        wm = get_wm(session_id)
+        try:
+            behavior = get_behavior_engine(session_id)
+        except:
+            behavior = None
         
-        # Store in episodic memory via MemoryManager
-        if hasattr(kernel, 'memory_manager') and kernel.memory_manager:
-            tags = ["wm-snapshot", "module:general"]
-            if label:
-                tags.append(f"topic:{label.replace(' ', '-')[:30]}")
-            
-            kernel.memory_manager.store(
-                type="episodic",
-                payload=snapshot_text,
-                tags=tags,
+        # Check if MemoryManager available
+        if not hasattr(kernel, 'memory_manager') or not kernel.memory_manager:
+            return _base_response(
+                cmd_name, 
+                "MemoryManager not available. Cannot persist snapshot.",
+                {"ok": False}
             )
-            
+        
+        # Create and save snapshot
+        success, message, memory_id = episodic_snapshot(
+            session_id=session_id,
+            memory_manager=kernel.memory_manager,
+            wm=wm,
+            behavior_engine=behavior,
+            topic=topic,
+            module=module,
+        )
+        
+        if success:
+            # Show what was saved
             lines = [
                 F.header("WM Snapshot Saved"),
                 "",
-                snapshot_text,
-                "",
-                "Snapshot stored to episodic memory.",
+                f"Memory ID: #{memory_id}",
             ]
+            
+            if wm.active_topic_id and wm.active_topic_id in wm.topics:
+                lines.append(f"Topic: {wm.topics[wm.active_topic_id].name}")
+            elif topic:
+                lines.append(f"Topic: {topic}")
+            
+            # Count entities
+            from .nova_wm import EntityType
+            people = [e for e in wm.entities.values() if e.entity_type == EntityType.PERSON]
+            if people:
+                lines.append(f"Participants: {', '.join(p.name for p in people[:5])}")
+            
+            lines.append(f"Turns captured: {wm.turn_count}")
+            lines.append("")
+            lines.append("Snapshot stored to episodic memory.")
+            
+            return _base_response(cmd_name, "\n".join(lines), {"memory_id": memory_id})
         else:
-            lines = [
-                F.header("WM Snapshot (Preview)"),
-                "",
-                snapshot_text,
-                "",
-                "Note: MemoryManager not available, snapshot not persisted.",
-            ]
-        
-        return _base_response(cmd_name, "\n".join(lines))
+            return _base_response(cmd_name, message, {"ok": False})
     
     except Exception as e:
         return _base_response(cmd_name, f"Error creating snapshot: {e}", {"ok": False})
@@ -835,6 +861,256 @@ def handle_wm_switch(cmd_name, args, session_id, context, kernel, meta) -> Kerne
     
     except Exception as e:
         return _base_response(cmd_name, f"Error switching topic: {e}", {"ok": False})
+
+
+# ---------------------------------------------------------------------
+# v0.7.3 — Episodic Memory Bridge (Option B)
+# ---------------------------------------------------------------------
+
+def handle_wm_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Restore WM from a saved episodic memory.
+    
+    Usage:
+        #wm-restore id=5
+        #wm-restore id=5 force=yes
+        #wm-restore id=5 mode=merge
+    """
+    try:
+        from .nova_wm import get_wm
+        from .nova_wm_behavior import get_behavior_engine
+        from .nova_wm_episodic import episodic_restore, RehydrationMode, is_episodic_enabled
+        
+        if not is_episodic_enabled():
+            return _base_response(cmd_name, "Episodic memory is disabled.", {"ok": False})
+        
+        # Get args
+        memory_id = None
+        force = False
+        mode = RehydrationMode.MERGE
+        
+        if isinstance(args, dict):
+            memory_id = args.get("id")
+            if not memory_id and "_" in args and args["_"]:
+                try:
+                    memory_id = int(args["_"][0])
+                except:
+                    memory_id = args["_"][0]
+            
+            force = args.get("force", "").lower() in ("yes", "true", "1")
+            
+            mode_str = args.get("mode", "merge").lower()
+            if mode_str == "full":
+                mode = RehydrationMode.FULL
+            elif mode_str == "context":
+                mode = RehydrationMode.CONTEXT_ONLY
+        
+        if not memory_id:
+            return _base_response(
+                cmd_name,
+                "Usage: #wm-restore id=<memory_id>\n\nUse #episodic-list to see available snapshots.",
+                {"ok": False}
+            )
+        
+        try:
+            memory_id = int(memory_id)
+        except:
+            return _base_response(cmd_name, f"Invalid memory ID: {memory_id}", {"ok": False})
+        
+        # Check MemoryManager
+        if not hasattr(kernel, 'memory_manager') or not kernel.memory_manager:
+            return _base_response(cmd_name, "MemoryManager not available.", {"ok": False})
+        
+        # Get WM and Behavior
+        wm = get_wm(session_id)
+        try:
+            behavior = get_behavior_engine(session_id)
+        except:
+            behavior = None
+        
+        # Perform restore
+        success, message = episodic_restore(
+            session_id=session_id,
+            memory_id=memory_id,
+            memory_manager=kernel.memory_manager,
+            wm=wm,
+            behavior_engine=behavior,
+            mode=mode,
+            force=force,
+        )
+        
+        if success:
+            lines = [
+                F.header("WM Restored"),
+                "",
+                message,
+                "",
+                f"Mode: {mode.value}",
+                f"Entities now: {len(wm.entities)}",
+            ]
+            return _base_response(cmd_name, "\n".join(lines))
+        else:
+            return _base_response(cmd_name, message, {"ok": False})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error restoring: {e}", {"ok": False})
+
+
+def handle_wm_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Enable or disable Working Memory.
+    
+    Usage:
+        #wm-mode           → show current status
+        #wm-mode on
+        #wm-mode off
+    """
+    try:
+        from system.wm_behavior_config import (
+            is_wm_enabled, 
+            is_behavior_enabled,
+            _config_manager,
+        )
+        
+        # Get mode from args
+        mode = None
+        if isinstance(args, dict):
+            mode = args.get("mode") or args.get("state")
+            if not mode and "_" in args and args["_"]:
+                mode = args["_"][0]
+        
+        if mode:
+            mode_lower = mode.lower()
+            if mode_lower in ("on", "true", "1", "enable", "enabled"):
+                _config_manager.set_wm_enabled(session_id, True)
+                return _base_response(cmd_name, "Working Memory enabled.")
+            elif mode_lower in ("off", "false", "0", "disable", "disabled"):
+                _config_manager.set_wm_enabled(session_id, False)
+                return _base_response(cmd_name, "Working Memory disabled.")
+            else:
+                return _base_response(
+                    cmd_name,
+                    f"Invalid mode '{mode}'. Use: on, off",
+                    {"ok": False}
+                )
+        else:
+            # Show status
+            wm_on = is_wm_enabled(session_id)
+            bh_on = is_behavior_enabled(session_id)
+            
+            lines = [
+                F.header("WM/Behavior Status"),
+                "",
+                F.key_value("Working Memory", "enabled" if wm_on else "disabled"),
+                F.key_value("Behavior Layer", "enabled" if bh_on else "disabled"),
+                "",
+                "Set with: #wm-mode on/off",
+            ]
+            return _base_response(cmd_name, "\n".join(lines))
+    
+    except ImportError:
+        return _base_response(cmd_name, "WM config not available.", {"ok": False})
+    except Exception as e:
+        return _base_response(cmd_name, f"Error: {e}", {"ok": False})
+
+
+def handle_episodic_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: List saved episodic snapshots.
+    
+    Usage:
+        #episodic-list
+        #episodic-list module=cyber
+        #episodic-list limit=20
+    """
+    try:
+        from .nova_wm_episodic import episodic_list, is_episodic_enabled
+        
+        if not is_episodic_enabled():
+            return _base_response(cmd_name, "Episodic memory is disabled.", {"ok": False})
+        
+        if not hasattr(kernel, 'memory_manager') or not kernel.memory_manager:
+            return _base_response(cmd_name, "MemoryManager not available.", {"ok": False})
+        
+        # Get args
+        module = None
+        limit = 10
+        if isinstance(args, dict):
+            module = args.get("module")
+            try:
+                limit = int(args.get("limit", 10))
+            except:
+                pass
+        
+        # List snapshots
+        snapshots = episodic_list(kernel.memory_manager, module, limit)
+        
+        if not snapshots:
+            return _base_response(cmd_name, "No episodic snapshots found.")
+        
+        lines = [
+            F.header("Episodic Snapshots"),
+            "",
+        ]
+        
+        for snap in snapshots:
+            participants = snap.get("participants", [])
+            participant_str = ", ".join(p.split(" (")[0] for p in participants[:3])
+            module_str = f" [{snap.get('module')}]" if snap.get('module') else ""
+            
+            lines.append(f"#{snap['id']}: {snap['topic']}{module_str}")
+            if participant_str:
+                lines.append(f"    Participants: {participant_str}")
+            if snap.get('timestamp'):
+                lines.append(f"    Saved: {snap['timestamp'][:19]}")
+            lines.append("")
+        
+        lines.append("Restore with: #wm-restore id=<id>")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"snapshots": snapshots})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error: {e}", {"ok": False})
+
+
+def handle_episodic_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.3: Show episodic memory debug info.
+    
+    Usage: #episodic-debug
+    """
+    try:
+        from .nova_wm_episodic import episodic_debug, is_episodic_enabled
+        
+        debug_info = episodic_debug(session_id)
+        
+        lines = [
+            F.header("Episodic Memory Debug"),
+            "",
+            F.key_value("Enabled", "yes" if debug_info['enabled'] else "no"),
+            F.key_value("Auto-rehydrate", "yes" if debug_info['auto_rehydrate'] else "no"),
+            F.key_value("Max age (days)", debug_info['max_age_days']),
+            "",
+        ]
+        
+        if debug_info.get('saved_snapshots'):
+            lines.append(F.subheader("Saved This Session"))
+            for topic, mem_id in debug_info['saved_snapshots'].items():
+                lines.append(f"  • '{topic}' → #{mem_id}")
+            lines.append("")
+        
+        if debug_info.get('restored_from'):
+            lines.append(F.key_value("Restored from", f"#{debug_info['restored_from']}"))
+        
+        if debug_info.get('rehydrated_modules'):
+            lines.append(F.key_value("Rehydrated modules", ", ".join(debug_info['rehydrated_modules'])))
+        
+        lines.append(F.key_value("Context rehydrated", "yes" if debug_info['context_rehydrated'] else "no"))
+        
+        return _base_response(cmd_name, "\n".join(lines), {"debug": debug_info})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error: {e}", {"ok": False})
 
 
 def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -3872,6 +4148,11 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_wm_snapshot": handle_wm_snapshot,
     "handle_wm_topics": handle_wm_topics,
     "handle_wm_switch": handle_wm_switch,
+    # v0.7.3: Episodic Memory Bridge (Option B)
+    "handle_wm_restore": handle_wm_restore,
+    "handle_wm_mode": handle_wm_mode,
+    "handle_episodic_list": handle_episodic_list,
+    "handle_episodic_debug": handle_episodic_debug,
     "handle_help": handle_help,
     "handle_reset": handle_reset,
     "handle_store": handle_store,

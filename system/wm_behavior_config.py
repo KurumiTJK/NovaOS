@@ -23,6 +23,7 @@ class BehaviorMode(Enum):
 # Master kill switches
 WM_ENABLED: bool = True
 BEHAVIOR_ENABLED: bool = True
+EPISODIC_ENABLED: bool = True  # v0.7.3: Episodic Memory Bridge
 
 # Default behavior mode for new sessions
 DEFAULT_BEHAVIOR_MODE: str = "normal"

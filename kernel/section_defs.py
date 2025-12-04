@@ -489,6 +489,7 @@ SECTION_DEFS: List[SectionDef] = [
     ),
     # v0.7.2: Debug section for diagnostics and introspection
     # v0.7.3: Added wm-clear, wm-clear-topic, behavior-mode, wm-snapshot, wm-topics, wm-switch
+    # v0.7.3: Episodic Bridge (Option B) - wm-restore, wm-mode, episodic-list, episodic-debug
     SectionDef(
         key="debug",
         title="DEBUG",
@@ -533,6 +534,27 @@ SECTION_DEFS: List[SectionDef] = [
                 name="wm-switch",
                 description="Switch active topic by id or name.",
                 example="#wm-switch topic=project",
+            ),
+            # v0.7.3: Episodic Memory Bridge (Option B)
+            CommandDef(
+                name="wm-restore",
+                description="Restore WM from a saved episodic memory.",
+                example="#wm-restore id=5",
+            ),
+            CommandDef(
+                name="wm-mode",
+                description="Enable or disable Working Memory (on/off).",
+                example="#wm-mode off",
+            ),
+            CommandDef(
+                name="episodic-list",
+                description="List saved episodic snapshots.",
+                example="#episodic-list",
+            ),
+            CommandDef(
+                name="episodic-debug",
+                description="Show episodic memory debug info.",
+                example="#episodic-debug",
             ),
         ],
     ),
@@ -645,7 +667,7 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         "toggle": "command-toggle",
     },
     # v0.7.2: Debug section routes
-    # v0.7.3: Added new WM/Behavior commands
+    # v0.7.3: Added new WM/Behavior commands + Episodic Bridge (Option B)
     "debug": {
         "wm-debug": "wm-debug",
         "wm": "wm-debug",
@@ -656,13 +678,21 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         "wm-clear-topic": "wm-clear-topic",
         "clear-topic": "wm-clear-topic",
         "behavior-mode": "behavior-mode",
-        "mode": "behavior-mode",
         "wm-snapshot": "wm-snapshot",
         "snapshot": "wm-snapshot",
         "wm-topics": "wm-topics",
         "topics": "wm-topics",
         "wm-switch": "wm-switch",
         "switch": "wm-switch",
+        # v0.7.3: Episodic Bridge
+        "wm-restore": "wm-restore",
+        "restore": "wm-restore",
+        "wm-mode": "wm-mode",
+        "mode": "wm-mode",
+        "episodic-list": "episodic-list",
+        "list": "episodic-list",
+        "episodic-debug": "episodic-debug",
+        "episodic": "episodic-debug",
     },
 }
 
