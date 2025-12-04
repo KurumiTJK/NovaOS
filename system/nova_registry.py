@@ -79,16 +79,24 @@ def _normalize_custom_command(name: str, meta: dict | None) -> dict:
 BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
     "wm-debug": {
         "handler": "handle_wm_debug",
-        "category": "system",
-        "section": "system",
+        "category": "debug",
+        "section": "debug",
         "description": "Show current Working Memory state (entities, pronouns, topics)",
         "args": [],
     },
     "behavior-debug": {
         "handler": "handle_behavior_debug",
-        "category": "system",
-        "section": "system",
+        "category": "debug",
+        "section": "debug",
         "description": "Show Behavior Layer state (open questions, goals, user state)",
+        "args": [],
+    },
+    # v0.7.2: Debug section menu command
+    "debug": {
+        "handler": "handle_section_debug",
+        "category": "section",
+        "section": "debug",
+        "description": "Open the DEBUG section menu for diagnostics commands",
         "args": [],
     },
 }

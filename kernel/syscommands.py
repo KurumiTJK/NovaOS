@@ -654,11 +654,13 @@ _section_menu_state: Dict[str, str] = {}  # session_id -> active_section
 
 def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
-    v0.6 — Help command showing only the 12 section summaries.
+    v0.6 — Help command showing only the 13 section summaries.
     
     Usage:
         #help              (show section list)
         #help section=memory  (show specific section's commands)
+    
+    TODO: Refactor to pull section list from section_defs.py as single source of truth.
     """
     # Section summaries - one line each
     SECTION_SUMMARIES = {
@@ -674,6 +676,7 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         "reminders": "Creating, listing, updating, and deleting reminders",
         "commands": "Managing custom commands and macros",
         "interpretation": "Interpret, derive, synthesize, and forecast ideas",
+        "debug": "Diagnostics and introspection tools",  # v0.7.2
     }
     
     SECTION_ORDER = [
@@ -689,6 +692,7 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         "reminders",
         "commands",
         "interpretation",
+        "debug",  # v0.7.2
     ]
     
     # Check if specific section requested
@@ -807,6 +811,10 @@ def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -
 
 def handle_section_interpretation(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     return _handle_section_menu("interpretation", cmd_name, args, session_id, context, kernel, meta)
+
+# v0.7.2: Debug section
+def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("debug", cmd_name, args, session_id, context, kernel, meta)
 
 
 def get_active_section(session_id: str) -> str:
@@ -3750,6 +3758,7 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_section_reminders": handle_section_reminders,
     "handle_section_commands": handle_section_commands,
     "handle_section_interpretation": handle_section_interpretation,
+    "handle_section_debug": handle_section_debug,  # v0.7.2
 
 
 }

@@ -487,6 +487,24 @@ SECTION_DEFS: List[SectionDef] = [
             ),
         ],
     ),
+    # v0.7.2: Debug section for diagnostics and introspection
+    SectionDef(
+        key="debug",
+        title="DEBUG",
+        description="Diagnostics and introspection tools.",
+        commands=[
+            CommandDef(
+                name="wm-debug",
+                description="Show working memory entities, pronouns, and topics.",
+                example="#wm-debug",
+            ),
+            CommandDef(
+                name="behavior-debug",
+                description="Show behavior layer state (goals, open questions, user state).",
+                example="#behavior-debug",
+            ),
+        ],
+    ),
 ]
 
 
@@ -594,6 +612,14 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         "inspect": "command-inspect",
         "remove": "command-remove",
         "toggle": "command-toggle",
+    },
+    # v0.7.2: Debug section routes
+    "debug": {
+        "wm-debug": "wm-debug",
+        "wm": "wm-debug",
+        "memory": "wm-debug",
+        "behavior-debug": "behavior-debug",
+        "behavior": "behavior-debug",
     },
 }
 
