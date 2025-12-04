@@ -171,6 +171,29 @@ BUILTIN_COMMANDS: Dict[str, Dict[str, Any]] = {
         "description": "Show episodic memory debug info",
         "args": [],
     },
+    # v0.7.6: WM Persistence Layer
+    "wm-load": {
+        "handler": "handle_wm_load",
+        "category": "debug",
+        "section": "debug",
+        "description": "Load WM snapshots from episodic memory",
+        "args": [{"name": "module", "type": "string", "required": False}],
+    },
+    "wm-bridge": {
+        "handler": "handle_wm_bridge",
+        "category": "debug",
+        "section": "debug",
+        "description": "Show WM persistence bridge status",
+        "args": [],
+    },
+    # v0.7.7: Group Entity Layer
+    "wm-groups": {
+        "handler": "handle_wm_groups",
+        "category": "debug",
+        "section": "debug",
+        "description": "Show all group entities in working memory",
+        "args": [],
+    },
 }
 
 # ------------------------------------------------------------

@@ -556,6 +556,23 @@ SECTION_DEFS: List[SectionDef] = [
                 description="Show episodic memory debug info.",
                 example="#episodic-debug",
             ),
+            # v0.7.6: WM Persistence Layer
+            CommandDef(
+                name="wm-load",
+                description="Load WM snapshots from episodic memory.",
+                example="#wm-load module=cyber",
+            ),
+            CommandDef(
+                name="wm-bridge",
+                description="Show WM persistence bridge status.",
+                example="#wm-bridge",
+            ),
+            # v0.7.7: Group Entity Layer
+            CommandDef(
+                name="wm-groups",
+                description="Show all group entities in working memory.",
+                example="#wm-groups",
+            ),
         ],
     ),
 ]
@@ -693,6 +710,14 @@ SECTION_ROUTES: Dict[str, Dict[str, str]] = {
         "list": "episodic-list",
         "episodic-debug": "episodic-debug",
         "episodic": "episodic-debug",
+        # v0.7.6: WM Persistence
+        "wm-load": "wm-load",
+        "load": "wm-load",
+        "wm-bridge": "wm-bridge",
+        "bridge": "wm-bridge",
+        # v0.7.7: Groups
+        "wm-groups": "wm-groups",
+        "groups": "wm-groups",
     },
 }
 

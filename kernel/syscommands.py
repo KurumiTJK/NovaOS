@@ -707,81 +707,77 @@ def handle_behavior_mode(cmd_name, args, session_id, context, kernel, meta) -> K
 
 def handle_wm_snapshot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     """
-    v0.7.3: Save current topic + participants as an episodic memory.
+    v0.7.6: Save current topic + participants as an episodic memory.
     
     Usage:
         #wm-snapshot
         #wm-snapshot topic="project with Steven"
+        #wm-snapshot label="important decision"
         #wm-snapshot module=cyber
     """
     try:
-        from .nova_wm import get_wm
-        from .nova_wm_behavior import get_behavior_engine
-        from .nova_wm_episodic import episodic_snapshot, is_episodic_enabled
-        
-        if not is_episodic_enabled():
-            return _base_response(cmd_name, "Episodic memory is disabled.", {"ok": False})
+        from .nova_wm import get_wm, wm_create_snapshot, EntityType
         
         # Get args
-        topic = None
+        label = None
         module = None
         if isinstance(args, dict):
-            topic = args.get("topic") or args.get("label")
+            label = args.get("topic") or args.get("label")
             module = args.get("module")
-            if not topic and "_" in args and args["_"]:
-                topic = " ".join(args["_"])
+            if not label and "_" in args and args["_"]:
+                label = " ".join(args["_"])
         
-        # Get WM and Behavior instances
         wm = get_wm(session_id)
-        try:
-            behavior = get_behavior_engine(session_id)
-        except:
-            behavior = None
         
         # Check if MemoryManager available
         if not hasattr(kernel, 'memory_manager') or not kernel.memory_manager:
-            return _base_response(
-                cmd_name, 
-                "MemoryManager not available. Cannot persist snapshot.",
-                {"ok": False}
-            )
+            # Return preview without persisting
+            snapshot = wm_create_snapshot(session_id, label, module)
+            lines = [
+                F.header("WM Snapshot (Preview)"),
+                "",
+                f"Topic: {snapshot['payload'].get('topic', 'unknown')}",
+            ]
+            participants = snapshot['payload'].get('participants', [])
+            if participants:
+                lines.append(f"Participants: {', '.join(p['name'] for p in participants[:5])}")
+            lines.append(f"Tags: {', '.join(snapshot['tags'])}")
+            lines.append("")
+            lines.append("Note: MemoryManager not available, snapshot not persisted.")
+            return _base_response(cmd_name, "\n".join(lines), {"snapshot": snapshot})
         
-        # Create and save snapshot
-        success, message, memory_id = episodic_snapshot(
-            session_id=session_id,
-            memory_manager=kernel.memory_manager,
-            wm=wm,
-            behavior_engine=behavior,
-            topic=topic,
-            module=module,
+        # Create snapshot payload
+        snapshot = wm_create_snapshot(session_id, label, module)
+        
+        # Store in memory
+        memory_id = kernel.memory_manager.store(
+            type=snapshot["type"],
+            payload=snapshot["payload"],
+            tags=snapshot["tags"],
         )
         
-        if success:
-            # Show what was saved
-            lines = [
-                F.header("WM Snapshot Saved"),
-                "",
-                f"Memory ID: #{memory_id}",
-            ]
-            
-            if wm.active_topic_id and wm.active_topic_id in wm.topics:
-                lines.append(f"Topic: {wm.topics[wm.active_topic_id].name}")
-            elif topic:
-                lines.append(f"Topic: {topic}")
-            
-            # Count entities
-            from .nova_wm import EntityType
-            people = [e for e in wm.entities.values() if e.entity_type == EntityType.PERSON]
-            if people:
-                lines.append(f"Participants: {', '.join(p.name for p in people[:5])}")
-            
-            lines.append(f"Turns captured: {wm.turn_count}")
-            lines.append("")
-            lines.append("Snapshot stored to episodic memory.")
-            
-            return _base_response(cmd_name, "\n".join(lines), {"memory_id": memory_id})
-        else:
-            return _base_response(cmd_name, message, {"ok": False})
+        # Build response
+        lines = [
+            F.header("WM Snapshot Saved"),
+            "",
+            f"Memory ID: #{memory_id}",
+            f"Topic: {snapshot['payload'].get('topic', 'unknown')}",
+        ]
+        
+        participants = snapshot['payload'].get('participants', [])
+        if participants:
+            lines.append(f"Participants: {', '.join(p['name'] for p in participants[:5])}")
+        
+        groups = snapshot['payload'].get('groups', [])
+        if groups:
+            lines.append(f"Groups: {', '.join(g['name'] for g in groups[:3])}")
+        
+        lines.append(f"Turns captured: {wm.turn_count}")
+        lines.append(f"Tags: {', '.join(snapshot['tags'][:5])}")
+        lines.append("")
+        lines.append("Snapshot stored to episodic memory.")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"memory_id": memory_id})
     
     except Exception as e:
         return _base_response(cmd_name, f"Error creating snapshot: {e}", {"ok": False})
@@ -1108,6 +1104,170 @@ def handle_episodic_debug(cmd_name, args, session_id, context, kernel, meta) -> 
         lines.append(F.key_value("Context rehydrated", "yes" if debug_info['context_rehydrated'] else "no"))
         
         return _base_response(cmd_name, "\n".join(lines), {"debug": debug_info})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error: {e}", {"ok": False})
+
+
+# ---------------------------------------------------------------------
+# v0.7.6 — WM Persistence Layer (Option B)
+# ---------------------------------------------------------------------
+
+def handle_wm_load(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.6: Load WM snapshots from episodic memory.
+    
+    Usage:
+        #wm-load
+        #wm-load module=cyber
+        #wm-load topic=project
+    """
+    try:
+        from .nova_wm import wm_bridge_load_relevant, wm_get_snapshots_info
+        
+        # Get args
+        module = None
+        topic_filter = None
+        if isinstance(args, dict):
+            module = args.get("module")
+            topic_filter = args.get("topic")
+            if not module and not topic_filter and "_" in args and args["_"]:
+                topic_filter = args["_"][0]
+        
+        # Check MemoryManager
+        if not hasattr(kernel, 'memory_manager') or not kernel.memory_manager:
+            return _base_response(cmd_name, "MemoryManager not available.", {"ok": False})
+        
+        # Load relevant snapshots
+        results = wm_bridge_load_relevant(
+            session_id=session_id,
+            memory_manager=kernel.memory_manager,
+            module=module,
+            max_snapshots=3,
+        )
+        
+        if not results:
+            return _base_response(cmd_name, "No matching WM snapshots found in episodic memory.")
+        
+        lines = [
+            F.header("WM Snapshots Loaded"),
+            "",
+        ]
+        
+        total_entities = 0
+        total_groups = 0
+        
+        for result in results:
+            if "error" in result:
+                lines.append(f"Error: {result['error']}")
+                continue
+            
+            topic = result.get("topic", "unknown")
+            mem_id = result.get("memory_id", "?")
+            entities = result.get("entities_added", [])
+            groups = result.get("groups_added", [])
+            conflicts = result.get("conflicts", [])
+            
+            lines.append(f"#{mem_id}: {topic}")
+            if entities:
+                lines.append(f"  Entities: {', '.join(entities[:5])}")
+                total_entities += len(entities)
+            if groups:
+                lines.append(f"  Groups: {', '.join(groups[:3])}")
+                total_groups += len(groups)
+            if conflicts:
+                lines.append(f"  Conflicts: {', '.join(conflicts[:3])}")
+            lines.append("")
+        
+        lines.append(f"Total: {total_entities} entities, {total_groups} groups rehydrated.")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"results": results})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error loading snapshots: {e}", {"ok": False})
+
+
+def handle_wm_bridge(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.6: Show WM bridge/persistence status.
+    
+    Usage: #wm-bridge
+    """
+    try:
+        from .nova_wm import wm_get_snapshots_info
+        
+        info = wm_get_snapshots_info(session_id)
+        
+        lines = [
+            F.header("WM Persistence Bridge"),
+            "",
+        ]
+        
+        # Saved snapshots
+        saved = info.get("saved", [])
+        if saved:
+            lines.append(F.subheader(f"Snapshots Saved This Session ({len(saved)})"))
+            for label in saved[-5:]:
+                lines.append(f"  • {label}")
+            lines.append("")
+        else:
+            lines.append("No snapshots saved this session.")
+            lines.append("")
+        
+        # Loaded snapshots
+        loaded = info.get("loaded", [])
+        if loaded:
+            lines.append(F.subheader(f"Snapshots Loaded ({len(loaded)})"))
+            for mem_id in loaded[-5:]:
+                lines.append(f"  • Memory #{mem_id}")
+            lines.append("")
+        
+        # Rehydration source
+        rehydrated = info.get("rehydrated_from")
+        if rehydrated:
+            lines.append(F.key_value("Rehydrated from", f"#{rehydrated}"))
+        
+        lines.append("")
+        lines.append("Commands: #wm-snapshot, #wm-load, #episodic-list")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"info": info})
+    
+    except Exception as e:
+        return _base_response(cmd_name, f"Error: {e}", {"ok": False})
+
+
+# ---------------------------------------------------------------------
+# v0.7.7 — Group Entity Layer
+# ---------------------------------------------------------------------
+
+def handle_wm_groups(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    """
+    v0.7.7: Show all group entities in working memory.
+    
+    Usage: #wm-groups
+    """
+    try:
+        from .nova_wm import wm_get_all_groups
+        
+        groups = wm_get_all_groups(session_id)
+        
+        if not groups:
+            return _base_response(cmd_name, "No groups in working memory.\n\nGroups are created automatically when you mention multiple people together, e.g., 'Steven and Sarah both...'")
+        
+        lines = [
+            F.header("Group Entities"),
+            "",
+        ]
+        
+        for g in groups:
+            lines.append(f"• {g['name']}")
+            lines.append(f"  Members: {', '.join(g['members'])}")
+            lines.append(f"  ID: {g['id']}")
+            lines.append("")
+        
+        lines.append("Pronouns like 'they/them/their' will resolve to the most recent group.")
+        
+        return _base_response(cmd_name, "\n".join(lines), {"groups": groups})
     
     except Exception as e:
         return _base_response(cmd_name, f"Error: {e}", {"ok": False})
@@ -4153,6 +4313,11 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_wm_mode": handle_wm_mode,
     "handle_episodic_list": handle_episodic_list,
     "handle_episodic_debug": handle_episodic_debug,
+    # v0.7.6: WM Persistence Layer
+    "handle_wm_load": handle_wm_load,
+    "handle_wm_bridge": handle_wm_bridge,
+    # v0.7.7: Group Entity Layer
+    "handle_wm_groups": handle_wm_groups,
     "handle_help": handle_help,
     "handle_reset": handle_reset,
     "handle_store": handle_store,

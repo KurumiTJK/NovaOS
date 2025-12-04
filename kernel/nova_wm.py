@@ -1,9 +1,22 @@
 # kernel/nova_wm.py
 """
-NovaOS v0.7.5 — Working Memory Engine (NovaWM)
+NovaOS v0.7.7 — Working Memory Engine (NovaWM)
 
 A robust conversational memory system that makes Nova feel "alive" and continuous.
 Tracks entities, topics, pronouns, goals, and conversation state across turns.
+
+v0.7.7 CHANGES:
+- Enhanced group entity layer with explicit members list
+- Group-aware context strings for behavior layer
+- Event-specific recall ("what did Sarah say?")
+- Topic merge when same label reappears
+- #wm-groups command support
+
+v0.7.6 CHANGES:
+- WM Persistence Layer (Option B) with episodic snapshots
+- wm_snapshot() for saving WM state to long-term memory
+- wm_bridge_load_relevant() for rehydrating from snapshots
+- Snapshot-aware context strings
 
 v0.7.5 CHANGES:
 - Automatic group detection from "X and Y" patterns
@@ -32,12 +45,13 @@ Key Capabilities:
 - Emotional tone awareness
 - Turn-by-turn summaries with compression
 - Context bundle generation for persona
+- Episodic snapshot persistence (v0.7.6)
 
 Lifecycle:
 - Created per session
 - Persists across turns within session
 - Resets on new session or #reset
-- Does NOT touch long-term memory
+- Can snapshot to long-term memory (v0.7.6)
 
 Usage:
     wm = NovaWorkingMemory(session_id)
@@ -164,6 +178,7 @@ class WMEntity:
     A tracked entity in working memory.
     
     v0.7.1: Added gender_hint for pronoun-aware resolution.
+    v0.7.7: Added members list for GROUP entities.
     """
     id: str
     name: str
@@ -178,6 +193,7 @@ class WMEntity:
     mention_count: int = 1
     confidence: float = 1.0
     source_text: Optional[str] = None
+    members: Optional[List[str]] = None  # v0.7.7: For GROUP entities, list of member entity_ids
     
     def matches(self, query: str) -> bool:
         """Check if this entity matches a query string."""
@@ -197,7 +213,7 @@ class WMEntity:
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize for storage/debugging."""
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "type": self.entity_type.value,
@@ -211,6 +227,10 @@ class WMEntity:
             "mention_count": self.mention_count,
             "confidence": self.confidence,
         }
+        # v0.7.7: Include members for GROUP entities
+        if self.members:
+            result["members"] = self.members
+        return result
 
 
 @dataclass
@@ -522,12 +542,21 @@ META_QUESTION_PATTERNS = [
     (r"who\s+(?:were\s+we|was\s+i)\s+discussing\s*(?:again)?", "person_recall"),
     (r"who\s+are\s+they\s*(?:again)?", "group_recall"),
     (r"who\s+is\s+(\w+)\s*(?:again)?", "person_recall"),
-    (r"remind\s+me\s+(?:who|what)\s+(\w+)", "reminder"),
     
     # Context recall
     (r"what'?s\s+the\s+context\s*(?:again)?", "context_recall"),
     (r"catch\s+me\s+up", "context_recall"),
     (r"where\s+are\s+we\s*\??", "context_recall"),
+    
+    # v0.7.7: Event-specific recall (MUST be before generic reminder)
+    (r"what\s+did\s+(\w+)\s+say", "event_recall_said"),
+    (r"what\s+did\s+(\w+)\s+do", "event_recall_did"),
+    (r"what\s+did\s+(\w+)\s+(?:suggest|recommend)", "event_recall_suggested"),
+    (r"what\s+did\s+(\w+)\s+(?:ask|question)", "event_recall_asked"),
+    (r"remind\s+me\s+what\s+(\w+)\s+said", "event_recall_said"),
+    
+    # Generic reminder (comes AFTER event recall patterns)
+    (r"remind\s+me\s+(?:who|what)\s+(\w+)", "reminder"),
 ]
 
 
@@ -576,6 +605,14 @@ class NovaWorkingMemory:
         # v0.7.3: Group entities (e.g., "Steven and Sarah")
         self.groups: Dict[str, List[str]] = {}  # group_entity_id → member_entity_ids
         
+        # v0.7.6: Snapshot/persistence tracking
+        self.snapshots_saved: List[str] = []  # List of snapshot labels saved this session
+        self.snapshots_loaded: List[int] = []  # Memory IDs loaded into this session
+        self.rehydrated_from: Optional[int] = None  # Memory ID if rehydrated
+        
+        # v0.7.7: Event tracking for recall
+        self.entity_events: Dict[str, List[Dict[str, Any]]] = {}  # entity_id → list of events
+        
         # Timestamps
         self.created_at: datetime = datetime.now()
         self.last_updated: datetime = datetime.now()
@@ -586,6 +623,7 @@ class NovaWorkingMemory:
         self._goal_counter = 0
         self._question_counter = 0
         self._group_counter = 0  # v0.7.3
+        self._snapshot_counter = 0  # v0.7.6
     
     # =========================================================================
     # ID GENERATION
@@ -1787,8 +1825,7 @@ class NovaWorkingMemory:
         Returns:
             Group entity ID, or None if no valid members found
         
-        TODO v0.7.4: Improve automatic group detection from patterns like
-        "Steven and Sarah", "the team", "my parents", etc.
+        v0.7.7: Added members field to entity for direct access.
         """
         # Find member entity IDs
         member_ids = []
@@ -1813,6 +1850,7 @@ class NovaWorkingMemory:
             gender_hint=GenderHint.NEUTRAL,
             first_mentioned=self.turn_count,
             last_mentioned=self.turn_count,
+            members=member_ids,  # v0.7.7: Store member IDs directly on entity
         )
         
         self.entities[group_id] = group_entity
@@ -2039,6 +2077,7 @@ class NovaWorkingMemory:
     def answer_meta_question(self, meta_info: Dict[str, Any]) -> Optional[str]:
         """
         v0.7.5: Generate an answer for a meta-question using WM state.
+        v0.7.7: Added event recall support.
         
         Args:
             meta_info: Result from check_meta_question()
@@ -2069,6 +2108,14 @@ class NovaWorkingMemory:
             entity_name = meta_info.get("entity_mentioned")
             if entity_name:
                 return self._answer_entity_recall(entity_name)
+        
+        # v0.7.7: Event recall types
+        elif question_type.startswith("event_recall_"):
+            entity_name = meta_info.get("entity_mentioned")
+            if entity_name:
+                # Extract event type from question_type (e.g., "event_recall_said" → "said")
+                event_type = question_type.replace("event_recall_", "")
+                return self.answer_event_recall(entity_name, event_type)
         
         return None
     
@@ -2250,6 +2297,340 @@ class NovaWorkingMemory:
         return "\n".join(lines)
     
     # =========================================================================
+    # v0.7.6 — PERSISTENCE LAYER (Option B)
+    # =========================================================================
+    
+    def create_snapshot_payload(self, label: Optional[str] = None, module: Optional[str] = None) -> Dict[str, Any]:
+        """
+        v0.7.6: Create a structured payload for episodic memory storage.
+        
+        Args:
+            label: Optional label for the snapshot
+            module: Optional module tag (cyber, business, etc.)
+        
+        Returns:
+            Dict suitable for MemoryManager.store()
+        """
+        # Topic
+        topic_name = label
+        if not topic_name and self.active_topic_id and self.active_topic_id in self.topics:
+            topic_name = self.topics[self.active_topic_id].name
+        if not topic_name:
+            topic_name = "conversation snapshot"
+        
+        # Participants (people entities)
+        participants = []
+        for entity in self.entities.values():
+            if entity.entity_type == EntityType.PERSON:
+                participants.append({
+                    "name": entity.name,
+                    "gender": entity.gender_hint.value if entity.gender_hint else "neutral",
+                })
+        
+        # Groups
+        groups = []
+        for gid, members in self.groups.items():
+            if gid in self.entities:
+                group_entity = self.entities[gid]
+                member_names = []
+                for mid in members:
+                    if mid in self.entities:
+                        member_names.append(self.entities[mid].name)
+                groups.append({
+                    "name": group_entity.name,
+                    "members": member_names,
+                })
+        
+        # Goals
+        goals = []
+        for goal in self.goals.values():
+            if goal.status.value == "active":
+                goals.append(goal.description)
+        
+        # Unresolved questions
+        unresolved = []
+        for q in self.questions.values():
+            if q.turn_answered is None:
+                unresolved.append(q.question[:100])
+        
+        # Thread summary (last few turns)
+        summary_parts = []
+        for turn in self.turn_history[-3:]:
+            if turn.user_summary:
+                summary_parts.append(f"User: {turn.user_summary[:50]}")
+            if turn.nova_summary:
+                summary_parts.append(f"Nova: {turn.nova_summary[:50]}")
+        summary = " | ".join(summary_parts) if summary_parts else ""
+        
+        # Build payload
+        payload = {
+            "topic": topic_name,
+            "participants": participants,
+            "groups": groups,
+            "goals": goals,
+            "unresolved": unresolved,
+            "summary": summary,
+            "turn_count": self.turn_count,
+            "emotional_tone": self.emotional_tone.value,
+            "timestamp": datetime.now().isoformat(),
+        }
+        
+        # Tags for querying
+        tags = ["wm", "snapshot"]
+        if label:
+            tags.append(f"label:{label.replace(' ', '-')[:30]}")
+        if module:
+            tags.append(f"module:{module}")
+        for p in participants[:3]:
+            tags.append(f"person:{p['name'].lower()}")
+        
+        return {
+            "type": "episodic",
+            "tags": tags,
+            "payload": payload,
+        }
+    
+    def rehydrate_from_snapshot(self, snapshot_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        v0.7.6: Rehydrate WM entities from a snapshot payload.
+        
+        This is a PARTIAL rehydration — only entities are loaded,
+        not full WM state. This prevents conflicts.
+        
+        Args:
+            snapshot_data: The payload from a stored snapshot
+        
+        Returns:
+            Dict with rehydration results
+        """
+        results = {
+            "entities_added": [],
+            "groups_added": [],
+            "conflicts": [],
+        }
+        
+        # Rehydrate participants as entities
+        for participant in snapshot_data.get("participants", []):
+            name = participant.get("name")
+            if not name:
+                continue
+            
+            # Check if entity already exists
+            existing = self._find_entity_by_name(name)
+            if existing:
+                results["conflicts"].append(f"{name} already exists")
+                continue
+            
+            # Create entity
+            gender = participant.get("gender", "neutral")
+            try:
+                gender_hint = GenderHint(gender)
+            except ValueError:
+                gender_hint = GenderHint.NEUTRAL
+            
+            entity = WMEntity(
+                id=self._gen_entity_id(),
+                name=name,
+                entity_type=EntityType.PERSON,
+                gender_hint=gender_hint,
+                first_mentioned=self.turn_count,
+                last_mentioned=self.turn_count,
+                description="(rehydrated from snapshot)",
+            )
+            self.entities[entity.id] = entity
+            results["entities_added"].append(name)
+            
+            # Add to pronoun groups
+            candidate = ReferentCandidate(
+                entity_id=entity.id,
+                entity_name=entity.name,
+                score=0.8,  # Lower score for rehydrated
+                last_mentioned=self.turn_count,
+                gender_match=True,
+            )
+            
+            if gender_hint == GenderHint.MASCULINE:
+                self.pronoun_groups["masculine"].add_candidate(candidate)
+            elif gender_hint == GenderHint.FEMININE:
+                self.pronoun_groups["feminine"].add_candidate(candidate)
+            self.pronoun_groups["neutral"].add_candidate(candidate)
+        
+        # Rehydrate groups
+        for group_data in snapshot_data.get("groups", []):
+            group_name = group_data.get("name")
+            member_names = group_data.get("members", [])
+            
+            if not group_name or not member_names:
+                continue
+            
+            # Check if group exists
+            existing = self._find_entity_by_name(group_name)
+            if existing:
+                results["conflicts"].append(f"Group {group_name} already exists")
+                continue
+            
+            # Create group
+            group_id = self.register_group(group_name, member_names)
+            if group_id:
+                results["groups_added"].append(group_name)
+        
+        return results
+    
+    # =========================================================================
+    # v0.7.7 — EVENT TRACKING FOR RECALL
+    # =========================================================================
+    
+    def record_entity_event(self, entity_id: str, event_type: str, content: str) -> None:
+        """
+        v0.7.7: Record an event associated with an entity.
+        
+        Used for "what did Sarah say?" type queries.
+        
+        Args:
+            entity_id: The entity involved
+            event_type: Type of event (said, did, asked, suggested)
+            content: The event content
+        """
+        if entity_id not in self.entity_events:
+            self.entity_events[entity_id] = []
+        
+        self.entity_events[entity_id].append({
+            "type": event_type,
+            "content": content[:200],
+            "turn": self.turn_count,
+            "timestamp": datetime.now().isoformat(),
+        })
+        
+        # Keep bounded
+        if len(self.entity_events[entity_id]) > 10:
+            self.entity_events[entity_id] = self.entity_events[entity_id][-10:]
+    
+    def get_entity_events(self, entity_name: str) -> List[Dict[str, Any]]:
+        """
+        v0.7.7: Get events for an entity by name.
+        
+        Args:
+            entity_name: Name of the entity
+        
+        Returns:
+            List of events, most recent first
+        """
+        entity = self._find_entity_by_name(entity_name)
+        if not entity:
+            return []
+        
+        events = self.entity_events.get(entity.id, [])
+        return list(reversed(events))
+    
+    def answer_event_recall(self, entity_name: str, event_type: Optional[str] = None) -> Optional[str]:
+        """
+        v0.7.7: Answer "what did X say/do?" questions.
+        
+        Args:
+            entity_name: Name of the entity
+            event_type: Optional filter (said, did, asked, suggested)
+        
+        Returns:
+            Answer string, or None if no events
+        """
+        events = self.get_entity_events(entity_name)
+        if not events:
+            return None
+        
+        # Filter by type if specified
+        if event_type:
+            events = [e for e in events if e.get("type") == event_type]
+        
+        if not events:
+            return None
+        
+        # Return most recent
+        event = events[0]
+        return f"{entity_name} {event['type']}: \"{event['content']}\""
+    
+    # =========================================================================
+    # v0.7.7 — ENHANCED GROUP SUPPORT
+    # =========================================================================
+    
+    def get_all_groups(self) -> List[Dict[str, Any]]:
+        """
+        v0.7.7: Get all group entities with member details.
+        
+        Returns:
+            List of group dicts
+        """
+        result = []
+        for gid, member_ids in self.groups.items():
+            if gid not in self.entities:
+                continue
+            
+            group = self.entities[gid]
+            member_names = []
+            for mid in member_ids:
+                if mid in self.entities:
+                    member_names.append(self.entities[mid].name)
+            
+            result.append({
+                "id": gid,
+                "name": group.name,
+                "members": member_names,
+                "last_mentioned": group.last_mentioned,
+            })
+        
+        return result
+    
+    def get_group_context_string(self) -> str:
+        """
+        v0.7.7: Get context string for groups (for behavior layer).
+        
+        Returns:
+            Formatted string listing groups
+        """
+        groups = self.get_all_groups()
+        if not groups:
+            return ""
+        
+        parts = ["GROUPS:"]
+        for g in groups:
+            parts.append(f"  • {g['name']} = {', '.join(g['members'])}")
+        
+        return "\n".join(parts)
+    
+    # =========================================================================
+    # v0.7.7 — TOPIC MERGE
+    # =========================================================================
+    
+    def merge_topic(self, topic_name: str) -> str:
+        """
+        v0.7.7: Merge into existing topic with same name, or create new.
+        
+        Unlike push_topic which always pushes to stack, this finds
+        an existing topic by name and activates it.
+        
+        Args:
+            topic_name: Topic name to merge into
+        
+        Returns:
+            Topic ID (existing or new)
+        """
+        topic_lower = topic_name.lower()
+        
+        # Find existing topic with same name
+        for tid, topic in self.topics.items():
+            if topic.name.lower() == topic_lower:
+                # Activate existing
+                if self.active_topic_id and self.active_topic_id != tid:
+                    self.topics[self.active_topic_id].status = TopicStatus.PAUSED
+                
+                topic.status = TopicStatus.ACTIVE
+                topic.last_mentioned = self.turn_count
+                self.active_topic_id = tid
+                return tid
+        
+        # No existing topic, create new
+        return self.push_topic(topic_name)
+    
+    # =========================================================================
     # SERIALIZATION
     # =========================================================================
     
@@ -2269,6 +2650,12 @@ class NovaWorkingMemory:
             "groups": self.groups,            # v0.7.3
             "emotional_tone": self.emotional_tone.value,
             "turn_history_count": len(self.turn_history),
+            # v0.7.6
+            "snapshots_saved": self.snapshots_saved,
+            "snapshots_loaded": self.snapshots_loaded,
+            "rehydrated_from": self.rehydrated_from,
+            # v0.7.7
+            "entity_events_count": {k: len(v) for k, v in self.entity_events.items()},
         }
 
 
@@ -2514,5 +2901,198 @@ def wm_get_group_info(session_id: str, group_id: str) -> Optional[Dict[str, Any]
     }
 
 
-# TODO v0.7.4: On new sessions, optionally reload recent wm-snapshot memories
-# and inject into WM/Behavior when entering relevant modules (cyber/business/etc.).
+# =============================================================================
+# v0.7.6 PUBLIC API — PERSISTENCE LAYER
+# =============================================================================
+
+def wm_create_snapshot(
+    session_id: str, 
+    label: Optional[str] = None, 
+    module: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    v0.7.6: Create a snapshot payload for episodic memory storage.
+    
+    Args:
+        session_id: Session identifier
+        label: Optional label for the snapshot
+        module: Optional module tag
+    
+    Returns:
+        Dict with type, tags, and payload for MemoryManager.store()
+    """
+    wm = _wm_manager.get(session_id)
+    snapshot = wm.create_snapshot_payload(label, module)
+    
+    # Track that we saved a snapshot
+    snapshot_label = label or snapshot["payload"].get("topic", "unnamed")
+    wm.snapshots_saved.append(snapshot_label)
+    
+    return snapshot
+
+
+def wm_rehydrate_from_snapshot(session_id: str, snapshot_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    v0.7.6: Rehydrate WM entities from a snapshot payload.
+    
+    Args:
+        session_id: Session identifier
+        snapshot_data: The payload from a stored snapshot
+    
+    Returns:
+        Dict with rehydration results
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.rehydrate_from_snapshot(snapshot_data)
+
+
+def wm_get_snapshots_info(session_id: str) -> Dict[str, Any]:
+    """
+    v0.7.6: Get info about snapshots for this session.
+    
+    Returns:
+        Dict with saved/loaded snapshot info
+    """
+    wm = _wm_manager.get(session_id)
+    return {
+        "saved": wm.snapshots_saved,
+        "loaded": wm.snapshots_loaded,
+        "rehydrated_from": wm.rehydrated_from,
+    }
+
+
+# =============================================================================
+# v0.7.7 PUBLIC API — ENHANCED GROUPS & EVENT RECALL
+# =============================================================================
+
+def wm_get_all_groups(session_id: str) -> List[Dict[str, Any]]:
+    """
+    v0.7.7: Get all group entities with member details.
+    
+    Returns:
+        List of group dicts
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.get_all_groups()
+
+
+def wm_get_group_context(session_id: str) -> str:
+    """
+    v0.7.7: Get context string for groups.
+    
+    Returns:
+        Formatted string for behavior layer
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.get_group_context_string()
+
+
+def wm_record_entity_event(session_id: str, entity_name: str, event_type: str, content: str) -> bool:
+    """
+    v0.7.7: Record an event for an entity.
+    
+    Args:
+        session_id: Session identifier
+        entity_name: Name of the entity
+        event_type: Type of event (said, did, asked, suggested)
+        content: The event content
+    
+    Returns:
+        True if recorded, False if entity not found
+    """
+    wm = _wm_manager.get(session_id)
+    entity = wm._find_entity_by_name(entity_name)
+    if not entity:
+        return False
+    
+    wm.record_entity_event(entity.id, event_type, content)
+    return True
+
+
+def wm_answer_event_recall(session_id: str, entity_name: str, event_type: Optional[str] = None) -> Optional[str]:
+    """
+    v0.7.7: Answer "what did X say/do?" questions.
+    
+    Args:
+        session_id: Session identifier
+        entity_name: Name of the entity
+        event_type: Optional filter (said, did, asked, suggested)
+    
+    Returns:
+        Answer string, or None
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.answer_event_recall(entity_name, event_type)
+
+
+def wm_merge_topic(session_id: str, topic_name: str) -> str:
+    """
+    v0.7.7: Merge into existing topic or create new.
+    
+    Args:
+        session_id: Session identifier
+        topic_name: Topic name
+    
+    Returns:
+        Topic ID
+    """
+    wm = _wm_manager.get(session_id)
+    return wm.merge_topic(topic_name)
+
+
+# Bridge function for loading relevant snapshots from memory
+def wm_bridge_load_relevant(
+    session_id: str,
+    memory_manager,
+    module: Optional[str] = None,
+    max_snapshots: int = 3,
+) -> List[Dict[str, Any]]:
+    """
+    v0.7.6: Load relevant WM snapshots from episodic memory.
+    
+    Args:
+        session_id: Session identifier
+        memory_manager: MemoryManager instance
+        module: Optional module filter
+        max_snapshots: Maximum snapshots to load
+    
+    Returns:
+        List of rehydration results
+    """
+    if memory_manager is None:
+        return []
+    
+    wm = _wm_manager.get(session_id)
+    results = []
+    
+    try:
+        # Query for WM snapshots
+        tags = ["wm", "snapshot"]
+        if module:
+            tags.append(f"module:{module}")
+        
+        memories = memory_manager.recall(type="episodic", tags=tags)
+        
+        for memory in memories[:max_snapshots]:
+            payload = memory.get("payload", {})
+            if isinstance(payload, str):
+                # Try to parse if JSON string
+                try:
+                    payload = json.loads(payload)
+                except:
+                    continue
+            
+            # Rehydrate
+            result = wm.rehydrate_from_snapshot(payload)
+            result["memory_id"] = memory.get("id")
+            result["topic"] = payload.get("topic", "unknown")
+            results.append(result)
+            
+            # Track that we loaded this
+            wm.snapshots_loaded.append(memory.get("id"))
+    
+    except Exception as e:
+        results.append({"error": str(e)})
+    
+    return results
+

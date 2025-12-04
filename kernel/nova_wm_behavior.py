@@ -1,9 +1,19 @@
 # kernel/nova_wm_behavior.py
 """
-NovaOS v0.7.5 — Working Memory Behavior Layer
+NovaOS v0.7.7 — Working Memory Behavior Layer
 
 This layer sits above the entity/topic/pronoun memory from v0.7.0–v0.7.1
 and provides human-like conversational continuity.
+
+v0.7.7 CHANGES:
+- Event-specific recall ("what did Sarah say?", "remind me what Steven suggested")
+- Thread summary across topic + WM
+- Group-aware participant listing in context
+- Enhanced meta-question patterns
+
+v0.7.6 CHANGES:
+- Snapshot-aware context strings
+- Bridge integration with WM persistence
 
 v0.7.5 CHANGES:
 - Enhanced topic switching with tangent/return detection from WM
@@ -23,6 +33,7 @@ Key Capabilities:
 - User state inference (confusion, urgency, decisiveness)
 - Conversation thread memory with summaries
 - Meta-question routing and handling
+- Event-specific recall (v0.7.7)
 
 Integration:
     from nova_wm_behavior import (
@@ -311,6 +322,13 @@ BEHAVIOR_META_PATTERNS = [
     (r"remind\s+me\s+(?:who|what)", "reminder"),
     (r"what'?s\s+the\s+context", "context_recall"),
     (r"catch\s+me\s+up", "context_recall"),
+    # v0.7.7: Event-specific recall patterns
+    (r"what\s+did\s+(\w+)\s+say", "event_recall_said"),
+    (r"what\s+did\s+(\w+)\s+do", "event_recall_did"),
+    (r"what\s+did\s+(\w+)\s+(?:suggest|recommend)", "event_recall_suggested"),
+    (r"what\s+did\s+(\w+)\s+(?:ask|question)", "event_recall_asked"),
+    (r"remind\s+me\s+what\s+(\w+)\s+said", "event_recall_said"),
+    (r"summarize\s+(?:our\s+)?(?:whole\s+)?(?:thread|conversation)\s+about\s+(\w+)", "thread_summary"),
 ]
 
 # Goal inference patterns
@@ -1200,6 +1218,53 @@ class WMBehaviorEngine:
                 entity_name = match.group(1)
                 return self.summarize_entity(entity_name, wm_context)
         
+        # v0.7.7: Event-specific recall
+        elif question_type.startswith("event_recall_"):
+            # Route to WM for event handling
+            # Return None to let kernel route to wm_answer_event_recall
+            return None
+        
+        elif question_type == "thread_summary":
+            # Summarize thread about a specific entity
+            match = re.search(r"about\s+(\w+)", message.lower())
+            if match:
+                entity_name = match.group(1)
+                return self._build_entity_thread_summary(entity_name, wm_context)
+        
+        return None
+    
+    def _build_entity_thread_summary(self, entity_name: str, wm_context: Dict[str, Any]) -> str:
+        """
+        v0.7.7: Build a summary of the thread as it relates to a specific entity.
+        """
+        parts = [f"Summary of our discussion about {entity_name}:"]
+        
+        # Topic involvement
+        if self.thread_summary.topic and entity_name.lower() in self.thread_summary.topic.lower():
+            parts.append(f"Topic: {self.thread_summary.topic}")
+        
+        # Check if entity in participants
+        in_participants = any(
+            entity_name.lower() in p.lower() 
+            for p in self.thread_summary.participants
+        )
+        if in_participants:
+            parts.append(f"{entity_name} is one of the participants we've discussed.")
+        
+        # Get entity summary
+        entity_summary = self.summarize_entity(entity_name, wm_context)
+        if entity_summary:
+            parts.append(entity_summary)
+        
+        # Check related goals
+        if self.thread_summary.goal and entity_name.lower() in self.thread_summary.goal.lower():
+            parts.append(f"Related goal: {self.thread_summary.goal}")
+        
+        if len(parts) == 1:
+            return f"I don't have much information about {entity_name} in our current thread."
+        
+        return "\n".join(parts)
+        
         return None
     
     def _build_context_summary(self, wm_context: Dict[str, Any]) -> str:
@@ -1214,6 +1279,18 @@ class WMBehaviorEngine:
         if self.thread_summary.participants:
             parts.append(f"People: {', '.join(self.thread_summary.participants[:4])}")
         
+        # v0.7.7: Groups from WM context
+        groups = wm_context.get("groups", [])
+        if groups:
+            group_strs = []
+            for g in groups[:3]:
+                if isinstance(g, dict):
+                    group_strs.append(f"{g.get('name', 'group')}")
+                else:
+                    group_strs.append(str(g))
+            if group_strs:
+                parts.append(f"Groups: {', '.join(group_strs)}")
+        
         # Goal
         if self.thread_summary.goal:
             parts.append(f"Your goal: {self.thread_summary.goal}")
@@ -1226,6 +1303,11 @@ class WMBehaviorEngine:
         unanswered = [q for q in self.open_questions if not q.answered]
         if unanswered:
             parts.append(f"Open question: {unanswered[0].text}")
+        
+        # v0.7.6: Snapshot info
+        snapshots_info = wm_context.get("snapshots_info", {})
+        if snapshots_info.get("saved"):
+            parts.append(f"Snapshots saved: {len(snapshots_info['saved'])}")
         
         if not parts:
             return "We're just getting started — no context established yet."
