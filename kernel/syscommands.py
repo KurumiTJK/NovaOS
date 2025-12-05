@@ -24,6 +24,15 @@ except ImportError:
     def get_behavior_engine(session_id: str):
         return None
 
+# v0.7.16: Enhanced Custom Commands
+try:
+    from .custom_command_handlers import get_v2_handlers
+    _HAS_CUSTOM_COMMAND_V2 = True
+except ImportError:
+    _HAS_CUSTOM_COMMAND_V2 = False
+    def get_v2_handlers():
+        return {}  # No-op if v2 handlers not installed
+
 KernelResponse = CommandResponse
 
 
@@ -61,6 +70,9 @@ def _llm_with_policy(
             think=think_mode,
             explicit_model=explicit_model,
         )
+    
+    # v0.6.5: DEBUG LOGGING - print directly to see what's happening
+    print(f"[_llm_with_policy] command={command} model={model}")
 
     # ---- Pre-LLM on the user text only ----
     safe_user = user
@@ -5414,3 +5426,8 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
 
 
 }
+
+# v0.7.16: Replace custom command handlers with enhanced versions
+# This adds support for: intensive, output_style, examples, strict, persona_mode
+if _HAS_CUSTOM_COMMAND_V2:
+    SYS_HANDLERS.update(get_v2_handlers())

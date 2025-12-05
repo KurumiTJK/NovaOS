@@ -32,14 +32,6 @@ from .wizard_mode import (
     cancel_wizard,
     build_command_args_from_wizard,
 )
-# v0.7.11: Workflow selection state
-from .workflow_selection import (
-    set_workflow_selection,
-    get_workflow_selection,
-    clear_workflow_selection,
-    has_pending_selection,
-    resolve_selection,
-)
 # v0.7: Working Memory Engine (NovaWM)
 from .nova_wm import (
     get_wm,
@@ -50,41 +42,23 @@ from .nova_wm import (
     wm_answer_reference,
     wm_clear,
 )
-# v0.7.2: Behavior Layer
-from .nova_wm_behavior import (
-    behavior_update,
-    behavior_after_response,
-    behavior_get_context,
-    behavior_get_context_string,
-    behavior_answer_reference,
-    behavior_clear,
-    # v0.7.3: Meta-question helpers
-    behavior_summarize_thread,
-    behavior_summarize_entity,
-    behavior_get_mode,
-    # v0.7.5: Enhanced meta-question handling
-    behavior_check_meta_question,
-    behavior_handle_meta_question,
-)
-# v0.7.5: WM meta-question handlers
-from .nova_wm import (
-    wm_check_meta_question,
-    wm_answer_meta_question,
-)
-# v0.7.3: Config toggles
+# v0.7.17: Command-add wizard
 try:
-    from system.wm_behavior_config import (
-        is_wm_enabled,
-        is_behavior_enabled,
-        get_behavior_mode,
+    from .command_add_wizard import (
+        is_command_add_wizard_active,
+        process_wizard_stage as process_command_add_wizard,
+        clear_command_add_wizard,
     )
-    _HAS_WM_CONFIG = True
+    _HAS_COMMAND_ADD_WIZARD = True
 except ImportError:
-    _HAS_WM_CONFIG = False
-    # Fallback: always enabled
-    def is_wm_enabled(session_id): return True
-    def is_behavior_enabled(session_id): return True
-    def get_behavior_mode(session_id): return "normal"
+    _HAS_COMMAND_ADD_WIZARD = False
+    def is_command_add_wizard_active(session_id):
+        return False
+    def process_command_add_wizard(session_id, user_input, kernel):
+        return None
+    def clear_command_add_wizard(session_id):
+        pass
+
 # InterpretationEngine is kept for explicit #interpret, #derive, etc. commands
 # but is NO LONGER used for automatic NL → command routing
 from kernel.interpretation_engine import InterpretationEngine
@@ -257,57 +231,6 @@ class NovaKernel:
             }
 
         # -------------------------------------------------------------
-        # 1.5) v0.7.11: Workflow Selection Check
-        # -------------------------------------------------------------
-        if has_pending_selection(session_id) and not stripped.startswith("#"):
-            selection_result = resolve_selection(session_id, stripped)
-            
-            if selection_result is None:
-                # Invalid input - show error and re-prompt
-                state = get_workflow_selection(session_id)
-                workflows = state.get("workflows", []) if state else []
-                return {
-                    "ok": False,
-                    "command": "workflow_selection",
-                    "summary": f"Invalid selection. Please enter a number from 1 to {len(workflows)}, or 'cancel' to exit.",
-                    "content": {
-                        "command": "workflow_selection",
-                        "summary": f"Invalid selection. Please enter a number from 1 to {len(workflows)}, or 'cancel' to exit.",
-                    },
-                    "extra": {"validation_error": True, "awaiting_selection": True},
-                }
-            
-            if selection_result.get("cancelled"):
-                return {
-                    "ok": True,
-                    "command": "workflow_selection",
-                    "summary": "Selection cancelled.",
-                    "content": {"command": "workflow_selection", "summary": "Selection cancelled."},
-                    "extra": {"cancelled": True},
-                }
-            
-            # Valid selection - execute the command with the selected workflow ID
-            cmd_name = selection_result["command"]
-            workflow_id = selection_result["workflow_id"]
-            
-            request = CommandRequest(
-                cmd_name=cmd_name,
-                args={"id": workflow_id, "_from_selection": True},
-                session_id=session_id,
-                raw_text=text,
-                meta=self.commands.get(cmd_name),
-            )
-            response = self.router.route(request, kernel=self)
-            
-            # Handle response (could be dict or CommandResponse)
-            if isinstance(response, dict):
-                self.logger.log_response(session_id, cmd_name, response)
-                return response
-            else:
-                self.logger.log_response(session_id, cmd_name, response.to_dict())
-                return response.to_dict()
-
-        # -------------------------------------------------------------
         # 2) Active Section Menu Check
         # -------------------------------------------------------------
         active_section = get_active_section(session_id)
@@ -347,6 +270,22 @@ class NovaKernel:
             clear_active_section(session_id)
 
         # -------------------------------------------------------------
+        # 2.5) v0.7.17: Command-Add Wizard Check
+        # -------------------------------------------------------------
+        # If command-add wizard is active, route input through it
+        if _HAS_COMMAND_ADD_WIZARD and is_command_add_wizard_active(session_id):
+            # If user types a # command, they might be trying to cancel
+            if stripped.startswith("#") and stripped.lower() != "#command-add":
+                # Clear the wizard and process the new command
+                clear_command_add_wizard(session_id)
+            else:
+                # Continue wizard flow
+                response = process_command_add_wizard(session_id, stripped, self)
+                if response:
+                    self.logger.log_response(session_id, "command-add", response.to_dict())
+                    return response.to_dict()
+
+        # -------------------------------------------------------------
         # 3) Explicit Syscommand (# prefix)
         # -------------------------------------------------------------
         if stripped.startswith("#"):
@@ -355,15 +294,21 @@ class NovaKernel:
             cmd_name = cmd_token[1:]  # Remove #
             args_str = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             
-            if cmd_name in self.commands:
+            # v0.7.16: Check both core commands AND custom commands
+            # Refresh custom commands from registry (in case new ones were added)
+            custom_cmd = self.custom_registry.get(cmd_name)
+            is_core_cmd = cmd_name in self.commands
+            is_custom_cmd = custom_cmd is not None and custom_cmd.get("enabled", True)
+            
+            if is_core_cmd or is_custom_cmd:
                 args_dict = self._parse_args(args_str)
                 
-                # v0.7.10: Commands with custom selection wizards handle their own no-arg case
-                # These commands need to fetch data (workflow list) before showing wizard
-                CUSTOM_WIZARD_COMMANDS = {"flow", "advance", "halt"}
+                # For custom commands, add full_input for template rendering
+                if is_custom_cmd and not is_core_cmd:
+                    args_dict["full_input"] = args_str
                 
-                # 4) Wizard mode for no-arg commands (except custom wizard commands)
-                if not args_dict and is_wizard_command(cmd_name) and cmd_name not in CUSTOM_WIZARD_COMMANDS:
+                # 4) Wizard mode for no-arg commands (core commands only)
+                if is_core_cmd and not args_dict and is_wizard_command(cmd_name):
                     # v0.7: Clear Working Memory when wizard starts
                     wm_clear(session_id)
                     result = start_wizard(session_id, cmd_name)
@@ -375,35 +320,22 @@ class NovaKernel:
                         "extra": result.get("extra", {}),
                     }
                 
+                # Get metadata - custom commands have their own meta
+                if is_custom_cmd and not is_core_cmd:
+                    cmd_meta = custom_cmd
+                else:
+                    cmd_meta = self.commands.get(cmd_name)
+                
                 request = CommandRequest(
                     cmd_name=cmd_name,
                     args=args_dict,
                     session_id=session_id,
                     raw_text=text,
-                    meta=self.commands.get(cmd_name),
+                    meta=cmd_meta,
                 )
                 response = self.router.route(request, kernel=self)
-                # v0.7.10: Handle both dict responses (from wizards) and CommandResponse objects
-                if isinstance(response, dict):
-                    # Wrap dict in UI-expected format if needed
-                    if "content" not in response:
-                        wrapped = {
-                            "ok": response.get("ok", True),
-                            "command": response.get("command", cmd_name),
-                            "summary": response.get("summary", ""),
-                            "content": {
-                                "command": response.get("command", cmd_name),
-                                "summary": response.get("summary", ""),
-                            },
-                            "extra": response.get("extra", {}),
-                        }
-                        self.logger.log_response(session_id, cmd_name, wrapped)
-                        return wrapped
-                    self.logger.log_response(session_id, cmd_name, response)
-                    return response
-                else:
-                    self.logger.log_response(session_id, cmd_name, response.to_dict())
-                    return response.to_dict()
+                self.logger.log_response(session_id, cmd_name, response.to_dict())
+                return response.to_dict()
             else:
                 # Unknown command
                 return self._error("UNKNOWN_COMMAND", f"Unknown command: #{cmd_name}").to_dict()
@@ -476,94 +408,24 @@ class NovaKernel:
             }
         
         # -------------------------------------------------------------
-        # 7) Persona Fallback (normal chat) with NovaWM v0.7.3
+        # 7) Persona Fallback (normal chat) with NovaWM v0.7
         # -------------------------------------------------------------
         self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
 
-        # v0.7.3: Check if WM/Behavior are enabled via config
-        wm_enabled = is_wm_enabled(session_id)
-        behavior_enabled = is_behavior_enabled(session_id)
-        
-        direct_answer = None
-        wm_result = {}
-        wm_context = {}
-        behavior_result = {}
-        wm_context_string = ""
-        behavior_context_string = ""
-        
-        # v0.7.5: Enhanced meta-question routing (before WM update)
-        # First, check if this is a meta-question using the new pattern system
-        stripped_lower = stripped.lower()
-        meta_info = None
-        
-        if wm_enabled or behavior_enabled:
-            # Check WM first for meta-questions
-            if wm_enabled:
-                meta_info = wm_check_meta_question(session_id, stripped)
-            
-            # Check behavior layer if WM didn't find anything
-            if not meta_info and behavior_enabled:
-                meta_info = behavior_check_meta_question(session_id, stripped)
-            
-            if meta_info:
-                question_type = meta_info.get("type")
-                
-                # Route to appropriate handler based on question type
-                if question_type == "group_recall" and wm_enabled:
-                    # "Who are they again?" - WM handles group resolution
-                    direct_answer = wm_answer_meta_question(session_id, meta_info)
-                
-                elif question_type in ("topic_recall", "context_recall") and behavior_enabled:
-                    # "What were we talking about?" - Behavior handles thread summary
-                    wm_ctx = wm_get_context(session_id) if wm_enabled else {}
-                    direct_answer = behavior_handle_meta_question(session_id, stripped, wm_ctx, meta_info)
-                
-                elif question_type == "entity_recall" and behavior_enabled:
-                    # "What do you remember about X?" - Behavior handles entity summary
-                    wm_ctx = wm_get_context(session_id) if wm_enabled else {}
-                    direct_answer = behavior_handle_meta_question(session_id, stripped, wm_ctx, meta_info)
-                
-                elif question_type in ("person_recall", "reminder"):
-                    # Try behavior first, fall back to WM
-                    if behavior_enabled:
-                        wm_ctx = wm_get_context(session_id) if wm_enabled else {}
-                        direct_answer = behavior_handle_meta_question(session_id, stripped, wm_ctx, meta_info)
-                    if not direct_answer and wm_enabled:
-                        direct_answer = wm_answer_meta_question(session_id, meta_info)
-        
         # v0.7: Check if Working Memory can answer directly (reference questions)
-        if not direct_answer and wm_enabled:
-            direct_answer = wm_answer_reference(session_id, stripped)
+        direct_answer = wm_answer_reference(session_id, stripped)
         
-        # v0.7.2: Also check Behavior Layer for reference questions
-        if not direct_answer and behavior_enabled:
-            direct_answer = behavior_answer_reference(session_id, stripped)
+        # v0.7: Update Working Memory with user message
+        wm_result = wm_update(session_id, stripped)
         
-        # v0.7: Update Working Memory with user message (if enabled)
-        if wm_enabled:
-            wm_result = wm_update(session_id, stripped)
-            wm_context = wm_get_context(session_id)
-            wm_context_string = wm_get_context_string(session_id)
-        
-        # v0.7.2: Update Behavior Layer (AFTER wm_update, if enabled)
-        if behavior_enabled:
-            behavior_result = behavior_update(session_id, stripped, wm_context)
-            behavior_context_string = behavior_get_context_string(session_id)
-        
-        # Combine context strings
-        combined_context = wm_context_string
-        if behavior_context_string:
-            combined_context = combined_context + "\n\n" + behavior_context_string
+        # v0.7: Get formatted context string for persona system prompt
+        wm_context_string = wm_get_context_string(session_id)
         
         policy_meta = {
             "session_id": session_id,
             "source": "persona_fallback",
             "env": getattr(self, "env_state", None),
             "wm_turn": wm_result.get("turn", 0),
-            "behavior": behavior_result,  # v0.7.2
-            "wm_enabled": wm_enabled,      # v0.7.3
-            "behavior_enabled": behavior_enabled,  # v0.7.3
-            "meta_question": meta_info,    # v0.7.5
         }
 
         # Pre-LLM sanitization
@@ -574,21 +436,17 @@ class NovaKernel:
             except Exception as e:
                 self.logger.log_error(session_id, f"policy.pre_llm error (persona): {e}")
 
-        # Persona LLM call with NovaWM + Behavior context
+        # Persona LLM call with NovaWM context
         reply = self.persona.generate_response(
             safe_input,
             session_id=session_id,
-            wm_context_string=combined_context,  # v0.7.2: Combined context
+            wm_context_string=wm_context_string,
             direct_answer=direct_answer,
         )
 
-        # v0.7: Record Nova's response in Working Memory (if enabled)
+        # v0.7: Record Nova's response in Working Memory
         if reply:
-            if wm_enabled:
-                wm_record_response(session_id, reply)
-            # v0.7.2: Process response in Behavior Layer (extract questions)
-            if behavior_enabled:
-                behavior_after_response(session_id, reply)
+            wm_record_response(session_id, reply)
 
         # Post-LLM correction/stabilization
         if self.policy_engine is not None:
@@ -616,12 +474,6 @@ class NovaKernel:
                     "entities": wm_result.get("entities_extracted", []),
                     "pronouns_resolved": wm_result.get("pronouns_resolved", {}),
                     "emotional_tone": wm_result.get("emotional_tone"),
-                },
-                "behavior": {  # v0.7.2
-                    "implicit_reply": behavior_result.get("implicit_reply"),
-                    "goal_detected": behavior_result.get("goal_detected"),
-                    "topic_switch": behavior_result.get("topic_switch"),
-                    "user_state": behavior_result.get("user_state_signals"),
                 },
             },
         }

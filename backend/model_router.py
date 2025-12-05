@@ -1,22 +1,29 @@
 # backend/model_router.py
 """
-v0.5.3 — Model Routing Engine
+v0.6.6 — Model Routing Engine
 
-Selects the appropriate LLM model tier based on task complexity,
-command type, input length, and explicit user flags.
+Model Tiers (TWO tiers only):
+- MINI:     gpt-4.1-mini  — default for non-intensive syscommands
+- THINKING: gpt-5.1       — deep reasoning, LLM-intensive commands, persona
 
-Model Tiers:
-- MINI:     gpt-4.1-mini  — default, small tasks, fast responses
-- STANDARD: gpt-4.1       — long context, medium-depth reasoning
-- THINKING: gpt-5.1       — deep reasoning, multi-year planning, explicit "think" tasks
-
-Backward-compatible: all existing code continues to work unchanged.
+Logging:
+    Every route() call prints to terminal:
+    [ModelRouter] command=<cmd> model=<model_id> reason=<reason>
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Set
+
+
+# -----------------------------------------------------------------------------
+# Model Constants
+# -----------------------------------------------------------------------------
+
+MODEL_MINI = "gpt-4.1-mini"
+MODEL_THINKING = "gpt-5.1"
+PERSONA_MODEL = MODEL_THINKING  # Persona always uses thinking tier
 
 
 # -----------------------------------------------------------------------------
@@ -28,31 +35,40 @@ class ModelTier:
     """Defines a model tier with its identifier and characteristics."""
     name: str
     model_id: str
-    max_input_chars: int  # soft limit for routing decisions
+    max_input_chars: int
     description: str
 
 
-# Default model tiers (can be overridden via config)
 TIER_MINI = ModelTier(
     name="mini",
-    model_id="gpt-4.1-mini",
-    max_input_chars=4000,
-    description="Fast, small tasks, default tier",
-)
-
-TIER_STANDARD = ModelTier(
-    name="standard",
-    model_id="gpt-4.1",
-    max_input_chars=32000,
-    description="Medium-depth reasoning, longer context",
+    model_id=MODEL_MINI,
+    max_input_chars=8000,
+    description="Fast syscommand processing, default tier",
 )
 
 TIER_THINKING = ModelTier(
     name="thinking",
-    model_id="gpt-5.1",
+    model_id=MODEL_THINKING,
     max_input_chars=128000,
-    description="Deep reasoning, complex planning, explicit think mode",
+    description="Deep reasoning, LLM-intensive commands",
 )
+
+
+# -----------------------------------------------------------------------------
+# LLM-Intensive Commands (use thinking tier)
+# -----------------------------------------------------------------------------
+
+LLM_INTENSIVE_COMMANDS: Set[str] = {
+    "interpret",
+    "derive",
+    "synthesize",
+    "frame",
+    "forecast",
+    "compose",
+    "prompt_command",
+    "prompt-command",
+    "command-wizard",
+}
 
 
 # -----------------------------------------------------------------------------
@@ -61,17 +77,12 @@ TIER_THINKING = ModelTier(
 
 @dataclass
 class RoutingContext:
-    """
-    Context passed to ModelRouter.route() for model selection.
-    
-    All fields are optional — the router uses sensible defaults.
-    """
-    command: Optional[str] = None          # syscommand name (e.g., "interpret", "derive")
-    input_length: int = 0                  # character count of user input
-    explicit_model: Optional[str] = None   # user-specified model override
-    mode: str = "normal"                   # from kernel.env_state["mode"]
-    think_mode: bool = False               # explicit deep reasoning request
-    meta: Dict[str, Any] = field(default_factory=dict)  # additional context
+    """Context passed to ModelRouter.route() for model selection."""
+    command: Optional[str] = None
+    input_length: int = 0
+    explicit_model: Optional[str] = None
+    think_mode: bool = False
+    meta: Dict[str, Any] = field(default_factory=dict)
 
 
 # -----------------------------------------------------------------------------
@@ -80,66 +91,27 @@ class RoutingContext:
 
 class ModelRouter:
     """
-    v0.5.3 Model Routing Engine
+    v0.6.6 Model Routing Engine
     
-    Determines which model tier to use based on:
-    1. Explicit user override (highest priority)
-    2. Think mode flag
-    3. Command type (some commands always use higher tiers)
-    4. Input length
-    5. Environment mode
-    6. Default fallback (mini)
-    
-    Usage:
-        router = ModelRouter()
-        model = router.route(RoutingContext(command="derive", input_length=500))
-        # Returns "gpt-4.1" for derive command
+    Logs EVERY routing decision to terminal via print().
     """
-
-    # Commands that should use STANDARD tier by default
-    STANDARD_COMMANDS: Set[str] = {
-        "derive",       # first-principles breakdown
-        "synthesize",   # integrate multiple ideas
-        "frame",        # reframing requires nuance
-        "compose",      # workflow generation
-        "align",        # alignment suggestions
-    }
-
-    # Commands that should use THINKING tier by default
-    THINKING_COMMANDS: Set[str] = {
-        "forecast",     # future predictions need depth
-    }
-
-    # Modes that upgrade the default tier
-    ELEVATED_MODES: Dict[str, str] = {
-        "deep_work": "standard",
-        "reflection": "standard",
-        "debug": "mini",  # debug stays fast
-    }
 
     def __init__(
         self,
         mini: Optional[ModelTier] = None,
-        standard: Optional[ModelTier] = None,
         thinking: Optional[ModelTier] = None,
+        llm_intensive_commands: Optional[Set[str]] = None,
     ):
-        """
-        Initialize with optional custom model tiers.
-        Defaults to the global TIER_* constants.
-        """
         self.mini = mini or TIER_MINI
-        self.standard = standard or TIER_STANDARD
         self.thinking = thinking or TIER_THINKING
+        self.llm_intensive_commands = llm_intensive_commands or LLM_INTENSIVE_COMMANDS
 
-        # Build lookup by name and model_id for validation
         self._tiers = {
             "mini": self.mini,
-            "standard": self.standard,
             "thinking": self.thinking,
         }
         self._model_ids = {
             self.mini.model_id: self.mini,
-            self.standard.model_id: self.standard,
             self.thinking.model_id: self.thinking,
         }
 
@@ -147,82 +119,84 @@ class ModelRouter:
         """
         Determine the appropriate model ID based on context.
         
-        Returns:
-            Model ID string (e.g., "gpt-4.1-mini")
+        Priority:
+        1. explicit_model override
+        2. think_mode flag → thinking
+        3. LLM_INTENSIVE_COMMANDS → thinking
+        4. Input length > threshold → thinking
+        5. Default → mini
+        
+        ALWAYS prints logging to terminal.
         """
         if ctx is None:
             ctx = RoutingContext()
 
-        # 1. Explicit model override (highest priority)
+        model_id: str
+        reason: str
+
+        # 1. Explicit model override
         if ctx.explicit_model:
-            # Validate it's a known model or tier name
             if ctx.explicit_model in self._model_ids:
-                return ctx.explicit_model
-            if ctx.explicit_model in self._tiers:
-                return self._tiers[ctx.explicit_model].model_id
-            # Unknown model — pass through (user's responsibility)
-            return ctx.explicit_model
+                model_id = ctx.explicit_model
+                reason = "explicit_model"
+            elif ctx.explicit_model in self._tiers:
+                model_id = self._tiers[ctx.explicit_model].model_id
+                reason = "explicit_tier"
+            else:
+                model_id = ctx.explicit_model
+                reason = "explicit_unknown"
 
-        # 2. Think mode flag → always use thinking tier
-        if ctx.think_mode:
-            return self.thinking.model_id
+        # 2. Think mode flag
+        elif ctx.think_mode:
+            model_id = self.thinking.model_id
+            reason = "think_mode"
 
-        # 3. Command-based routing
-        if ctx.command:
-            cmd = ctx.command.lower()
-            if cmd in self.THINKING_COMMANDS:
-                return self.thinking.model_id
-            if cmd in self.STANDARD_COMMANDS:
-                return self.standard.model_id
+        # 3. LLM-intensive commands
+        elif ctx.command and ctx.command.lower() in self.llm_intensive_commands:
+            model_id = self.thinking.model_id
+            reason = "llm_intensive"
 
-        # 4. Input length routing
-        if ctx.input_length > self.standard.max_input_chars:
-            return self.thinking.model_id
-        if ctx.input_length > self.mini.max_input_chars:
-            return self.standard.model_id
+        # 4. Input length
+        elif ctx.input_length > self.mini.max_input_chars:
+            model_id = self.thinking.model_id
+            reason = "input_length"
 
-        # 5. Mode-based elevation
-        if ctx.mode in self.ELEVATED_MODES:
-            tier_name = self.ELEVATED_MODES[ctx.mode]
-            return self._tiers[tier_name].model_id
+        # 5. Default → mini
+        else:
+            model_id = self.mini.model_id
+            reason = "default"
 
-        # 6. Default fallback
-        return self.mini.model_id
+        # ALWAYS LOG
+        cmd_str = ctx.command or "unknown"
+        print(f"[ModelRouter] command={cmd_str} model={model_id} reason={reason}", flush=True)
+
+        return model_id
 
     def route_for_command(
         self,
         command: str,
         input_text: str = "",
-        mode: str = "normal",
         think: bool = False,
         explicit_model: Optional[str] = None,
+        mode: str = "normal",  # Kept for backward compatibility (ignored)
     ) -> str:
-        """
-        Convenience method for syscommand handlers.
-        
-        Example:
-            model = router.route_for_command("derive", input_text=user_input)
-        """
+        """Convenience method for syscommand handlers."""
         ctx = RoutingContext(
             command=command,
             input_length=len(input_text),
             explicit_model=explicit_model,
-            mode=mode,
             think_mode=think,
         )
         return self.route(ctx)
 
+    def get_tier_for_model(self, model_id: str) -> str:
+        tier = self._model_ids.get(model_id)
+        return tier.name if tier else "unknown"
+
     def get_tier_info(self, model_id: str) -> Optional[ModelTier]:
-        """
-        Get tier information for a model ID.
-        Returns None if not a known tier.
-        """
         return self._model_ids.get(model_id)
 
     def list_tiers(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Return all available tiers as a dict for inspection.
-        """
         return {
             name: {
                 "model_id": tier.model_id,
@@ -232,17 +206,19 @@ class ModelRouter:
             for name, tier in self._tiers.items()
         }
 
+    def is_llm_intensive(self, command: str) -> bool:
+        return command.lower() in self.llm_intensive_commands
+
 
 # -----------------------------------------------------------------------------
-# Module-level convenience
+# Module-level singleton and convenience functions
 # -----------------------------------------------------------------------------
 
-# Default router instance (can be used directly or replaced)
 _default_router: Optional[ModelRouter] = None
 
 
 def get_router() -> ModelRouter:
-    """Get or create the default ModelRouter instance."""
+    """Get or create the default ModelRouter singleton."""
     global _default_router
     if _default_router is None:
         _default_router = ModelRouter()
@@ -250,11 +226,22 @@ def get_router() -> ModelRouter:
 
 
 def route(ctx: Optional[RoutingContext] = None) -> str:
-    """
-    Module-level routing function using the default router.
-    
-    Example:
-        from backend.model_router import route, RoutingContext
-        model = route(RoutingContext(command="derive"))
-    """
+    """Route using the default router."""
     return get_router().route(ctx)
+
+
+def route_for_command(
+    command: str,
+    input_text: str = "",
+    think: bool = False,
+    explicit_model: Optional[str] = None,
+    mode: str = "normal",
+) -> str:
+    """Route for a specific command using the default router."""
+    return get_router().route_for_command(
+        command=command,
+        input_text=input_text,
+        think=think,
+        explicit_model=explicit_model,
+        mode=mode,
+    )

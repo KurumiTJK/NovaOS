@@ -1,52 +1,65 @@
 # kernel/syscommand_router.py
+"""
+v0.7.15 — Syscommand Router (Zero-Latency)
+
+Simple syscommands execute instantly with NO LLM API calls.
+Routing decisions are logged locally without network requests.
+
+Architecture:
+- Simple commands (#help, #status, etc.): Pure Python, ~0ms latency
+- LLM-intensive commands (#interpret, #compose, etc.): Use LLM, ~1-2s latency
+
+Flow for simple commands:
+1. Python handler executes → CommandResponse
+2. ModelRouter.route() logs decision (NO API call)
+3. Return response instantly
+
+Flow for LLM-intensive commands:
+1. Python handler calls _llm_with_policy internally
+2. LLM API call made with gpt-5.1
+3. Return LLM-generated response
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Callable
 
 from .command_types import CommandRequest, CommandResponse
-from . import syscommands  # for now, this is your "core_commands" module
+from . import syscommands
 
 HandlerFn = Callable[..., CommandResponse]
+
+# Commands that should skip LLM post-processing (already use LLM internally)
+# These commands call _llm_with_policy or llm_client directly
+SKIP_LLM_POSTPROCESS = {
+    "interpret",
+    "derive", 
+    "synthesize",
+    "frame",
+    "forecast",
+    "compose",
+    "prompt_command",
+    "prompt-command",
+    "command-wizard",
+}
 
 
 class SyscommandRouter:
     """
-    Resolves cmd_name -> handler function and executes it.
-    Keeps NovaKernel small and focused.
-
-    v0.3: robust to both dict and list-shaped command registries.
+    v0.7.15: Zero-latency syscommand routing.
+    
+    - Simple commands: Pure Python, routing logged locally, NO API call
+    - LLM-intensive commands: Use gpt-5.1 via internal _llm_with_policy
     """
 
     def __init__(self, commands: Any):
-        # Normalize any incoming registry into a dict
         self.commands: Dict[str, Dict[str, Any]] = self._normalize_commands(commands)
-        # Central handler table from syscommands
-        # Allow dynamic extension of handlers (v0.4 workflow + timerhythm)
         self.handlers: Dict[str, HandlerFn] = dict(syscommands.SYS_HANDLERS)
-        # Later syscommands can register new handlers by updating SYS_HANDLERS
-
-    # ----------------- internal helpers -----------------
 
     def _normalize_commands(self, raw: Any) -> Dict[str, Dict[str, Any]]:
-        """
-        Ensure we always have a dict: { cmd_name: meta_dict }.
-        
-        v0.6: Also strips any '#' prefix from command names since
-        the # is input syntax only, not part of the command identifier.
-
-        Handles:
-        - dict: { "boot": {...}, "status": {...} }
-        - dict with # prefix: { "#boot": {...} } → normalized to { "boot": {...} }
-        - list of dicts with 'name' / 'command' / 'cmd'
-        - list of single-key dicts: [{ "boot": {...} }, { "status": {...} }]
-        """
+        """Normalize command registry into dict format."""
         if isinstance(raw, dict):
-            # v0.6: Strip # prefix from all keys
-            normalized = {}
-            for key, value in raw.items():
-                clean_key = key.lstrip("#")
-                normalized[clean_key] = value
-            return normalized
+            return raw
 
         normalized: Dict[str, Dict[str, Any]] = {}
 
@@ -55,11 +68,8 @@ class SyscommandRouter:
                 if not isinstance(entry, dict):
                     continue
 
-                # Shape A: explicit name field
                 name = entry.get("name") or entry.get("command") or entry.get("cmd")
                 if name:
-                    # v0.6: Strip # prefix
-                    name = name.lstrip("#")
                     meta = {
                         k: v
                         for k, v in entry.items()
@@ -68,23 +78,51 @@ class SyscommandRouter:
                     normalized[name] = meta
                     continue
 
-                # Shape B: { "boot": {...} }
                 if len(entry) == 1:
                     k, v = next(iter(entry.items()))
                     if isinstance(v, dict):
-                        # v0.6: Strip # prefix
-                        normalized[k.lstrip("#")] = v
+                        normalized[k] = v
                     continue
 
         return normalized
 
-    # ----------------- routing -----------------
+    def _log_routing_decision(
+        self,
+        kernel: Any,
+        cmd_name: str,
+    ) -> None:
+        """
+        v0.7.15: Log routing decision WITHOUT making an LLM call.
+        
+        This triggers:
+        1. ModelRouter.route() → model selection + logging
+        
+        NO API call is made. Zero latency. Zero tokens.
+        """
+        try:
+            # Just call the router to get routing decision + logging
+            # This does NOT make an API call
+            from backend.model_router import RoutingContext
+            ctx = RoutingContext(
+                command=cmd_name,
+                input_length=0,
+                think_mode=False,
+            )
+            kernel.model_router.route(ctx)
+            # That's it - routing logged, no API call
+        except Exception as e:
+            print(f"[SyscommandRouter] routing log failed: {e}", flush=True)
 
     def route(self, request: CommandRequest, kernel: Any) -> CommandResponse:
-        # Look up meta from normalized dict (or whatever was passed in)
+        """
+        Route a syscommand request to its handler.
+        
+        v0.7.12: ALL commands now trigger LLM logging via post-processing.
+        """
+        # Look up meta from normalized dict
         meta = self.commands.get(request.cmd_name)
 
-        # If meta is accidentally stored as a list, try to unwrap it
+        # Handle list-shaped meta (legacy)
         if isinstance(meta, list):
             if not meta:
                 return CommandResponse(
@@ -96,7 +134,6 @@ class SyscommandRouter:
                 )
             first = meta[0]
             if isinstance(first, dict):
-                # Convert to dict form in-memory so future lookups are clean
                 meta = first
                 self.commands[request.cmd_name] = meta
             else:
@@ -108,10 +145,9 @@ class SyscommandRouter:
                     error_message=f"Invalid command metadata for '{request.cmd_name}'.",
                 )
 
-        # 🔹 v0.5: fallback to request.meta for custom commands
+        # Fallback to request.meta for custom commands
         if (not meta or not isinstance(meta, dict)) and getattr(request, "meta", None):
             meta = request.meta
-            # Optional: cache it so future calls don't rely on request.meta
             if isinstance(meta, dict):
                 self.commands[request.cmd_name] = meta
 
@@ -138,7 +174,8 @@ class SyscommandRouter:
         context = kernel.context_manager.get_context(request.session_id)
 
         try:
-            result = handler(
+            # Execute the handler
+            response = handler(
                 cmd_name=request.cmd_name,
                 args=request.args,
                 session_id=request.session_id,
@@ -146,11 +183,18 @@ class SyscommandRouter:
                 kernel=kernel,
                 meta=meta,
             )
-            # v0.7.10: Handlers may return dict (for wizards) or CommandResponse
-            # Pass through dicts directly; kernel will handle them
-            if isinstance(result, dict):
-                return result
-            return result
+            
+            # v0.7.15: Log routing decision (NO API call, zero latency)
+            # Skip if command already uses LLM internally (they do their own logging)
+            if request.cmd_name.lower() not in SKIP_LLM_POSTPROCESS:
+                self._log_routing_decision(
+                    kernel=kernel,
+                    cmd_name=request.cmd_name,
+                )
+            
+            # Return original Python handler response (instant)
+            return response
+            
         except Exception as e:
             kernel.logger.log_exception(request.session_id, request.cmd_name, e)
             return CommandResponse(
