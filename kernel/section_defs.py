@@ -1,11 +1,25 @@
 # kernel/section_defs.py
 """
-v0.8.0 — Section Definitions for NovaOS
+v0.8.0 — Section Definitions for NovaOS Life RPG
 
-Defines the help sections and their associated commands.
-Updated to use Quest Engine commands instead of legacy workflow commands.
+Defines the 14 canonical sections and their associated commands.
+Updated for Quest Engine (replaces legacy workflow system).
 
-IMPORTANT: Quest commands are EXPLICIT only - no NL auto-routing.
+Sections:
+1. core          — Nova's heart & OS control center
+2. memory        — Lore / knowledge store
+3. continuity    — Long-term arcs & projects
+4. human_state   — HP / stamina / stress / mood
+5. modules       — Regions/domains on the world map
+6. identity      — Player Profile: level, XP, domains, titles
+7. system        — Environment, modes, snapshots
+8. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
+9. timerhythm    — Time model, daily/weekly rhythm
+10. reminders    — Time-based reminders / quest pins
+11. commands     — Abilities/macros
+12. interpretation — Strategy/oracle (READ-ONLY)
+13. debug        — Diagnostics & dev tools
+14. inbox        — Capture layer for raw thoughts/tasks
 """
 
 from dataclasses import dataclass, field
@@ -39,7 +53,7 @@ class Section:
 SECTION_DEFS: Dict[str, Section] = {
     "core": Section(
         title="Core",
-        description="Essential NovaOS commands for system interaction.",
+        description="Nova's heart & OS control center.",
         commands=[
             CommandInfo("why", "State NovaOS purpose, philosophy, and identity", "#why"),
             CommandInfo("boot", "Initialize NovaOS kernel and persona", "#boot"),
@@ -50,10 +64,10 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "memory": Section(
         title="Memory",
-        description="Store, recall, and manage memory items.",
+        description="Lore & knowledge store (semantic/procedural/episodic).",
         commands=[
-            CommandInfo("store", "Store a memory item (semantic/procedural/episodic) with tags", "#store type=semantic tags=work content=\"...\""),
-            CommandInfo("recall", "Recall memory items filtered by type and/or tags", "#recall tags=work"),
+            CommandInfo("store", "Store a memory item with tags", "#store type=semantic tags=work content=\"...\""),
+            CommandInfo("recall", "Recall memory items by type and/or tags", "#recall tags=work"),
             CommandInfo("forget", "Forget memory items by id, tag, or type", "#forget id=123"),
             CommandInfo("trace", "Show lineage/trace info for a memory item", "#trace id=123"),
             CommandInfo("bind", "Bind multiple memory items into a cluster", "#bind ids=1,2,3"),
@@ -61,7 +75,7 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "continuity": Section(
         title="Continuity",
-        description="Manage preferences, projects, and session state.",
+        description="Long-term arcs, projects, and session state.",
         commands=[
             CommandInfo("preferences", "Show or set user preferences", "#preferences"),
             CommandInfo("projects", "List active projects", "#projects"),
@@ -70,7 +84,7 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "human_state": Section(
         title="Human State",
-        description="Track energy, stress, momentum, and capacity.",
+        description="HP / stamina / stress / mood tracking.",
         commands=[
             CommandInfo("log-state", "Log current human state", "#log-state energy=high stress=low"),
             CommandInfo("evolution-status", "Show state evolution over time", "#evolution-status"),
@@ -79,43 +93,43 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "modules": Section(
         title="Modules",
-        description="Create, inspect, and manage modules.",
+        description="Regions/domains on the world map.",
         commands=[
-            CommandInfo("map", "List all registered modules", "#map"),
-            CommandInfo("forge", "Forge (create) a new module with mission and state", "#forge key=mymod mission=\"...\""),
+            CommandInfo("map", "List all registered modules (regions)", "#map"),
+            CommandInfo("forge", "Forge a new module/region", "#forge key=cyber mission=\"Security domain\""),
             CommandInfo("dismantle", "Dismantle (delete) a module", "#dismantle key=mymod"),
-            CommandInfo("inspect", "Inspect a module's metadata and bindings", "#inspect key=mymod"),
+            CommandInfo("inspect", "Inspect a module's metadata and bindings", "#inspect key=cyber"),
             CommandInfo("bind-module", "Bind two modules for cross-domain interaction", "#bind-module a=mod1 b=mod2"),
         ]
     ),
     "identity": Section(
         title="Identity",
-        description="Manage Nova's identity traits and values.",
+        description="Player Profile: level, XP, domains, titles, unlocks.",
         commands=[
-            CommandInfo("identity-show", "Show current identity configuration", "#identity-show"),
+            CommandInfo("identity-show", "Show player profile (level, XP, titles)", "#identity-show"),
             CommandInfo("identity-set", "Set an identity trait", "#identity-set trait=value"),
             CommandInfo("identity-clear", "Clear identity configuration", "#identity-clear"),
         ]
     ),
     "system": Section(
         title="System",
-        description="Environment, mode, snapshots, and system state.",
+        description="Environment, modes, snapshots, and runtime config.",
         commands=[
             CommandInfo("env", "Show current environment state", "#env"),
             CommandInfo("setenv", "Set environment keys", "#setenv debug=true"),
-            CommandInfo("mode", "Set NovaOS mode", "#mode deep_work"),
+            CommandInfo("mode", "Set system mode (story/utility/deep_work/reflection)", "#mode story"),
             CommandInfo("snapshot", "Create a snapshot of core OS state", "#snapshot"),
             CommandInfo("restore", "Restore OS state from a snapshot", "#restore id=123"),
         ]
     ),
     "workflow": Section(
         title="Quest Engine",
-        description="Gamified learning quests with XP, skills, and progress tracking.",
+        description="Gamified learning quests with XP, skills, streaks, and boss battles.",
         commands=[
             CommandInfo("quest", "Open the Quest Board to list, start, or resume a quest", "#quest"),
             CommandInfo("next", "Submit your answer and advance to the next step", "#next"),
             CommandInfo("pause", "Pause the active quest and save progress", "#pause"),
-            CommandInfo("quest-log", "View progress, XP, skills, and learning streak", "#quest-log"),
+            CommandInfo("quest-log", "View player progress: level, XP, skills, streak", "#quest-log"),
             CommandInfo("quest-reset", "Reset a quest's progress to replay from start", "#quest-reset id=jwt_intro"),
             CommandInfo("quest-compose", "Compose a new questline with LLM assistance", "#quest-compose"),
             CommandInfo("quest-delete", "Delete a questline and its saved progress", "#quest-delete id=myquest"),
@@ -126,7 +140,7 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "timerhythm": Section(
         title="Time Rhythm",
-        description="Time-based presence, alignment, and pulse.",
+        description="Time model, daily/weekly rhythm, and seasons.",
         commands=[
             CommandInfo("presence", "Show time rhythm presence snapshot", "#presence"),
             CommandInfo("pulse", "Quest pulse diagnostics", "#pulse"),
@@ -135,7 +149,7 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "reminders": Section(
         title="Reminders",
-        description="Create and manage time-based reminders.",
+        description="Time-based reminders and quest pins.",
         commands=[
             CommandInfo("remind-add", "Create a reminder", "#remind-add msg=\"Call mom\" at=\"5pm\""),
             CommandInfo("remind-list", "List reminders", "#remind-list"),
@@ -145,7 +159,7 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "commands": Section(
         title="Custom Commands",
-        description="Create and manage custom commands.",
+        description="Abilities/macros you can unlock and reuse.",
         commands=[
             CommandInfo("command-add", "Add a new custom command (prompt or macro)", "#command-add"),
             CommandInfo("command-list", "List core and custom commands", "#command-list"),
@@ -156,8 +170,11 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "interpretation": Section(
         title="Interpretation",
-        description="Deep analysis and reasoning commands.",
+        description="Strategy & oracle (READ-ONLY, suggests but never executes).",
         commands=[
+            CommandInfo("analyze", "Suggest best quests/actions for right now", "#analyze"),
+            CommandInfo("route", "Map a goal to modules, quests, and abilities", "#route goal=\"Learn JWT attacks\""),
+            CommandInfo("insight", "Summarize patterns, strengths, and weaknesses", "#insight"),
             CommandInfo("interpret", "Explain what an input means", "#interpret \"...\""),
             CommandInfo("derive", "Break a topic down into first principles", "#derive \"...\""),
             CommandInfo("synthesize", "Integrate ideas into a coherent structure", "#synthesize \"...\""),
@@ -167,13 +184,23 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "debug": Section(
         title="Debug",
-        description="Debugging and diagnostic commands.",
+        description="Diagnostics and dev tools.",
         commands=[
             CommandInfo("wm-debug", "Show current Working Memory state", "#wm-debug"),
             CommandInfo("wm-clear", "Clear working memory for this session", "#wm-clear"),
             CommandInfo("behavior-debug", "Show Behavior Layer state", "#behavior-debug"),
             CommandInfo("self-test", "Run internal diagnostics", "#self-test"),
             CommandInfo("quest-debug", "Show raw quest engine state", "#quest-debug"),
+        ]
+    ),
+    "inbox": Section(
+        title="Inbox",
+        description="Capture layer for raw thoughts, ideas, and tasks.",
+        commands=[
+            CommandInfo("capture", "Capture a raw thought/idea/task to inbox", "#capture \"Prep for client review\""),
+            CommandInfo("inbox-list", "List open inbox items", "#inbox-list"),
+            CommandInfo("inbox-to-quest", "Turn an inbox item into a quest", "#inbox-to-quest id=inbox_001"),
+            CommandInfo("inbox-to-reminder", "Turn an inbox item into a reminder", "#inbox-to-reminder id=inbox_001"),
         ]
     ),
 }
@@ -224,3 +251,12 @@ def find_section_for_command(command: str) -> Optional[str]:
             if cmd.name == command:
                 return section_key
     return None
+
+
+def get_all_command_names() -> List[str]:
+    """Get all command names across all sections."""
+    names = []
+    for section in SECTION_DEFS.values():
+        for cmd in section.commands:
+            names.append(cmd.name)
+    return names

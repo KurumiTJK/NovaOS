@@ -48,12 +48,12 @@
   "modules": {
     "handler": "handle_section_modules",
     "category": "section",
-    "description": "Open the MODULES section menu"
+    "description": "Open the MODULES (Regions) section menu"
   },
   "identity": {
     "handler": "handle_section_identity",
     "category": "section",
-    "description": "Open the IDENTITY section menu"
+    "description": "Open the IDENTITY (Player Profile) section menu"
   },
   "system": {
     "handler": "handle_section_system",
@@ -90,6 +90,11 @@
     "category": "section",
     "description": "Open the DEBUG section menu"
   },
+  "inbox": {
+    "handler": "handle_section_inbox",
+    "category": "section",
+    "description": "Open the INBOX section menu"
+  },
 
   "store": {
     "handler": "handle_store",
@@ -120,7 +125,7 @@
   "map": {
     "handler": "handle_map",
     "category": "modules",
-    "description": "List all registered modules."
+    "description": "List all registered modules (regions)."
   },
   "forge": {
     "handler": "handle_forge",
@@ -141,6 +146,22 @@
     "handler": "handle_bind_module",
     "category": "modules",
     "description": "Bind two modules for cross-domain interaction."
+  },
+
+  "identity-show": {
+    "handler": "handle_identity_show",
+    "category": "identity",
+    "description": "Show player profile (level, XP, titles, domains)."
+  },
+  "identity-set": {
+    "handler": "handle_identity_set",
+    "category": "identity",
+    "description": "Set an identity trait."
+  },
+  "identity-clear": {
+    "handler": "handle_identity_clear",
+    "category": "identity",
+    "description": "Clear identity configuration."
   },
 
   "snapshot": {
@@ -166,7 +187,7 @@
   "mode": {
     "handler": "handle_mode",
     "category": "system",
-    "description": "Set NovaOS mode: normal, deep_work, reflection, or debug."
+    "description": "Set NovaOS mode: story, utility, deep_work, reflection, or debug."
   },
 
   "quest": {
@@ -288,6 +309,21 @@
     "description": "Create a custom command from natural language."
   },
 
+  "analyze": {
+    "handler": "handle_analyze",
+    "category": "interpretation",
+    "description": "Suggest best quests/actions for right now (READ-ONLY strategist)."
+  },
+  "route": {
+    "handler": "handle_route",
+    "category": "interpretation",
+    "description": "Map a goal to modules, quests, and abilities (READ-ONLY)."
+  },
+  "insight": {
+    "handler": "handle_insight",
+    "category": "interpretation",
+    "description": "Summarize patterns, strengths, and weaknesses (READ-ONLY)."
+  },
   "interpret": {
     "handler": "handle_interpret",
     "category": "interpretation",
@@ -312,5 +348,26 @@
     "handler": "handle_forecast",
     "category": "interpretation",
     "description": "Generate plausible future outcomes based on the current state."
+  },
+
+  "capture": {
+    "handler": "handle_capture",
+    "category": "inbox",
+    "description": "Capture a raw thought/idea/task to inbox."
+  },
+  "inbox-list": {
+    "handler": "handle_inbox_list",
+    "category": "inbox",
+    "description": "List open inbox items."
+  },
+  "inbox-to-quest": {
+    "handler": "handle_inbox_to_quest",
+    "category": "inbox",
+    "description": "Turn an inbox item into a quest."
+  },
+  "inbox-to-reminder": {
+    "handler": "handle_inbox_to_reminder",
+    "category": "inbox",
+    "description": "Turn an inbox item into a reminder."
   }
 }

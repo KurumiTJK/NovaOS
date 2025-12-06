@@ -1,18 +1,20 @@
 # kernel/nl_router.py
 """
-v0.8.0 — Natural Language Router (Quest Engine Update)
+v0.8.0 — Natural Language Router (Life RPG Update)
 
 Routes natural language input to syscommands via intent detection.
 
-IMPORTANT: Quest commands are NEVER auto-executed.
-The router will SUGGEST quest commands but not route to them directly.
-Users must explicitly use #quest, #next, #pause, etc.
+CRITICAL RULES:
+1. Quest commands are NEVER auto-executed from NL.
+2. The router may SUGGEST quest commands but not route to them.
+3. Users must explicitly use #quest, #next, #pause, etc.
+4. Legacy workflow commands (flow, advance, halt, etc.) are REMOVED.
 
 Design:
 - Pattern-based intent detection (no LLM calls)
 - Maps intents to CommandRequest objects
 - Returns None if ambiguous (falls back to persona)
-- Quest-related phrases return suggestions, not auto-execution
+- Quest-related phrases return suggestions only via check_quest_suggestion()
 """
 
 from typing import Dict, Any, Optional, List, Tuple
@@ -64,15 +66,17 @@ class IntentPatterns:
     # ===== IDENTITY =====
     IDENTITY_PATTERNS = [
         (r"\b(who are you|what is nova(os)?|your (purpose|identity))\b", "why", None, 0.9),
-        (r"\b(show|display|view)( my)? identity\b", "identity-show", None, 0.9),
-        (r"\b(my identity|identity profile)\b", "identity-show", None, 0.8),
+        (r"\b(show|display|view)( my)? (identity|profile|character)\b", "identity-show", None, 0.9),
+        (r"\b(my identity|identity profile|my character|player profile)\b", "identity-show", None, 0.8),
     ]
     
     # ===== MODE =====
     MODE_PATTERNS = [
-        (r"\b(switch to|enter|go into|set mode( to)?)\s*(deep[_\s]?work|reflection|debug|normal)\b", "mode", "_extract_mode", 0.95),
+        (r"\b(switch to|enter|go into|set mode( to)?)\s*(deep[_\s]?work|reflection|debug|normal|story|utility)\b", "mode", "_extract_mode", 0.95),
         (r"\b(deep[_\s]?work|focus) mode\b", "mode", lambda m: {"mode": "deep_work"}, 0.85),
         (r"\btime to (reflect|think)\b", "mode", lambda m: {"mode": "reflection"}, 0.8),
+        (r"\b(story|rpg|game) mode\b", "mode", lambda m: {"mode": "story"}, 0.85),
+        (r"\b(utility|assistant|normal) mode\b", "mode", lambda m: {"mode": "utility"}, 0.85),
     ]
     
     # ===== MEMORY =====
@@ -85,13 +89,10 @@ class IntentPatterns:
     ]
     
     # ===== WORKFLOW / QUEST =====
-    # v0.8.0: REMOVED - Quest commands are NEVER auto-executed
-    # The router does not route to quest commands.
-    # Quest-related phrases are handled by check_quest_suggestion() instead.
-    # Users must explicitly use: #quest, #next, #pause, #quest-log, etc.
-    WORKFLOW_PATTERNS = [
-        # INTENTIONALLY EMPTY - No auto-routing for quest commands
-    ]
+    # v0.8.0: INTENTIONALLY EMPTY
+    # Quest commands are NEVER auto-executed from natural language.
+    # Use check_quest_suggestion() for suggestions only.
+    WORKFLOW_PATTERNS = []
     
     # ===== REMINDERS =====
     REMINDER_PATTERNS = [
@@ -111,17 +112,22 @@ class IntentPatterns:
     # ===== MODULES =====
     MODULE_PATTERNS = [
         (r"\b(show|list)( my)? modules\b", "map", None, 0.9),
+        (r"\b(show|list)( my)? (regions|realms|domains)\b", "map", None, 0.85),
         (r"\bcreate( a)? module\b", "forge", None, 0.8),
         (r"\binspect module\s+(\w+)\b", "inspect", "_extract_module_key", 0.9),
     ]
     
-    # ===== INTERPRETATION =====
+    # ===== INTERPRETATION (READ-ONLY STRATEGIST) =====
     INTERPRETATION_PATTERNS = [
         (r"\b(analyze|interpret)\s+(.+)\b", "interpret", "_extract_payload", 0.8),
         (r"\bfirst principles\b.*\b(.+)\b", "derive", "_extract_payload", 0.85),
         (r"\breframe\s+(.+)\b", "frame", "_extract_payload", 0.85),
         (r"\bpredict\s+(.+)\b", "forecast", "_extract_payload", 0.8),
         (r"\bforecast\s+(.+)\b", "forecast", "_extract_payload", 0.85),
+        # New strategist commands
+        (r"\b(what should i|suggest|analyze)( do| next| now)?\b", "analyze", None, 0.75),
+        (r"\b(route|map)( my)? goal\b", "route", None, 0.8),
+        (r"\b(my |show )?(insights?|patterns?)\b", "insight", None, 0.8),
     ]
     
     # ===== HUMAN STATE =====
@@ -143,6 +149,13 @@ class IntentPatterns:
     SNAPSHOT_PATTERNS = [
         (r"\b(create|make|take)( a)? snapshot\b", "snapshot", None, 0.9),
         (r"\b(save|backup) (state|system)\b", "snapshot", None, 0.85),
+    ]
+    
+    # ===== INBOX (NEW) =====
+    INBOX_PATTERNS = [
+        (r"\b(capture|jot down|note)\s+(.+)\b", "capture", "_extract_capture", 0.85),
+        (r"\b(show|list)( my)? inbox\b", "inbox-list", None, 0.9),
+        (r"\binbox\b", "inbox-list", None, 0.7),
     ]
     
     @classmethod
@@ -168,12 +181,16 @@ def _extract_mode(match: re.Match) -> Dict[str, Any]:
         return {"mode": "reflection"}
     elif "debug" in text:
         return {"mode": "debug"}
+    elif "story" in text or "rpg" in text or "game" in text:
+        return {"mode": "story"}
+    elif "utility" in text or "assistant" in text:
+        return {"mode": "utility"}
     return {"mode": "normal"}
 
 
 def _extract_remember(match: re.Match) -> Dict[str, Any]:
     """Extract payload from 'remember ...' pattern."""
-    payload = match.group(2) if match.lastindex >= 2 else match.group(0)
+    payload = match.group(3) if match.lastindex >= 3 else match.group(0)
     return {"payload": payload.strip(), "type": "semantic"}
 
 
@@ -224,6 +241,12 @@ def _extract_payload(match: re.Match) -> Dict[str, Any]:
     return {"_": [payload.strip()]}
 
 
+def _extract_capture(match: re.Match) -> Dict[str, Any]:
+    """Extract captured text for inbox."""
+    text = match.group(2) if match.lastindex >= 2 else match.group(0)
+    return {"text": text.strip()}
+
+
 # Map extractor names to functions
 EXTRACTORS = {
     "_extract_mode": _extract_mode,
@@ -234,6 +257,7 @@ EXTRACTORS = {
     "_extract_remind_id": _extract_remind_id,
     "_extract_module_key": _extract_module_key,
     "_extract_payload": _extract_payload,
+    "_extract_capture": _extract_capture,
 }
 
 
@@ -241,19 +265,34 @@ EXTRACTORS = {
 # Quest Suggestion Patterns (v0.8.0)
 # -----------------------------------------------------------------------------
 # These patterns detect quest-related intent but DO NOT auto-execute.
-# Instead, they return a suggestion for the user to run the command explicitly.
+# Instead, they return a suggestion string for the UI/response to include.
 
 QUEST_SUGGESTION_PATTERNS = [
-    (r"\b(start|begin|run|resume)( the| my| a)? (quest|workflow|learning)\b", "quest", "To start or resume a quest, run: `#quest`"),
+    # Quest Board / Starting
+    (r"\b(start|begin|run|resume)( the| my| a)? (quest|workflow|learning|lesson)\b", "quest", "To start or resume a quest, run: `#quest`"),
     (r"\b(show|list|view)( my)? quests?\b", "quest", "To see available quests, run: `#quest`"),
+    (r"\bquest board\b", "quest", "To open the Quest Board, run: `#quest`"),
+    
+    # Next step
     (r"\bnext step\b", "next", "To advance to the next step, run: `#next`"),
-    (r"\b(advance|continue)( the| my)? (quest|learning)\b", "next", "To advance your quest, run: `#next`"),
-    (r"\b(stop|pause|halt)( the| my)? (quest|workflow|learning)\b", "pause", "To pause your quest, run: `#pause`"),
-    (r"\b(my|show|check) (progress|xp|skills?|streak)\b", "quest-log", "To see your progress, run: `#quest-log`"),
-    (r"\b(create|make|compose)( a)? (quest|workflow)\b", "quest-compose", "To create a new quest, run: `#quest-compose`"),
+    (r"\b(advance|continue)( the| my)? (quest|lesson|learning)\b", "next", "To advance your quest, run: `#next`"),
+    (r"\bi('m| am) (ready|done)\b", "next", "To submit and continue, run: `#next`"),
+    
+    # Pause
+    (r"\b(stop|pause|halt)( the| my)? (quest|workflow|lesson|learning)\b", "pause", "To pause your quest, run: `#pause`"),
+    
+    # Quest Log / Progress
+    (r"\b(my|show|check) (progress|xp|skills?|streak|level)\b", "quest-log", "To see your progress, run: `#quest-log`"),
     (r"\bquest (status|log|progress)\b", "quest-log", "To see your quest log, run: `#quest-log`"),
+    (r"\bhow (much|many) xp\b", "quest-log", "To check your XP, run: `#quest-log`"),
+    
+    # Quest Compose
+    (r"\b(create|make|compose|design)( a| new)? (quest|lesson|workflow)\b", "quest-compose", "To create a new quest, run: `#quest-compose`"),
+    
+    # Quest Reset
     (r"\breset( my)? (quest|progress)\b", "quest-reset", "To reset quest progress, run: `#quest-reset`"),
-    # Legacy workflow phrases - redirect to quest commands
+    
+    # Legacy workflow phrases → redirect to quest commands
     (r"\b(start|begin|run)( the)? workflow\b", "quest", "Workflows are now Quests! Run: `#quest`"),
     (r"\b(show|list)( my)? workflows\b", "quest-list", "Workflows are now Quests! Run: `#quest-list`"),
     (r"\b(advance|continue)( the)? workflow\b", "next", "Workflows are now Quests! Run: `#next`"),
@@ -288,7 +327,10 @@ class NaturalLanguageRouter:
     v0.8.0 Natural Language Router
     
     Routes natural language input to syscommands via pattern matching.
-    Quest commands are NEVER auto-routed - only suggested.
+    
+    CRITICAL:
+    - Quest commands are NEVER auto-routed - only suggested
+    - Legacy workflow commands are completely removed
     """
     
     MIN_CONFIDENCE = 0.7
@@ -379,11 +421,15 @@ class NaturalLanguageRouter:
         
         matches.sort(key=lambda m: -m["confidence"])
         
+        # Also check for quest suggestions
+        quest_suggestion = check_quest_suggestion(text)
+        
         return {
             "input": text,
             "matches": matches[:10],
             "best_match": matches[0] if matches else None,
             "would_route": matches[0]["confidence"] >= self.MIN_CONFIDENCE if matches else False,
+            "quest_suggestion": quest_suggestion,
         }
 
 

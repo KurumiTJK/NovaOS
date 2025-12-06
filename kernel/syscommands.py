@@ -1,4 +1,10 @@
 # kernel/syscommands.py
+"""
+v0.8.0 — NovaOS Life RPG Syscommand Handlers
+
+Updated for Quest Engine integration.
+Legacy workflow commands (flow, advance, halt, etc.) are REMOVED.
+"""
 import json
 from typing import Dict, Any, Callable
 
@@ -12,6 +18,24 @@ try:
 except ImportError:
     _HAS_QUEST_ENGINE = False
     def get_quest_handlers():
+        return {}
+
+# v0.8.0: Inbox handlers
+try:
+    from .inbox_handlers import get_inbox_handlers
+    _HAS_INBOX = True
+except ImportError:
+    _HAS_INBOX = False
+    def get_inbox_handlers():
+        return {}
+
+# v0.8.0: Player Profile handlers
+try:
+    from .player_profile import get_player_profile_handlers
+    _HAS_PLAYER_PROFILE = True
+except ImportError:
+    _HAS_PLAYER_PROFILE = False
+    def get_player_profile_handlers():
         return {}
 
 # v0.7: Working Memory Engine integration
@@ -1771,21 +1795,22 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
     
     TODO: Refactor to pull section list from section_defs.py as single source of truth.
     """
-    # Section summaries - one line each
+    # Section summaries - one line each (v0.8.0 Life RPG)
     SECTION_SUMMARIES = {
-        "core": "Kernel philosophy, OS identity, and high-level control",
-        "memory": "Storing, recalling, drifting, and managing memories",
-        "continuity": "Preferences, projects, and long-term context",
-        "human_state": "Stress, capacity, biology, and state tracking",
-        "modules": "Creating, inspecting, binding, and removing modules",
-        "identity": "Identity traits, snapshots, and restoration",
-        "system": "Environment, modes, snapshots, and model info",
-        "workflow": "Gamified learning quests with XP, skills, and progress",
-        "timerhythm": "Presence, pulse diagnostics, and alignment",
-        "reminders": "Creating, listing, updating, and deleting reminders",
-        "commands": "Managing custom commands and macros",
-        "interpretation": "Interpret, derive, synthesize, and forecast ideas",
-        "debug": "Diagnostics and introspection tools",  # v0.7.2
+        "core": "Nova's heart & OS control center",
+        "memory": "Lore & knowledge store (semantic/procedural/episodic)",
+        "continuity": "Long-term arcs, projects, and session state",
+        "human_state": "HP / stamina / stress / mood tracking",
+        "modules": "Regions/domains on the world map",
+        "identity": "Player Profile: level, XP, domains, titles, unlocks",
+        "system": "Environment, modes, snapshots, and runtime config",
+        "workflow": "Quest Engine: quests, XP, skills, streaks, boss battles",
+        "timerhythm": "Time model, daily/weekly rhythm, and seasons",
+        "reminders": "Time-based reminders and quest pins",
+        "commands": "Abilities/macros you can unlock and reuse",
+        "interpretation": "Strategy & oracle (READ-ONLY, suggests but never executes)",
+        "debug": "Diagnostics and dev tools",
+        "inbox": "Capture layer for raw thoughts, ideas, and tasks",
     }
     
     SECTION_ORDER = [
@@ -1801,7 +1826,8 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         "reminders",
         "commands",
         "interpretation",
-        "debug",  # v0.7.2
+        "debug",
+        "inbox",  # v0.8.0
     ]
     
     # Check if specific section requested
@@ -1924,6 +1950,10 @@ def handle_section_interpretation(cmd_name, args, session_id, context, kernel, m
 # v0.7.2: Debug section
 def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     return _handle_section_menu("debug", cmd_name, args, session_id, context, kernel, meta)
+
+# v0.8.0: Inbox section
+def handle_section_inbox(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+    return _handle_section_menu("inbox", cmd_name, args, session_id, context, kernel, meta)
 
 
 def get_active_section(session_id: str) -> str:
@@ -5325,12 +5355,11 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_snapshot": handle_snapshot,
     "handle_restore": handle_restore,
 
-    # v0.8.0: Legacy workflow handlers REMOVED
-    # Quest handlers are added via get_quest_handlers() after this dict
-    # "handle_flow": handle_flow,         # REMOVED
-    # "handle_advance": handle_advance,   # REMOVED
-    # "handle_halt": handle_halt,         # REMOVED
-    # "handle_compose": handle_compose,   # REMOVED (workflow version)
+    # v0.8.0: Legacy workflow handlers REMOVED — Quest Engine replaces them
+    # "handle_flow": handle_flow,           # REMOVED
+    # "handle_advance": handle_advance,     # REMOVED
+    # "handle_halt": handle_halt,           # REMOVED
+    # "handle_compose": handle_compose,     # REMOVED (workflow version)
 
     # v0.4 Time Rhythm
     "handle_presence": handle_presence,
@@ -5343,9 +5372,9 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_remind_update": handle_remind_update,
     "handle_remind_delete": handle_remind_delete,
 
-    # v0.8.0: Legacy workflow handlers REMOVED
+    # v0.8.0: Legacy workflow handlers REMOVED — Quest Engine replaces them
     # "handle_workflow_delete": handle_workflow_delete,   # REMOVED
-    # "handle_workflow_list": handle_workflow_list,       # REMOVED
+    # "handle_workflow_list": handle_workflow_list,       # REMOVED  
     # "handle_workflow_inspect": handle_workflow_inspect, # REMOVED
     # v0.5 Custom Commands
     "handle_prompt_command": handle_prompt_command,
@@ -5424,7 +5453,8 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_section_reminders": handle_section_reminders,
     "handle_section_commands": handle_section_commands,
     "handle_section_interpretation": handle_section_interpretation,
-    "handle_section_debug": handle_section_debug,  # v0.7.2
+    "handle_section_debug": handle_section_debug,
+    "handle_section_inbox": handle_section_inbox,  # v0.8.0
 
 
 }
@@ -5432,7 +5462,14 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
 # =============================================================================
 # v0.8.0: Quest Engine Integration
 # =============================================================================
-# Add quest handlers to SYS_HANDLERS
-# This replaces legacy workflow commands (flow, advance, halt, compose, etc.)
+# Add quest handlers to SYS_HANDLERS (replaces legacy workflow commands)
 if _HAS_QUEST_ENGINE:
     SYS_HANDLERS.update(get_quest_handlers())
+
+# v0.8.0: Inbox handlers
+if _HAS_INBOX:
+    SYS_HANDLERS.update(get_inbox_handlers())
+
+# v0.8.0: Player Profile handlers
+if _HAS_PLAYER_PROFILE:
+    SYS_HANDLERS.update(get_player_profile_handlers())
