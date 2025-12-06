@@ -313,6 +313,9 @@ def handle_next(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
     if not result:
         return _error_response(cmd_name, "Failed to advance quest.", "ADVANCE_FAILED")
     
+    # Get assistant mode for formatting
+    mode_mgr = getattr(kernel, 'assistant_mode_manager', None)
+    
     lines = []
     
     # Show feedback
@@ -321,14 +324,22 @@ def handle_next(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
     
     # Show XP gained
     if result.xp_gained > 0:
-        lines.append(f"**+{result.xp_gained} XP**")
+        if mode_mgr and mode_mgr.show_xp_fanfare:
+            lines.append(f"🎉 **+{result.xp_gained} XP**")
+        else:
+            lines.append(f"+{result.xp_gained} XP")
     
     # Check if quest completed
     if result.quest_completed:
         lines.append("")
-        lines.append("═══════════════════════════════")
-        lines.append(f"🎉 **Quest Complete: {quest.title}**")
-        lines.append("═══════════════════════════════")
+        
+        # Format quest complete header based on mode
+        if mode_mgr and mode_mgr.show_quest_narrative:
+            lines.append("═══════════════════════════════")
+            lines.append(f"🎉 **Quest Complete: {quest.title}**")
+            lines.append("═══════════════════════════════")
+        else:
+            lines.append(f"Quest complete: {quest.title}")
         
         # v0.8.0: Award XP to Player Profile
         profile_manager = getattr(kernel, 'player_profile_manager', None)
@@ -356,16 +367,26 @@ def handle_next(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
                 visual_unlock=visual,
             )
             
-            # Show player profile updates
+            # Show player profile updates (formatted by mode)
             xp_info = reward_result.get("xp_result", {})
             if xp_info.get("level_up"):
-                lines.append(f"🎊 **LEVEL UP!** You are now level {xp_info['new_level']}!")
+                if mode_mgr and mode_mgr.show_level_up_celebration:
+                    lines.append(f"🎊 **LEVEL UP!** You are now level {xp_info['new_level']}! 🎊")
+                else:
+                    lines.append(f"Level up: {xp_info['new_level']}")
+            
             if xp_info.get("tier_up"):
                 from .player_profile import get_tier_name
                 tier_name = get_tier_name(xp_info.get("new_tier", 1))
-                lines.append(f"⬆️ **{domain.title()} tier up!** Now: {tier_name}")
+                if mode_mgr and mode_mgr.show_level_up_celebration:
+                    lines.append(f"⬆️ **{domain.title()} tier up!** Now: {tier_name}")
+                else:
+                    lines.append(f"{domain} tier: {tier_name}")
             
-            lines.append(f"Total XP earned: **{total_quest_xp}**")
+            if mode_mgr and mode_mgr.show_xp_fanfare:
+                lines.append(f"Total XP earned: **{total_quest_xp}**")
+            else:
+                lines.append(f"XP: {total_quest_xp}")
             
             if reward_result.get("titles_added"):
                 for title in reward_result["titles_added"]:

@@ -47,6 +47,15 @@ except ImportError:
     def get_module_handlers():
         return {}
 
+# v0.8.0: Assistant Mode handlers (story vs utility)
+try:
+    from .assistant_mode import get_assistant_mode_handlers
+    _HAS_ASSISTANT_MODE = True
+except ImportError:
+    _HAS_ASSISTANT_MODE = False
+    def get_assistant_mode_handlers():
+        return {}
+
 # v0.7: Working Memory Engine integration
 try:
     from .nova_wm import wm_clear
@@ -5486,3 +5495,7 @@ if _HAS_PLAYER_PROFILE:
 # v0.8.0: Module Manager handlers (regions/world map)
 if _HAS_MODULE_MANAGER:
     SYS_HANDLERS.update(get_module_handlers())
+
+# v0.8.0: Assistant Mode handlers (story vs utility)
+if _HAS_ASSISTANT_MODE:
+    SYS_HANDLERS.update(get_assistant_mode_handlers())

@@ -10,9 +10,16 @@
       "validated": true,
       "score": 1.0,
       "completed_at": "2025-12-06T00:37:16.774999+00:00"
+    },
+    "step_2": {
+      "status": "failed",
+      "user_input": "[no response]",
+      "validated": true,
+      "score": 0.0,
+      "completed_at": "2025-12-06T02:28:05.718743+00:00"
     }
   },
   "started_at": "2025-12-06T00:37:12.987796+00:00",
-  "updated_at": "2025-12-06T00:37:16.775026+00:00",
+  "updated_at": "2025-12-06T02:28:05.718766+00:00",
   "mode": "normal"
 }

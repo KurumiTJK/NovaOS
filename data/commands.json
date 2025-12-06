@@ -182,7 +182,12 @@
   "mode": {
     "handler": "handle_mode",
     "category": "system",
-    "description": "Set NovaOS mode: story, utility, deep_work, reflection, or debug."
+    "description": "Set NovaOS workflow mode: normal, deep_work, reflection, or debug."
+  },
+  "assistant-mode": {
+    "handler": "handle_assistant_mode",
+    "category": "system",
+    "description": "Set presentation style: story (full RPG) or utility (minimal)."
   },
 
   "quest": {

@@ -133,6 +133,14 @@ class NovaKernel:
             self.module_store = ModuleStore(self.config.data_dir)
         except ImportError:
             self.module_store = None
+        
+        # v0.8.0: Assistant Mode (story vs utility)
+        try:
+            from kernel.assistant_mode import AssistantModeManager
+            initial_mode = self.env_state.get("assistant_mode", "story")
+            self.assistant_mode_manager = AssistantModeManager(initial_mode)
+        except ImportError:
+            self.assistant_mode_manager = None
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)

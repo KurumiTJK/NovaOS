@@ -116,7 +116,8 @@ SECTION_DEFS: Dict[str, Section] = {
         commands=[
             CommandInfo("env", "Show current environment state", "#env"),
             CommandInfo("setenv", "Set environment keys", "#setenv debug=true"),
-            CommandInfo("mode", "Set system mode (story/utility/deep_work/reflection)", "#mode story"),
+            CommandInfo("mode", "Set workflow mode (normal/deep_work/reflection/debug)", "#mode normal"),
+            CommandInfo("assistant-mode", "Set presentation style (story/utility)", "#assistant-mode story"),
             CommandInfo("snapshot", "Create a snapshot of core OS state", "#snapshot"),
             CommandInfo("restore", "Restore OS state from a snapshot", "#restore id=123"),
         ]

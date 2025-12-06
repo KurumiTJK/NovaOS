@@ -2,7 +2,7 @@
   "quest_runs": {
     "jwt_intro": {
       "status": "in_progress",
-      "last_step_id": "step_1",
+      "last_step_id": "step_2",
       "attempts": 1,
       "completed_at": null,
       "xp_earned": 0,
