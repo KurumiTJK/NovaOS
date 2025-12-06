@@ -1,2 +1,44 @@
-openai
-python-dotenv
+# NovaOS Requirements
+# Generated: 2025-12-06
+# Python 3.10+ required
+
+# =============================================================================
+# CORE DEPENDENCIES
+# =============================================================================
+
+# OpenAI API client - used by LLMClient for chat completions
+# Uses new SDK pattern: from openai import OpenAI
+# Minimum 1.0.0 for new client API, pinned to latest stable
+openai>=1.0.0,<3.0.0
+
+# Flask web framework - used by nova_api.py for REST endpoints
+# Provides /nova POST endpoint for web/mobile clients
+flask>=3.0.0,<4.0.0
+
+# Environment variable loading - loads .env for API keys
+# Used in llm_client.py: from dotenv import load_dotenv
+python-dotenv>=1.0.0,<2.0.0
+
+# =============================================================================
+# OPTIONAL / DEV DEPENDENCIES (uncomment if needed)
+# =============================================================================
+
+# Rich terminal output (optional - for better CLI formatting)
+# rich>=13.0.0
+
+# Colorama for cross-platform terminal colors (optional)
+# colorama>=0.4.6
+
+# Pydantic for data validation (optional - if adding strict typing)
+# pydantic>=2.0.0
+
+# =============================================================================
+# NOTES
+# =============================================================================
+# tkinter is part of Python stdlib (comes with Python installation)
+# No additional install needed for: json, os, re, datetime, pathlib, etc.
+#
+# For development/testing, consider also installing:
+#   pytest>=7.0.0
+#   black>=23.0.0
+#   flake8>=6.0.0
