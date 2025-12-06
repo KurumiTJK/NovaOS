@@ -249,13 +249,65 @@ def handle_next(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         lines.append(f"🎉 **Quest Complete: {quest.title}**")
         lines.append("═══════════════════════════════")
         
-        # Show rewards
+        # v0.8.0: Award XP to Player Profile
+        profile_manager = getattr(kernel, 'player_profile_manager', None)
+        if profile_manager:
+            # Calculate total XP from quest
+            progress = engine.get_progress()
+            quest_progress = progress.quest_runs.get(quest.id)
+            total_quest_xp = quest_progress.xp_earned if quest_progress else 0
+            
+            # Get domain from module_id or category
+            domain = quest.module_id or quest.category
+            
+            # Get rewards
+            titles = quest.rewards.titles if quest.rewards else []
+            shortcuts = quest.rewards.shortcuts if quest.rewards else []
+            visual = quest.rewards.visual_unlock if quest.rewards else None
+            
+            # Apply all rewards
+            reward_result = profile_manager.apply_quest_rewards(
+                xp=total_quest_xp,
+                domain=domain,
+                quest_id=quest.id,
+                titles=titles,
+                shortcuts=shortcuts,
+                visual_unlock=visual,
+            )
+            
+            # Show player profile updates
+            xp_info = reward_result.get("xp_result", {})
+            if xp_info.get("level_up"):
+                lines.append(f"🎊 **LEVEL UP!** You are now level {xp_info['new_level']}!")
+            if xp_info.get("tier_up"):
+                from .player_profile import get_tier_name
+                tier_name = get_tier_name(xp_info.get("new_tier", 1))
+                lines.append(f"⬆️ **{domain.title()} tier up!** Now: {tier_name}")
+            
+            lines.append(f"Total XP earned: **{total_quest_xp}**")
+            
+            if reward_result.get("titles_added"):
+                for title in reward_result["titles_added"]:
+                    lines.append(f"🏆 **New Title:** {title}")
+            
+            if reward_result.get("shortcuts_added"):
+                for shortcut in reward_result["shortcuts_added"]:
+                    lines.append(f"⚡ **New Shortcut:** {shortcut}")
+            
+            if reward_result.get("visual_added"):
+                lines.append(f"✨ **Visual Unlock:** {reward_result['visual_added']}")
+        else:
+            # Fallback if no profile manager
+            progress = engine.get_progress()
+            quest_progress = progress.quest_runs.get(quest.id)
+            if quest_progress:
+                lines.append(f"Total XP earned: **{quest_progress.xp_earned}**")
+        
+        # Show boss cleared
         progress = engine.get_progress()
         quest_progress = progress.quest_runs.get(quest.id)
-        if quest_progress:
-            lines.append(f"Total XP earned: **{quest_progress.xp_earned}**")
-            if quest_progress.boss_cleared:
-                lines.append("👑 Boss defeated!")
+        if quest_progress and quest_progress.boss_cleared:
+            lines.append("👑 Boss defeated!")
         
         # Show skill progress
         skill = progress.skills.get(quest.skill_tree_path)
@@ -268,7 +320,7 @@ def handle_next(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
             lines.append(f"🔥 Learning streak: **{streak.current} days**")
         
         lines.append("")
-        lines.append("Run `#quest` to see more quests.")
+        lines.append("Run `#quest` to see more quests, or `#quest-log` to see your progress.")
         
     elif result.next_step:
         # Show next step
@@ -345,6 +397,8 @@ def handle_quest_log(cmd_name, args, session_id, context, kernel, meta) -> Comma
     """
     View your current quest, recent completions, XP, skills, and learning streak.
     
+    v0.8.0: Now shows Player Profile data (level, domain XP, titles).
+    
     Usage:
         #quest-log
     """
@@ -353,6 +407,30 @@ def handle_quest_log(cmd_name, args, session_id, context, kernel, meta) -> Comma
     active_run = engine.get_active_run()
     
     lines = ["╔══ Quest Log ══╗", ""]
+    
+    # v0.8.0: Show Player Profile summary first
+    profile_manager = getattr(kernel, 'player_profile_manager', None)
+    if profile_manager:
+        profile = profile_manager.get_profile()
+        
+        lines.append(f"⭐ **Level {profile.level}** — {profile.total_xp} XP total")
+        lines.append(f"   Progress to next: {profile.get_level_progress_pct():.0f}% ({profile.get_xp_to_next_level()} XP needed)")
+        
+        if profile.titles:
+            lines.append(f"🏆 Titles: {', '.join(profile.titles)}")
+        
+        lines.append("")
+        
+        # Domain breakdown
+        domain_summary = profile_manager.get_domain_summary()
+        active_domains = [d for d in domain_summary if d["xp"] > 0]
+        
+        if active_domains:
+            lines.append("🗺️ **Domain Progress**")
+            for d in active_domains[:5]:  # Top 5
+                tier_stars = "⭐" * d["tier"]
+                lines.append(f"   {d['domain'].title()}: {d['xp']} XP • {d['tier_name']} {tier_stars}")
+            lines.append("")
     
     # Active quest
     if active_run:
@@ -386,9 +464,9 @@ def handle_quest_log(cmd_name, args, session_id, context, kernel, meta) -> Comma
             lines.append(f"   ✅ {name} — {qp.xp_earned} XP {boss_icon}")
         lines.append("")
     
-    # Skills
+    # Skills (from quest engine)
     if progress.skills:
-        lines.append("🎓 **Skills**")
+        lines.append("🎓 **Skill Trees**")
         for path, skill in progress.skills.items():
             lines.append(f"   {path} — {skill.xp} XP (Tier {skill.current_tier})")
         lines.append("")

@@ -119,6 +119,13 @@ class NovaKernel:
             from kernel.workflow_engine import WorkflowEngine
             self.quest_engine = None
             self.workflow_engine = WorkflowEngine()
+        
+        # v0.8.0: Player Profile Manager
+        try:
+            from kernel.player_profile import PlayerProfileManager
+            self.player_profile_manager = PlayerProfileManager(self.config.data_dir)
+        except ImportError:
+            self.player_profile_manager = None
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)

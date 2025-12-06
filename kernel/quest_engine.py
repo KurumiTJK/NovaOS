@@ -148,12 +148,14 @@ class Step:
 class RewardBundle:
     """Rewards granted upon quest completion."""
     xp: int = 0
+    titles: List[str] = field(default_factory=list)  # v0.8.0: Titles to award
     shortcuts: List[str] = field(default_factory=list)
     visual_unlock: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             "xp": self.xp,
+            "titles": self.titles,
             "shortcuts": self.shortcuts,
             "visual_unlock": self.visual_unlock,
         }
@@ -162,6 +164,7 @@ class RewardBundle:
     def from_dict(cls, data: Dict[str, Any]) -> "RewardBundle":
         return cls(
             xp=data.get("xp", 0),
+            titles=data.get("titles", []),
             shortcuts=data.get("shortcuts", []),
             visual_unlock=data.get("visual_unlock"),
         )
@@ -179,6 +182,7 @@ class Quest:
     subtitle: Optional[str] = None
     description: Optional[str] = None
     category: str = "general"  # cyber, finance, real_estate, meta, etc.
+    module_id: Optional[str] = None  # v0.8.0: Links quest to a module/region
     skill_tree_path: str = "general"  # e.g., "cyber.jwt.tier1"
     difficulty: int = 1  # 1-5
     estimated_minutes: int = 15
@@ -187,6 +191,11 @@ class Quest:
     rewards: Optional[RewardBundle] = None
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
+    def __post_init__(self):
+        # If module_id not set, derive from category
+        if self.module_id is None:
+            self.module_id = self.category
+    
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
@@ -194,6 +203,7 @@ class Quest:
             "subtitle": self.subtitle,
             "description": self.description,
             "category": self.category,
+            "module_id": self.module_id,
             "skill_tree_path": self.skill_tree_path,
             "difficulty": self.difficulty,
             "estimated_minutes": self.estimated_minutes,
@@ -216,6 +226,7 @@ class Quest:
             subtitle=data.get("subtitle"),
             description=data.get("description"),
             category=data.get("category", "general"),
+            module_id=data.get("module_id"),
             skill_tree_path=data.get("skill_tree_path", "general"),
             difficulty=data.get("difficulty", 1),
             estimated_minutes=data.get("estimated_minutes", 15),
