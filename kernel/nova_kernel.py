@@ -102,12 +102,18 @@ class NovaKernel:
         self.module_registry = nova_registry.ModuleRegistry(config=config)
         self.router = router or SyscommandRouter(self.commands)
 
-        # ---------------- TimeRhythm / Quest Engine / Reminders ----------------
-        from kernel.time_rhythm import TimeRhythmEngine
+        # ---------------- TimeRhythm / Reminders ----------------
         from kernel.reminders_manager import RemindersManager
-
-        self.time_rhythm_engine = TimeRhythmEngine()
         self.reminders = RemindersManager(self.config.data_dir)
+        
+        # v0.8.0: Time Rhythm Manager (replaces legacy TimeRhythmEngine)
+        try:
+            from kernel.time_rhythm import TimeRhythmManager
+            self.time_rhythm_manager = TimeRhythmManager(self.config.data_dir)
+            self.time_rhythm_engine = self.time_rhythm_manager  # Alias for compatibility
+        except ImportError:
+            self.time_rhythm_manager = None
+            self.time_rhythm_engine = None
         
         # v0.8.0: Quest Engine (replaces legacy WorkflowEngine)
         try:

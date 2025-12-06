@@ -157,6 +157,7 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("presence", "Show time rhythm presence snapshot", "#presence"),
             CommandInfo("pulse", "Quest pulse diagnostics", "#pulse"),
             CommandInfo("align", "Alignment suggestions based on time + quests", "#align"),
+            CommandInfo("weekly-review", "Start or complete weekly review", "#weekly-review start"),
         ]
     ),
     "reminders": Section(

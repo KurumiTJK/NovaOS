@@ -65,6 +65,15 @@ except ImportError:
     def get_strategist_handlers():
         return {}
 
+# v0.8.0: Time Rhythm handlers (presence, pulse, align, weekly-review)
+try:
+    from .time_rhythm import get_time_rhythm_handlers
+    _HAS_TIME_RHYTHM = True
+except ImportError:
+    _HAS_TIME_RHYTHM = False
+    def get_time_rhythm_handlers():
+        return {}
+
 # v0.7: Working Memory Engine integration
 try:
     from .nova_wm import wm_clear
@@ -5512,3 +5521,7 @@ if _HAS_ASSISTANT_MODE:
 # v0.8.0: Strategist handlers (analyze, route, insight)
 if _HAS_STRATEGIST:
     SYS_HANDLERS.update(get_strategist_handlers())
+
+# v0.8.0: Time Rhythm handlers (presence, pulse, align, weekly-review)
+if _HAS_TIME_RHYTHM:
+    SYS_HANDLERS.update(get_time_rhythm_handlers())

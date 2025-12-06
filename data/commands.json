@@ -303,6 +303,11 @@
     "category": "timerhythm",
     "description": "Alignment suggestions based on time + quests."
   },
+  "weekly-review": {
+    "handler": "handle_weekly_review",
+    "category": "timerhythm",
+    "description": "Start or complete weekly review."
+  },
 
   "remind-add": {
     "handler": "handle_remind_add",
