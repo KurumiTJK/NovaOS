@@ -2,7 +2,7 @@
 
 **A Life RPG Operating System for Personal Growth**
 
-NovaOS is an AI-powered personal operating system that gamifies life management through quests, XP, skill domains, and intelligent assistance. Think of it as your personal RPG companion that helps you learn, grow, and stay organized.
+NovaOS is a personal AI companion and life-operating system that helps you grow, learn, and manage your life through intelligent assistance, narrative structure, and light RPG mechanics. It turns your real goals into quests, tracks your XP and skill progress, understands your state and priorities, and guides you with strategic, emotionally aware support — all while keeping you immersed in a personalized life-RPG experience.
 
 ---
 
