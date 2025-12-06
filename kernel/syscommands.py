@@ -4,6 +4,16 @@ from typing import Dict, Any, Callable
 
 from .command_types import CommandResponse
 from .formatting import OutputFormatter as F
+
+# v0.8.0: Quest Engine handlers
+try:
+    from .quest_handlers import get_quest_handlers
+    _HAS_QUEST_ENGINE = True
+except ImportError:
+    _HAS_QUEST_ENGINE = False
+    def get_quest_handlers():
+        return {}
+
 # v0.7: Working Memory Engine integration
 try:
     from .nova_wm import wm_clear
@@ -23,15 +33,6 @@ except ImportError:
         pass  # No-op if Behavior Layer not installed
     def get_behavior_engine(session_id: str):
         return None
-
-# v0.7.16: Enhanced Custom Commands
-try:
-    from .custom_command_handlers import get_v2_handlers
-    _HAS_CUSTOM_COMMAND_V2 = True
-except ImportError:
-    _HAS_CUSTOM_COMMAND_V2 = False
-    def get_v2_handlers():
-        return {}  # No-op if v2 handlers not installed
 
 KernelResponse = CommandResponse
 
@@ -1779,7 +1780,7 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         "modules": "Creating, inspecting, binding, and removing modules",
         "identity": "Identity traits, snapshots, and restoration",
         "system": "Environment, modes, snapshots, and model info",
-        "workflow": "Starting, advancing, halting, and listing workflows",
+        "workflow": "Gamified learning quests with XP, skills, and progress",
         "timerhythm": "Presence, pulse diagnostics, and alignment",
         "reminders": "Creating, listing, updating, and deleting reminders",
         "commands": "Managing custom commands and macros",
@@ -5324,11 +5325,12 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_snapshot": handle_snapshot,
     "handle_restore": handle_restore,
 
-    # v0.4 Workflow
-    "handle_flow": handle_flow,
-    "handle_advance": handle_advance,
-    "handle_halt": handle_halt,
-    "handle_compose": handle_compose,
+    # v0.8.0: Legacy workflow handlers REMOVED
+    # Quest handlers are added via get_quest_handlers() after this dict
+    # "handle_flow": handle_flow,         # REMOVED
+    # "handle_advance": handle_advance,   # REMOVED
+    # "handle_halt": handle_halt,         # REMOVED
+    # "handle_compose": handle_compose,   # REMOVED (workflow version)
 
     # v0.4 Time Rhythm
     "handle_presence": handle_presence,
@@ -5341,10 +5343,10 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_remind_update": handle_remind_update,
     "handle_remind_delete": handle_remind_delete,
 
-    # v0.4.4 Workflow delete
-    "handle_workflow_delete": handle_workflow_delete,
-    "handle_workflow_list": handle_workflow_list,
-    "handle_workflow_inspect": handle_workflow_inspect,
+    # v0.8.0: Legacy workflow handlers REMOVED
+    # "handle_workflow_delete": handle_workflow_delete,   # REMOVED
+    # "handle_workflow_list": handle_workflow_list,       # REMOVED
+    # "handle_workflow_inspect": handle_workflow_inspect, # REMOVED
     # v0.5 Custom Commands
     "handle_prompt_command": handle_prompt_command,
     "handle_command_add": handle_command_add,
@@ -5427,7 +5429,10 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
 
 }
 
-# v0.7.16: Replace custom command handlers with enhanced versions
-# This adds support for: intensive, output_style, examples, strict, persona_mode
-if _HAS_CUSTOM_COMMAND_V2:
-    SYS_HANDLERS.update(get_v2_handlers())
+# =============================================================================
+# v0.8.0: Quest Engine Integration
+# =============================================================================
+# Add quest handlers to SYS_HANDLERS
+# This replaces legacy workflow commands (flow, advance, halt, compose, etc.)
+if _HAS_QUEST_ENGINE:
+    SYS_HANDLERS.update(get_quest_handlers())

@@ -42,23 +42,6 @@ from .nova_wm import (
     wm_answer_reference,
     wm_clear,
 )
-# v0.7.17: Command-add wizard
-try:
-    from .command_add_wizard import (
-        is_command_add_wizard_active,
-        process_wizard_stage as process_command_add_wizard,
-        clear_command_add_wizard,
-    )
-    _HAS_COMMAND_ADD_WIZARD = True
-except ImportError:
-    _HAS_COMMAND_ADD_WIZARD = False
-    def is_command_add_wizard_active(session_id):
-        return False
-    def process_command_add_wizard(session_id, user_input, kernel):
-        return None
-    def clear_command_add_wizard(session_id):
-        pass
-
 # InterpretationEngine is kept for explicit #interpret, #derive, etc. commands
 # but is NO LONGER used for automatic NL → command routing
 from kernel.interpretation_engine import InterpretationEngine
@@ -119,14 +102,23 @@ class NovaKernel:
         self.module_registry = nova_registry.ModuleRegistry(config=config)
         self.router = router or SyscommandRouter(self.commands)
 
-        # ---------------- TimeRhythm / Workflows / Reminders ----------------
+        # ---------------- TimeRhythm / Quest Engine / Reminders ----------------
         from kernel.time_rhythm import TimeRhythmEngine
-        from kernel.workflow_engine import WorkflowEngine
         from kernel.reminders_manager import RemindersManager
 
         self.time_rhythm_engine = TimeRhythmEngine()
-        self.workflow_engine = WorkflowEngine()
         self.reminders = RemindersManager(self.config.data_dir)
+        
+        # v0.8.0: Quest Engine (replaces legacy WorkflowEngine)
+        try:
+            from kernel.quest_engine import QuestEngine
+            self.quest_engine = QuestEngine(self.config.data_dir)
+            self.workflow_engine = None  # Legacy - kept for compatibility checks
+        except ImportError:
+            # Fallback to legacy workflow engine if quest engine not available
+            from kernel.workflow_engine import WorkflowEngine
+            self.quest_engine = None
+            self.workflow_engine = WorkflowEngine()
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)
@@ -270,22 +262,6 @@ class NovaKernel:
             clear_active_section(session_id)
 
         # -------------------------------------------------------------
-        # 2.5) v0.7.17: Command-Add Wizard Check
-        # -------------------------------------------------------------
-        # If command-add wizard is active, route input through it
-        if _HAS_COMMAND_ADD_WIZARD and is_command_add_wizard_active(session_id):
-            # If user types a # command, they might be trying to cancel
-            if stripped.startswith("#") and stripped.lower() != "#command-add":
-                # Clear the wizard and process the new command
-                clear_command_add_wizard(session_id)
-            else:
-                # Continue wizard flow
-                response = process_command_add_wizard(session_id, stripped, self)
-                if response:
-                    self.logger.log_response(session_id, "command-add", response.to_dict())
-                    return response.to_dict()
-
-        # -------------------------------------------------------------
         # 3) Explicit Syscommand (# prefix)
         # -------------------------------------------------------------
         if stripped.startswith("#"):
@@ -294,21 +270,11 @@ class NovaKernel:
             cmd_name = cmd_token[1:]  # Remove #
             args_str = " ".join(tokens[1:]) if len(tokens) > 1 else ""
             
-            # v0.7.16: Check both core commands AND custom commands
-            # Refresh custom commands from registry (in case new ones were added)
-            custom_cmd = self.custom_registry.get(cmd_name)
-            is_core_cmd = cmd_name in self.commands
-            is_custom_cmd = custom_cmd is not None and custom_cmd.get("enabled", True)
-            
-            if is_core_cmd or is_custom_cmd:
+            if cmd_name in self.commands:
                 args_dict = self._parse_args(args_str)
                 
-                # For custom commands, add full_input for template rendering
-                if is_custom_cmd and not is_core_cmd:
-                    args_dict["full_input"] = args_str
-                
-                # 4) Wizard mode for no-arg commands (core commands only)
-                if is_core_cmd and not args_dict and is_wizard_command(cmd_name):
+                # 4) Wizard mode for no-arg commands
+                if not args_dict and is_wizard_command(cmd_name):
                     # v0.7: Clear Working Memory when wizard starts
                     wm_clear(session_id)
                     result = start_wizard(session_id, cmd_name)
@@ -320,18 +286,12 @@ class NovaKernel:
                         "extra": result.get("extra", {}),
                     }
                 
-                # Get metadata - custom commands have their own meta
-                if is_custom_cmd and not is_core_cmd:
-                    cmd_meta = custom_cmd
-                else:
-                    cmd_meta = self.commands.get(cmd_name)
-                
                 request = CommandRequest(
                     cmd_name=cmd_name,
                     args=args_dict,
                     session_id=session_id,
                     raw_text=text,
-                    meta=cmd_meta,
+                    meta=self.commands.get(cmd_name),
                 )
                 response = self.router.route(request, kernel=self)
                 self.logger.log_response(session_id, cmd_name, response.to_dict())

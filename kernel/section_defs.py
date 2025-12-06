@@ -1,806 +1,226 @@
 # kernel/section_defs.py
 """
-v0.6 — Section Definitions
+v0.8.0 — Section Definitions for NovaOS
 
-Central source of truth for syscommand organization.
-Used by:
-- #help (sectioned display)
-- Section menu commands (#core, #memory, etc.)
-- Section router (#memory store → store)
+Defines the help sections and their associated commands.
+Updated to use Quest Engine commands instead of legacy workflow commands.
 
-DO NOT modify syscommand handlers. This is purely organizational.
+IMPORTANT: Quest commands are EXPLICIT only - no NL auto-routing.
 """
 
-from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
+
+# =============================================================================
+# DATA CLASSES
+# =============================================================================
 
 @dataclass
-class CommandDef:
-    """Definition of a single command."""
+class CommandInfo:
+    """Command metadata for section display."""
     name: str
     description: str
-    example: str
-    aliases: List[str] = field(default_factory=list)
+    example: str = ""
 
 
 @dataclass
-class SectionDef:
-    """Definition of a command section."""
-    key: str
+class Section:
+    """Section definition with title, description, and commands."""
     title: str
     description: str
-    commands: List[CommandDef]
+    commands: List[CommandInfo] = field(default_factory=list)
 
 
-# -----------------------------------------------------------------------------
-# Official Section Definitions
-# -----------------------------------------------------------------------------
+# =============================================================================
+# SECTION DEFINITIONS
+# =============================================================================
 
-SECTION_DEFS: List[SectionDef] = [
-    SectionDef(
-        key="core",
-        title="CORE",
-        description="Core system commands for NovaOS operation.",
+SECTION_DEFS: Dict[str, Section] = {
+    "core": Section(
+        title="Core",
+        description="Essential NovaOS commands for system interaction.",
         commands=[
-            CommandDef(
-                name="why",
-                description="State NovaOS purpose, philosophy, and identity.",
-                example="#why",
-            ),
-            CommandDef(
-                name="boot",
-                description="Initialize NovaOS kernel and persona.",
-                example="#boot",
-            ),
-            CommandDef(
-                name="reset",
-                description="Reset the current session state.",
-                example="#reset",
-            ),
-            CommandDef(
-                name="status",
-                description="Show system status including memory, workflows, and health.",
-                example="#status",
-            ),
-            CommandDef(
-                name="help",
-                description="Show available commands organized by section.",
-                example="#help",
-            ),
-        ],
+            CommandInfo("why", "State NovaOS purpose, philosophy, and identity", "#why"),
+            CommandInfo("boot", "Initialize NovaOS kernel and persona", "#boot"),
+            CommandInfo("reset", "Reload system memory and modules", "#reset"),
+            CommandInfo("status", "Display system state", "#status"),
+            CommandInfo("help", "Show command sections and help", "#help"),
+        ]
     ),
-    SectionDef(
-        key="memory",
-        title="MEMORY",
-        description="Memory storage, recall, and lifecycle management.",
+    "memory": Section(
+        title="Memory",
+        description="Store, recall, and manage memory items.",
         commands=[
-            CommandDef(
-                name="store",
-                description="Store a memory item with type and tags.",
-                example='#store type=semantic tags=work "Meeting notes from today"',
-            ),
-            CommandDef(
-                name="recall",
-                description="Recall memory items filtered by type and/or tags.",
-                example="#recall type=semantic tags=work",
-            ),
-            CommandDef(
-                name="forget",
-                description="Forget memory items by id, tag, or type.",
-                example="#forget ids=5",
-            ),
-            CommandDef(
-                name="trace",
-                description="Show lineage/trace info for a memory item.",
-                example="#trace id=5",
-            ),
-            CommandDef(
-                name="bind",
-                description="Bind multiple memory items into a cluster.",
-                example="#bind ids=1,2,3",
-            ),
-            CommandDef(
-                name="memory-stats",
-                description="Show detailed memory statistics.",
-                example="#memory-stats",
-            ),
-            CommandDef(
-                name="memory-salience",
-                description="Update the salience (importance) of a memory item.",
-                example="#memory-salience id=5 salience=0.9",
-            ),
-            CommandDef(
-                name="memory-status",
-                description="Update the status of a memory item (active, stale, archived).",
-                example="#memory-status id=5 status=stale",
-            ),
-            CommandDef(
-                name="memory-important",
-                description="List high-importance memories.",
-                example="#memory-important",
-            ),
-            CommandDef(
-                name="memory-decay",
-                description="Run decay analysis on memories (apply=true to commit changes).",
-                example="#memory-decay apply=true",
-            ),
-            CommandDef(
-                name="memory-drift",
-                description="Detect drifted/stale memories.",
-                example="#memory-drift",
-            ),
-            CommandDef(
-                name="memory-reconfirm",
-                description="Re-confirm a memory (restore to active status).",
-                example="#memory-reconfirm id=5",
-            ),
-            CommandDef(
-                name="memory-stale",
-                description="List stale memories.",
-                example="#memory-stale",
-            ),
-            CommandDef(
-                name="memory-archive-stale",
-                description="Archive all stale memories.",
-                example="#memory-archive-stale",
-            ),
-            CommandDef(
-                name="decay-preview",
-                description="Preview decay trajectory for a memory type.",
-                example="#decay-preview type=episodic salience=0.8",
-            ),
-            CommandDef(
-                name="memory-policy",
-                description="Show memory policy configuration.",
-                example="#memory-policy",
-            ),
-            CommandDef(
-                name="memory-policy-test",
-                description="Test memory policy pre-store validation.",
-                example='#memory-policy-test payload="Test" type=semantic',
-            ),
-            CommandDef(
-                name="memory-mode-filter",
-                description="Show memory recall filters for current or specified mode.",
-                example="#memory-mode-filter mode=deep_work",
-            ),
-        ],
+            CommandInfo("store", "Store a memory item (semantic/procedural/episodic) with tags", "#store type=semantic tags=work content=\"...\""),
+            CommandInfo("recall", "Recall memory items filtered by type and/or tags", "#recall tags=work"),
+            CommandInfo("forget", "Forget memory items by id, tag, or type", "#forget id=123"),
+            CommandInfo("trace", "Show lineage/trace info for a memory item", "#trace id=123"),
+            CommandInfo("bind", "Bind multiple memory items into a cluster", "#bind ids=1,2,3"),
+        ]
     ),
-    SectionDef(
-        key="continuity",
-        title="CONTINUITY",
-        description="Memory-based continuity without identity binding.",
+    "continuity": Section(
+        title="Continuity",
+        description="Manage preferences, projects, and session state.",
         commands=[
-            CommandDef(
-                name="preferences",
-                description="Show user preferences extracted from memory and identity.",
-                example="#preferences",
-            ),
-            CommandDef(
-                name="projects",
-                description="Show active projects and goals.",
-                example="#projects",
-            ),
-            CommandDef(
-                name="continuity-context",
-                description="Show full continuity context (preferences + projects + identity).",
-                example="#continuity-context",
-            ),
-            CommandDef(
-                name="reconfirm-prompts",
-                description="Show gentle re-confirmation prompts for stale items.",
-                example="#reconfirm-prompts",
-            ),
-            CommandDef(
-                name="suggest-workflow",
-                description="Suggest a workflow for a goal.",
-                example='#suggest-workflow goal="Learn ML"',
-            ),
-        ],
+            CommandInfo("preferences", "Show or set user preferences", "#preferences"),
+            CommandInfo("projects", "List active projects", "#projects"),
+            CommandInfo("context", "Show current session context", "#context"),
+        ]
     ),
-    SectionDef(
-        key="human_state",
-        title="HUMAN STATE",
-        description="Track biology, load, and aspiration for safer suggestions.",
+    "human_state": Section(
+        title="Human State",
+        description="Track energy, stress, momentum, and capacity.",
         commands=[
-            CommandDef(
-                name="evolution-status",
-                description="Show evolution status (human state summary with trends).",
-                example="#evolution-status",
-            ),
-            CommandDef(
-                name="log-state",
-                description="Guided check-in for updating human state.",
-                example="#log-state energy=good stress=low",
-            ),
-            CommandDef(
-                name="state-history",
-                description="Show human state history.",
-                example="#state-history",
-            ),
-            CommandDef(
-                name="capacity",
-                description="Quick capacity check with recommendations.",
-                example="#capacity",
-            ),
-        ],
+            CommandInfo("log-state", "Log current human state", "#log-state energy=high stress=low"),
+            CommandInfo("evolution-status", "Show state evolution over time", "#evolution-status"),
+            CommandInfo("capacity", "Check current capacity", "#capacity"),
+        ]
     ),
-    SectionDef(
-        key="modules",
-        title="MODULES",
-        description="Life domain modules for focused work.",
+    "modules": Section(
+        title="Modules",
+        description="Create, inspect, and manage modules.",
         commands=[
-            CommandDef(
-                name="map",
-                description="List all registered modules.",
-                example="#map",
-            ),
-            CommandDef(
-                name="forge",
-                description="Forge (create) a new module with mission and state.",
-                example='#forge key=finance mission="Manage personal finances"',
-            ),
-            CommandDef(
-                name="dismantle",
-                description="Dismantle (delete) a module.",
-                example="#dismantle key=finance",
-            ),
-            CommandDef(
-                name="inspect",
-                description="Inspect a module's metadata and bindings.",
-                example="#inspect key=finance",
-            ),
-            CommandDef(
-                name="bind-module",
-                description="Bind two modules for cross-domain interaction.",
-                example="#bind-module a=finance b=real_estate",
-            ),
-        ],
+            CommandInfo("map", "List all registered modules", "#map"),
+            CommandInfo("forge", "Forge (create) a new module with mission and state", "#forge key=mymod mission=\"...\""),
+            CommandInfo("dismantle", "Dismantle (delete) a module", "#dismantle key=mymod"),
+            CommandInfo("inspect", "Inspect a module's metadata and bindings", "#inspect key=mymod"),
+            CommandInfo("bind-module", "Bind two modules for cross-domain interaction", "#bind-module a=mod1 b=mod2"),
+        ]
     ),
-    SectionDef(
-        key="identity",
-        title="IDENTITY",
-        description="Versioned identity profile management.",
+    "identity": Section(
+        title="Identity",
+        description="Manage Nova's identity traits and values.",
         commands=[
-            CommandDef(
-                name="identity-show",
-                description="Show current identity profile.",
-                example="#identity-show",
-            ),
-            CommandDef(
-                name="identity-set",
-                description="Set identity traits (name, goals, values, roles, etc.).",
-                example='#identity-set name="Vant" goals="Build NovaOS,Learn ML"',
-            ),
-            CommandDef(
-                name="identity-snapshot",
-                description="Create a snapshot of current identity.",
-                example='#identity-snapshot notes="Before career change"',
-            ),
-            CommandDef(
-                name="identity-history",
-                description="Show identity version history.",
-                example="#identity-history",
-            ),
-            CommandDef(
-                name="identity-restore",
-                description="Restore identity from a historical snapshot.",
-                example="#identity-restore id=profile-20250101-abc123",
-            ),
-            CommandDef(
-                name="identity-clear-history",
-                description="Clear identity history.",
-                example="#identity-clear-history",
-            ),
-        ],
+            CommandInfo("identity-show", "Show current identity configuration", "#identity-show"),
+            CommandInfo("identity-set", "Set an identity trait", "#identity-set trait=value"),
+            CommandInfo("identity-clear", "Clear identity configuration", "#identity-clear"),
+        ]
     ),
-    SectionDef(
-        key="system",
-        title="SYSTEM",
-        description="System configuration and snapshots.",
+    "system": Section(
+        title="System",
+        description="Environment, mode, snapshots, and system state.",
         commands=[
-            CommandDef(
-                name="snapshot",
-                description="Create a snapshot of core OS state.",
-                example="#snapshot",
-            ),
-            CommandDef(
-                name="restore",
-                description="Restore OS state from a snapshot.",
-                example="#restore id=1",
-            ),
-            CommandDef(
-                name="env",
-                description="Show current environment variables.",
-                example="#env",
-            ),
-            CommandDef(
-                name="setenv",
-                description="Set an environment variable.",
-                example="#setenv key=debug value=true",
-            ),
-            CommandDef(
-                name="mode",
-                description="Set the current NovaOS mode (normal, deep_work, reflection, debug).",
-                example="#mode deep_work",
-            ),
-            CommandDef(
-                name="model-info",
-                description="Show model routing information and available tiers.",
-                example="#model-info",
-            ),
-            CommandDef(
-                name="command-wizard",
-                description="Interactive wizard for creating custom commands.",
-                example="#command-wizard",
-            ),
-        ],
+            CommandInfo("env", "Show current environment state", "#env"),
+            CommandInfo("setenv", "Set environment keys", "#setenv debug=true"),
+            CommandInfo("mode", "Set NovaOS mode", "#mode deep_work"),
+            CommandInfo("snapshot", "Create a snapshot of core OS state", "#snapshot"),
+            CommandInfo("restore", "Restore OS state from a snapshot", "#restore id=123"),
+        ]
     ),
-    SectionDef(
-        key="workflow",
-        title="WORKFLOW",
-        description="Multi-step workflow creation and execution.",
+    "workflow": Section(
+        title="Quest Engine",
+        description="Gamified learning quests with XP, skills, and progress tracking.",
         commands=[
-            CommandDef(
-                name="flow",
-                description="Start or resume a workflow.",
-                example="#flow name=morning_routine",
-            ),
-            CommandDef(
-                name="advance",
-                description="Advance the current workflow to the next step.",
-                example="#advance",
-            ),
-            CommandDef(
-                name="halt",
-                description="Pause or stop the current workflow.",
-                example="#halt",
-            ),
-            CommandDef(
-                name="compose",
-                description="Compose a new workflow with LLM assistance.",
-                example='#compose name="Weekly Review"',
-            ),
-            CommandDef(
-                name="workflow-delete",
-                description="Delete a workflow.",
-                example="#workflow-delete id=3",
-            ),
-            CommandDef(
-                name="workflow-list",
-                description="List all workflows.",
-                example="#workflow-list",
-            ),
-            CommandDef(
-                name="workflow-inspect",
-                description="Inspect a workflow and show all steps.",
-                example="#workflow-inspect id=wf-xxxx",
-            ),
-        ],
+            CommandInfo("quest", "Open the Quest Board to list, start, or resume a quest", "#quest"),
+            CommandInfo("next", "Submit your answer and advance to the next step", "#next"),
+            CommandInfo("pause", "Pause the active quest and save progress", "#pause"),
+            CommandInfo("quest-log", "View progress, XP, skills, and learning streak", "#quest-log"),
+            CommandInfo("quest-reset", "Reset a quest's progress to replay from start", "#quest-reset id=jwt_intro"),
+            CommandInfo("quest-compose", "Compose a new questline with LLM assistance", "#quest-compose"),
+            CommandInfo("quest-delete", "Delete a questline and its saved progress", "#quest-delete id=myquest"),
+            CommandInfo("quest-list", "List all quest definitions", "#quest-list"),
+            CommandInfo("quest-inspect", "Inspect a quest definition and all its steps", "#quest-inspect id=jwt_intro"),
+            CommandInfo("quest-debug", "Show raw quest engine state for debugging", "#quest-debug"),
+        ]
     ),
-    SectionDef(
-        key="timerhythm",
-        title="TIME RHYTHM",
-        description="Temporal awareness and alignment.",
+    "timerhythm": Section(
+        title="Time Rhythm",
+        description="Time-based presence, alignment, and pulse.",
         commands=[
-            CommandDef(
-                name="presence",
-                description="Show current time presence and context.",
-                example="#presence",
-            ),
-            CommandDef(
-                name="pulse",
-                description="Quick temporal pulse check.",
-                example="#pulse",
-            ),
-            CommandDef(
-                name="align",
-                description="Suggest next actions based on time and state.",
-                example="#align",
-            ),
-        ],
+            CommandInfo("presence", "Show time rhythm presence snapshot", "#presence"),
+            CommandInfo("pulse", "Quest pulse diagnostics", "#pulse"),
+            CommandInfo("align", "Alignment suggestions based on time + quests", "#align"),
+        ]
     ),
-    SectionDef(
-        key="reminders",
-        title="REMINDERS",
-        description="Time-based reminder management.",
+    "reminders": Section(
+        title="Reminders",
+        description="Create and manage time-based reminders.",
         commands=[
-            CommandDef(
-                name="remind-add",
-                description="Add a new reminder.",
-                example='#remind-add at="9:00 AM" msg="Stand up meeting"',
-            ),
-            CommandDef(
-                name="remind-list",
-                description="List all reminders.",
-                example="#remind-list",
-            ),
-            CommandDef(
-                name="remind-update",
-                description="Update a reminder.",
-                example='#remind-update id=1 msg="Updated message"',
-            ),
-            CommandDef(
-                name="remind-delete",
-                description="Delete a reminder.",
-                example="#remind-delete id=1",
-            ),
-        ],
+            CommandInfo("remind-add", "Create a reminder", "#remind-add msg=\"Call mom\" at=\"5pm\""),
+            CommandInfo("remind-list", "List reminders", "#remind-list"),
+            CommandInfo("remind-update", "Update a reminder", "#remind-update id=1 msg=\"...\""),
+            CommandInfo("remind-delete", "Delete a reminder", "#remind-delete id=1"),
+        ]
     ),
-    SectionDef(
-        key="commands",
-        title="CUSTOM COMMANDS",
+    "commands": Section(
+        title="Custom Commands",
         description="Create and manage custom commands.",
         commands=[
-            CommandDef(
-                name="command-add",
-                description="Add a custom command.",
-                example='#command-add name=daily-reflect kind=prompt prompt_template="Reflect on today"',
-            ),
-            CommandDef(
-                name="command-list",
-                description="List all custom commands.",
-                example="#command-list",
-            ),
-            CommandDef(
-                name="command-inspect",
-                description="Inspect a custom command.",
-                example="#command-inspect name=daily-reflect",
-            ),
-            CommandDef(
-                name="command-remove",
-                description="Remove a custom command.",
-                example="#command-remove name=daily-reflect",
-            ),
-            CommandDef(
-                name="command-toggle",
-                description="Enable or disable a custom command.",
-                example="#command-toggle name=daily-reflect enabled=false",
-            ),
-        ],
+            CommandInfo("command-add", "Add a new custom command (prompt or macro)", "#command-add"),
+            CommandInfo("command-list", "List core and custom commands", "#command-list"),
+            CommandInfo("command-inspect", "Inspect a custom command's metadata", "#command-inspect name=mycommand"),
+            CommandInfo("command-remove", "Remove a custom command by name", "#command-remove name=mycommand"),
+            CommandInfo("command-toggle", "Enable or disable a custom command", "#command-toggle name=mycommand"),
+        ]
     ),
-    SectionDef(
-        key="interpretation",
-        title="INTERPRETATION",
-        description="LLM-powered analysis and reasoning commands.",
+    "interpretation": Section(
+        title="Interpretation",
+        description="Deep analysis and reasoning commands.",
         commands=[
-            CommandDef(
-                name="interpret",
-                description="Interpret and analyze input with LLM.",
-                example='#interpret "What does this error mean?"',
-            ),
-            CommandDef(
-                name="derive",
-                description="Derive first-principles analysis.",
-                example='#derive "Why is the sky blue?"',
-            ),
-            CommandDef(
-                name="synthesize",
-                description="Synthesize information from multiple sources.",
-                example='#synthesize "Combine these ideas..."',
-            ),
-            CommandDef(
-                name="frame",
-                description="Reframe a problem or situation.",
-                example='#frame "I keep procrastinating on..."',
-            ),
-            CommandDef(
-                name="forecast",
-                description="Forecast outcomes or scenarios.",
-                example='#forecast "What if I pursue this path?"',
-            ),
-        ],
+            CommandInfo("interpret", "Explain what an input means", "#interpret \"...\""),
+            CommandInfo("derive", "Break a topic down into first principles", "#derive \"...\""),
+            CommandInfo("synthesize", "Integrate ideas into a coherent structure", "#synthesize \"...\""),
+            CommandInfo("frame", "Reframe the problem or direction", "#frame \"...\""),
+            CommandInfo("forecast", "Generate plausible future outcomes", "#forecast \"...\""),
+        ]
     ),
-    # v0.7.2: Debug section for diagnostics and introspection
-    # v0.7.3: Added wm-clear, wm-clear-topic, behavior-mode, wm-snapshot, wm-topics, wm-switch
-    # v0.7.3: Episodic Bridge (Option B) - wm-restore, wm-mode, episodic-list, episodic-debug
-    SectionDef(
-        key="debug",
-        title="DEBUG",
-        description="Diagnostics and introspection tools.",
+    "debug": Section(
+        title="Debug",
+        description="Debugging and diagnostic commands.",
         commands=[
-            CommandDef(
-                name="wm-debug",
-                description="Show working memory entities, pronouns, and topics.",
-                example="#wm-debug",
-            ),
-            CommandDef(
-                name="behavior-debug",
-                description="Show behavior layer state (goals, open questions, user state).",
-                example="#behavior-debug",
-            ),
-            CommandDef(
-                name="wm-clear",
-                description="Clear working memory for this session.",
-                example="#wm-clear",
-            ),
-            CommandDef(
-                name="wm-clear-topic",
-                description="Forget only the current topic, keep entities.",
-                example="#wm-clear-topic",
-            ),
-            CommandDef(
-                name="behavior-mode",
-                description="Get or set Behavior Layer mode (normal, minimal, debug).",
-                example="#behavior-mode mode=minimal",
-            ),
-            CommandDef(
-                name="wm-snapshot",
-                description="Save current topic + participants as an episodic memory.",
-                example='#wm-snapshot topic="project with Steven"',
-            ),
-            CommandDef(
-                name="wm-topics",
-                description="List active/recent conversation topics.",
-                example="#wm-topics",
-            ),
-            CommandDef(
-                name="wm-switch",
-                description="Switch active topic by id or name.",
-                example="#wm-switch topic=project",
-            ),
-            # v0.7.3: Episodic Memory Bridge (Option B)
-            CommandDef(
-                name="wm-restore",
-                description="Restore WM from a saved episodic memory.",
-                example="#wm-restore id=5",
-            ),
-            CommandDef(
-                name="wm-mode",
-                description="Enable or disable Working Memory (on/off).",
-                example="#wm-mode off",
-            ),
-            CommandDef(
-                name="episodic-list",
-                description="List saved episodic snapshots.",
-                example="#episodic-list",
-            ),
-            CommandDef(
-                name="episodic-debug",
-                description="Show episodic memory debug info.",
-                example="#episodic-debug",
-            ),
-            # v0.7.6: WM Persistence Layer
-            CommandDef(
-                name="wm-load",
-                description="Load WM snapshots from episodic memory.",
-                example="#wm-load module=cyber",
-            ),
-            CommandDef(
-                name="wm-bridge",
-                description="Show WM persistence bridge status.",
-                example="#wm-bridge",
-            ),
-            # v0.7.7: Group Entity Layer
-            CommandDef(
-                name="wm-groups",
-                description="Show all group entities in working memory.",
-                example="#wm-groups",
-            ),
-            # v0.7.8: Self-Test + Stability
-            CommandDef(
-                name="self-test",
-                description="Run internal WM/Behavior/Topic diagnostics.",
-                example="#self-test",
-            ),
-            CommandDef(
-                name="diagnostics",
-                description="Alias for #self-test.",
-                example="#diagnostics",
-            ),
-            # v0.7.9: Module-Aware WM
-            CommandDef(
-                name="wm-status",
-                description="Show WM status including module breakdown.",
-                example="#wm-status",
-            ),
-        ],
+            CommandInfo("wm-debug", "Show current Working Memory state", "#wm-debug"),
+            CommandInfo("wm-clear", "Clear working memory for this session", "#wm-clear"),
+            CommandInfo("behavior-debug", "Show Behavior Layer state", "#behavior-debug"),
+            CommandInfo("self-test", "Run internal diagnostics", "#self-test"),
+            CommandInfo("quest-debug", "Show raw quest engine state", "#quest-debug"),
+        ]
     ),
-]
-
-
-# -----------------------------------------------------------------------------
-# Section Routing Table
-# -----------------------------------------------------------------------------
-# Maps (section, subcommand) → existing syscommand name
-
-SECTION_ROUTES: Dict[str, Dict[str, str]] = {
-    "memory": {
-        "store": "store",
-        "recall": "recall",
-        "forget": "forget",
-        "trace": "trace",
-        "bind": "bind",
-        "stats": "memory-stats",
-        "salience": "memory-salience",
-        "status": "memory-status",
-        "important": "memory-important",
-        "decay": "memory-decay",
-        "drift": "memory-drift",
-        "reconfirm": "memory-reconfirm",
-        "stale": "memory-stale",
-        "archive-stale": "memory-archive-stale",
-        "policy": "memory-policy",
-    },
-    "workflow": {
-        "start": "flow",
-        "flow": "flow",
-        "advance": "advance",
-        "next": "advance",
-        "halt": "halt",
-        "stop": "halt",
-        "pause": "halt",
-        "compose": "compose",
-        "create": "compose",
-        "delete": "workflow-delete",
-        "list": "workflow-list",
-        "inspect": "workflow-inspect",
-        "show": "workflow-inspect",
-    },
-    "reminders": {
-        "add": "remind-add",
-        "create": "remind-add",
-        "list": "remind-list",
-        "show": "remind-list",
-        "update": "remind-update",
-        "edit": "remind-update",
-        "delete": "remind-delete",
-        "remove": "remind-delete",
-    },
-    "identity": {
-        "show": "identity-show",
-        "set": "identity-set",
-        "snapshot": "identity-snapshot",
-        "history": "identity-history",
-        "restore": "identity-restore",
-        "clear-history": "identity-clear-history",
-    },
-    "modules": {
-        "list": "map",
-        "map": "map",
-        "forge": "forge",
-        "create": "forge",
-        "dismantle": "dismantle",
-        "delete": "dismantle",
-        "inspect": "inspect",
-        "bind": "bind-module",
-    },
-    "system": {
-        "snapshot": "snapshot",
-        "restore": "restore",
-        "env": "env",
-        "setenv": "setenv",
-        "mode": "mode",
-        "model-info": "model-info",
-    },
-    "continuity": {
-        "preferences": "preferences",
-        "projects": "projects",
-        "context": "continuity-context",
-        "reconfirm": "reconfirm-prompts",
-        "suggest": "suggest-workflow",
-    },
-    "human_state": {
-        "status": "evolution-status",
-        "evolution": "evolution-status",
-        "log": "log-state",
-        "history": "state-history",
-        "capacity": "capacity",
-    },
-    "timerhythm": {
-        "presence": "presence",
-        "pulse": "pulse",
-        "align": "align",
-    },
-    "interpretation": {
-        "interpret": "interpret",
-        "derive": "derive",
-        "synthesize": "synthesize",
-        "frame": "frame",
-        "forecast": "forecast",
-    },
-    "commands": {
-        "add": "command-add",
-        "list": "command-list",
-        "inspect": "command-inspect",
-        "remove": "command-remove",
-        "toggle": "command-toggle",
-    },
-    # v0.7.2: Debug section routes
-    # v0.7.3: Added new WM/Behavior commands + Episodic Bridge (Option B)
-    "debug": {
-        "wm-debug": "wm-debug",
-        "wm": "wm-debug",
-        "behavior-debug": "behavior-debug",
-        "behavior": "behavior-debug",
-        "wm-clear": "wm-clear",
-        "clear": "wm-clear",
-        "wm-clear-topic": "wm-clear-topic",
-        "clear-topic": "wm-clear-topic",
-        "behavior-mode": "behavior-mode",
-        "wm-snapshot": "wm-snapshot",
-        "snapshot": "wm-snapshot",
-        "wm-topics": "wm-topics",
-        "topics": "wm-topics",
-        "wm-switch": "wm-switch",
-        "switch": "wm-switch",
-        # v0.7.3: Episodic Bridge
-        "wm-restore": "wm-restore",
-        "restore": "wm-restore",
-        "wm-mode": "wm-mode",
-        "mode": "wm-mode",
-        "episodic-list": "episodic-list",
-        "list": "episodic-list",
-        "episodic-debug": "episodic-debug",
-        "episodic": "episodic-debug",
-        # v0.7.6: WM Persistence
-        "wm-load": "wm-load",
-        "load": "wm-load",
-        "wm-bridge": "wm-bridge",
-        "bridge": "wm-bridge",
-        # v0.7.7: Groups
-        "wm-groups": "wm-groups",
-        "groups": "wm-groups",
-        # v0.7.8: Self-Test
-        "self-test": "self-test",
-        "test": "self-test",
-        "diagnostics": "diagnostics",
-        # v0.7.9: Module-Aware WM
-        "wm-status": "wm-status",
-        "status": "wm-status",
-    },
 }
 
 
-# -----------------------------------------------------------------------------
-# Helper Functions
-# -----------------------------------------------------------------------------
-
-def get_section(key: str) -> Optional[SectionDef]:
-    """Get a section by key."""
-    for section in SECTION_DEFS:
-        if section.key == key:
-            return section
-    return None
-
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
 
 def get_section_keys() -> List[str]:
     """Get all section keys."""
-    return [s.key for s in SECTION_DEFS]
+    return list(SECTION_DEFS.keys())
 
 
-def get_all_commands() -> Dict[str, CommandDef]:
-    """Get all commands as a flat dict."""
-    commands = {}
-    for section in SECTION_DEFS:
-        for cmd in section.commands:
-            commands[cmd.name] = cmd
-    return commands
+def get_section(key: str) -> Optional[Section]:
+    """Get a section by key."""
+    return SECTION_DEFS.get(key)
 
 
-def find_command_section(command_name: str) -> Optional[str]:
-    """Find which section a command belongs to."""
-    for section in SECTION_DEFS:
-        for cmd in section.commands:
-            if cmd.name == command_name:
-                return section.key
-    return None
-
-
-def resolve_section_route(section: str, subcommand: str) -> Optional[str]:
-    """
-    Resolve a section route to the underlying syscommand.
-    
-    Example: resolve_section_route("memory", "store") → "store"
-    """
-    section_routes = SECTION_ROUTES.get(section, {})
-    return section_routes.get(subcommand)
-
-
-def get_section_command_names(section_key: str) -> List[str]:
-    """Get all command names in a section."""
-    section = get_section(section_key)
+def get_section_commands(key: str) -> List[CommandInfo]:
+    """Get commands for a section."""
+    section = SECTION_DEFS.get(key)
     if section:
-        return [cmd.name for cmd in section.commands]
+        return section.commands
     return []
+
+
+def get_section_title(key: str) -> str:
+    """Get section title."""
+    section = SECTION_DEFS.get(key)
+    if section:
+        return section.title
+    return key.title()
+
+
+def get_section_description(key: str) -> str:
+    """Get section description."""
+    section = SECTION_DEFS.get(key)
+    if section:
+        return section.description
+    return ""
+
+
+def find_section_for_command(command: str) -> Optional[str]:
+    """Find which section a command belongs to."""
+    for section_key, section in SECTION_DEFS.items():
+        for cmd in section.commands:
+            if cmd.name == command:
+                return section_key
+    return None

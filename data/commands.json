@@ -22,68 +22,73 @@
   "help": {
     "handler": "handle_help_v06",
     "category": "core",
-    "description": "List all syscommands organized by section"
+    "description": "Show command sections and help"
   },
 
   "core": {
     "handler": "handle_section_core",
-    "category": "section_menu",
-    "description": "Show CORE section menu"
+    "category": "section",
+    "description": "Open the CORE section menu"
   },
   "memory": {
     "handler": "handle_section_memory",
-    "category": "section_menu",
-    "description": "Show MEMORY section menu"
+    "category": "section",
+    "description": "Open the MEMORY section menu"
   },
   "continuity": {
     "handler": "handle_section_continuity",
-    "category": "section_menu",
-    "description": "Show CONTINUITY section menu"
+    "category": "section",
+    "description": "Open the CONTINUITY section menu"
   },
   "human_state": {
     "handler": "handle_section_human_state",
-    "category": "section_menu",
-    "description": "Show HUMAN STATE section menu"
+    "category": "section",
+    "description": "Open the HUMAN STATE section menu"
   },
   "modules": {
     "handler": "handle_section_modules",
-    "category": "section_menu",
-    "description": "Show MODULES section menu"
+    "category": "section",
+    "description": "Open the MODULES section menu"
   },
   "identity": {
     "handler": "handle_section_identity",
-    "category": "section_menu",
-    "description": "Show IDENTITY section menu"
+    "category": "section",
+    "description": "Open the IDENTITY section menu"
   },
   "system": {
     "handler": "handle_section_system",
-    "category": "section_menu",
-    "description": "Show SYSTEM section menu"
+    "category": "section",
+    "description": "Open the SYSTEM section menu"
   },
   "workflow": {
     "handler": "handle_section_workflow",
-    "category": "section_menu",
-    "description": "Show WORKFLOW section menu"
+    "category": "section",
+    "description": "Open the QUEST ENGINE section menu"
   },
   "timerhythm": {
     "handler": "handle_section_timerhythm",
-    "category": "section_menu",
-    "description": "Show TIME RHYTHM section menu"
+    "category": "section",
+    "description": "Open the TIME RHYTHM section menu"
   },
   "reminders": {
     "handler": "handle_section_reminders",
-    "category": "section_menu",
-    "description": "Show REMINDERS section menu"
+    "category": "section",
+    "description": "Open the REMINDERS section menu"
   },
   "commands": {
     "handler": "handle_section_commands",
-    "category": "section_menu",
-    "description": "Show CUSTOM COMMANDS section menu"
+    "category": "section",
+    "description": "Open the CUSTOM COMMANDS section menu"
   },
   "interpretation": {
     "handler": "handle_section_interpretation",
-    "category": "section_menu",
-    "description": "Show INTERPRETATION section menu"
+    "category": "section",
+    "description": "Open the INTERPRETATION section menu"
+  },
+  "debug": {
+    "handler": "handle_section_debug",
+    "category": "section",
+    "description": "Open the DEBUG section menu"
   },
 
   "store": {
@@ -110,118 +115,6 @@
     "handler": "handle_bind",
     "category": "memory",
     "description": "Bind multiple memory items into a cluster."
-  },
-  "memory-stats": {
-    "handler": "handle_memory_stats",
-    "category": "memory",
-    "description": "Show detailed memory statistics."
-  },
-  "memory-salience": {
-    "handler": "handle_memory_salience",
-    "category": "memory",
-    "description": "Update the salience (importance) of a memory item."
-  },
-  "memory-status": {
-    "handler": "handle_memory_status",
-    "category": "memory",
-    "description": "Update the status of a memory item (active, stale, archived)."
-  },
-  "memory-important": {
-    "handler": "handle_memory_high_salience",
-    "category": "memory",
-    "description": "List high-importance memories."
-  },
-  "memory-decay": {
-    "handler": "handle_memory_decay",
-    "category": "memory",
-    "description": "Run decay analysis on memories (apply=true to commit changes)."
-  },
-  "memory-drift": {
-    "handler": "handle_memory_drift",
-    "category": "memory",
-    "description": "Detect drifted/stale memories."
-  },
-  "memory-reconfirm": {
-    "handler": "handle_memory_reconfirm",
-    "category": "memory",
-    "description": "Re-confirm a memory (restore to active status)."
-  },
-  "memory-stale": {
-    "handler": "handle_memory_stale",
-    "category": "memory",
-    "description": "List stale memories."
-  },
-  "memory-archive-stale": {
-    "handler": "handle_memory_archive_stale",
-    "category": "memory",
-    "description": "Archive all stale memories."
-  },
-  "decay-preview": {
-    "handler": "handle_decay_preview",
-    "category": "memory",
-    "description": "Preview decay trajectory for a memory type."
-  },
-  "memory-policy": {
-    "handler": "handle_memory_policy",
-    "category": "memory",
-    "description": "Show memory policy configuration."
-  },
-  "memory-policy-test": {
-    "handler": "handle_memory_policy_test",
-    "category": "memory",
-    "description": "Test memory policy pre-store validation."
-  },
-  "memory-mode-filter": {
-    "handler": "handle_memory_mode_filter",
-    "category": "memory",
-    "description": "Show memory recall filters for current or specified mode."
-  },
-
-  "preferences": {
-    "handler": "handle_preferences",
-    "category": "continuity",
-    "description": "Show user preferences extracted from memory and identity."
-  },
-  "projects": {
-    "handler": "handle_projects",
-    "category": "continuity",
-    "description": "Show active projects and goals."
-  },
-  "continuity-context": {
-    "handler": "handle_continuity_context",
-    "category": "continuity",
-    "description": "Show full continuity context (preferences + projects + identity)."
-  },
-  "reconfirm-prompts": {
-    "handler": "handle_reconfirm_prompts",
-    "category": "continuity",
-    "description": "Show gentle re-confirmation prompts for stale items."
-  },
-  "suggest-workflow": {
-    "handler": "handle_suggest_workflow",
-    "category": "continuity",
-    "description": "Suggest a workflow for a goal."
-  },
-
-  "evolution-status": {
-    "handler": "handle_evolution_status",
-    "category": "human_state",
-    "description": "Show evolution status (human state summary with trends)."
-  },
-  "log-state": {
-    "handler": "handle_log_state",
-    "category": "human_state",
-    "description": "Guided check-in for updating human state."
-  },
-  "state-history": {
-    "handler": "handle_state_history",
-    "category": "human_state",
-    "description": "Show human state history."
-  },
-  "capacity": {
-    "handler": "handle_capacity_check",
-    "category": "human_state",
-    "description": "Quick capacity check with recommendations."
   },
 
   "map": {
@@ -250,37 +143,6 @@
     "description": "Bind two modules for cross-domain interaction."
   },
 
-  "identity-show": {
-    "handler": "handle_identity_show",
-    "category": "identity",
-    "description": "Show current identity profile."
-  },
-  "identity-set": {
-    "handler": "handle_identity_set",
-    "category": "identity",
-    "description": "Set identity traits (name, goals, values, roles, etc.)."
-  },
-  "identity-snapshot": {
-    "handler": "handle_identity_snapshot",
-    "category": "identity",
-    "description": "Create a snapshot of current identity."
-  },
-  "identity-history": {
-    "handler": "handle_identity_history",
-    "category": "identity",
-    "description": "Show identity version history."
-  },
-  "identity-restore": {
-    "handler": "handle_identity_restore",
-    "category": "identity",
-    "description": "Restore identity from a historical snapshot."
-  },
-  "identity-clear-history": {
-    "handler": "handle_identity_clear_history",
-    "category": "identity",
-    "description": "Clear identity history."
-  },
-
   "snapshot": {
     "handler": "handle_snapshot",
     "category": "system",
@@ -291,7 +153,6 @@
     "category": "system",
     "description": "Restore OS state from a snapshot."
   },
-
   "env": {
     "handler": "handle_env",
     "category": "system",
@@ -307,42 +168,56 @@
     "category": "system",
     "description": "Set NovaOS mode: normal, deep_work, reflection, or debug."
   },
-  "model-info": {
-    "handler": "handle_model_info",
-    "category": "system",
-    "description": "Show model routing information and available tiers."
-  },
 
-  "flow": {
-    "handler": "handle_flow",
+  "quest": {
+    "handler": "handle_quest",
     "category": "workflow",
-    "description": "Start or restart a workflow."
+    "description": "Open the Quest Board to list, start, or resume a quest."
   },
-  "advance": {
-    "handler": "handle_advance",
+  "next": {
+    "handler": "handle_next",
     "category": "workflow",
-    "description": "Advance a workflow to the next step."
+    "description": "Submit your last answer and advance to the next step in the active quest."
   },
-  "halt": {
-    "handler": "handle_halt",
+  "pause": {
+    "handler": "handle_pause",
     "category": "workflow",
-    "description": "Pause or halt a workflow."
+    "description": "Pause the active quest and save your progress."
   },
-  "compose": {
-    "handler": "handle_compose",
+  "quest-log": {
+    "handler": "handle_quest_log",
     "category": "workflow",
-    "description": "Use the LLM to generate a workflow plan."
+    "description": "View your current quest, recent completions, XP, skills, and learning streak."
   },
-  "workflow-delete": {
-    "handler": "handle_workflow_delete",
+  "quest-reset": {
+    "handler": "handle_quest_reset",
     "category": "workflow",
-    "description": "Delete a workflow by id.",
-    "args": ["id"]
+    "description": "Reset a quest's progress so you can replay it from the start."
   },
-  "workflow-list": {
-    "handler": "handle_workflow_list",
+  "quest-compose": {
+    "handler": "handle_quest_compose",
     "category": "workflow",
-    "description": "List all workflows."
+    "description": "Compose a new questline with LLM assistance."
+  },
+  "quest-delete": {
+    "handler": "handle_quest_delete",
+    "category": "workflow",
+    "description": "Delete a questline and its saved progress."
+  },
+  "quest-list": {
+    "handler": "handle_quest_list",
+    "category": "workflow",
+    "description": "List all quest definitions with IDs, categories, and difficulty."
+  },
+  "quest-inspect": {
+    "handler": "handle_quest_inspect",
+    "category": "workflow",
+    "description": "Inspect a quest definition and all its steps."
+  },
+  "quest-debug": {
+    "handler": "handle_quest_debug",
+    "category": "workflow",
+    "description": "Show raw quest engine state for debugging."
   },
 
   "presence": {
@@ -353,12 +228,12 @@
   "pulse": {
     "handler": "handle_pulse",
     "category": "timerhythm",
-    "description": "Workflow pulse diagnostics."
+    "description": "Quest pulse diagnostics."
   },
   "align": {
     "handler": "handle_align",
     "category": "timerhythm",
-    "description": "Alignment suggestions based on time + workflows."
+    "description": "Alignment suggestions based on time + quests."
   },
 
   "remind-add": {
@@ -411,8 +286,8 @@
     "handler": "handle_command_wizard",
     "category": "system",
     "description": "Create a custom command from natural language."
-
   },
+
   "interpret": {
     "handler": "handle_interpret",
     "category": "interpretation",
