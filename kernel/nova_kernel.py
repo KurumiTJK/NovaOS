@@ -45,6 +45,9 @@ from .nova_wm import (
 # v0.8.0: InterpretationEngine removed - wizard logic handled by wizard_mode.py
 # NL routing handled by nl_router.py
 
+# v0.8.2: Message Logger for fine-tuning data collection
+from .message_logger import MessageLogger
+
 # v0.6 Config flag - DEPRECATED, kept for reference only
 # Legacy NL routing has been fully removed from runtime
 USE_LEGACY_NL = False  # No longer affects runtime behavior
@@ -179,6 +182,10 @@ class NovaKernel:
         from persona.nova_persona import NovaPersona
         self.persona = NovaPersona(self.llm_client)
 
+        # ---------------- v0.8.2: Message Logger ----------------
+        # Logs assistant messages to JSONL for fine-tuning
+        self.message_logger = MessageLogger(base_dir="data/logs")
+
         # v0.8.0: InterpretationEngine removed - dead code
         # Wizard logic is now handled by wizard_mode.py
         # NL routing is handled by nl_router.py
@@ -188,7 +195,7 @@ class NovaKernel:
     # Core input handling
     # ------------------------------------------------------------------
 
-    def handle_input(self, text: str, session_id: str) -> Dict[str, Any]:
+    def handle_input(self, text: str, session_id: str, source: str = "ui") -> Dict[str, Any]:
         """
         Entry point for all UI input.
         Returns a structured dict suitable for the UI.
@@ -257,13 +264,11 @@ class NovaKernel:
         # -------------------------------------------------------------
         active_section = get_active_section(session_id)
         if active_section and not stripped.startswith("#"):
-            # User is in a section menu, check their selection
             selection = stripped.lower().strip()
             valid_commands = get_section_command_names(active_section)
             
-            # Check if valid command name - EXACT match required
             if selection in valid_commands:
-                # Clear the menu state and execute the command
+                # It's a valid command for this section - execute it
                 clear_active_section(session_id)
                 request = CommandRequest(
                     cmd_name=selection,
@@ -276,7 +281,7 @@ class NovaKernel:
                 self.logger.log_response(session_id, selection, response.to_dict())
                 return response.to_dict()
             else:
-                # ANY invalid input exits the section menu immediately
+                # Not a valid command - exit section menu and continue to persona
                 # This includes: numbers, wrong names, "exit", "quit", natural language, etc.
                 clear_active_section(session_id)
                 self.logger.log_input(session_id, f"[SECTION_MENU] Exiting {active_section} menu - invalid input: {selection}")
@@ -449,6 +454,16 @@ class NovaKernel:
         if not reply or not str(reply).strip():
             reply = "(kernel-fallback) I heard you, but couldn't generate a response. Can you rephrase that?"
 
+        # -------------------------------------------------------------
+        # v0.8.2: Log assistant message for fine-tuning
+        # -------------------------------------------------------------
+        self._log_assistant_message(
+            reply_text=reply,
+            user_message=stripped,
+            session_id=session_id,
+            source=source,
+        )
+
         response_dict = {
             "ok": True,
             "command": "persona",
@@ -470,6 +485,70 @@ class NovaKernel:
 
         self.logger.log_response(session_id, "persona", response_dict)
         return response_dict
+
+    # ------------------------------------------------------------------
+    # v0.8.2: Message Logging Helper
+    # ------------------------------------------------------------------
+    
+    def _log_assistant_message(
+        self,
+        reply_text: str,
+        user_message: str,
+        session_id: str,
+        source: str = "ui",
+    ) -> None:
+        """
+        Log an assistant message for fine-tuning data collection.
+        
+        This method NEVER crashes - errors are silently ignored.
+        """
+        try:
+            # Gather context safely
+            assistant_mode = None
+            if self.assistant_mode_manager:
+                try:
+                    assistant_mode = self.assistant_mode_manager.current_mode.value
+                except AttributeError:
+                    assistant_mode = getattr(self.assistant_mode_manager, "mode_name", None)
+            
+            persona_mode = getattr(self.persona, "current_mode", None)
+            
+            active_section = None
+            if hasattr(self, "context_manager"):
+                active_section = getattr(self.context_manager, "active_section", None)
+            
+            quest_id = None
+            if self.quest_engine:
+                quest_id = getattr(self.quest_engine, "active_quest_id", None)
+            
+            module_id = None
+            if self.quest_engine and hasattr(self.quest_engine, "get_active_module_id"):
+                try:
+                    module_id = self.quest_engine.get_active_module_id()
+                except Exception:
+                    pass
+            
+            model_name = getattr(self.llm_client, "last_model_used", None)
+            
+            # Log the message
+            self.message_logger.log_assistant_message(
+                text=reply_text,
+                user_last_message=user_message,
+                assistant_mode=assistant_mode,
+                persona_mode=persona_mode,
+                active_section=active_section,
+                quest_id=quest_id,
+                module_id=module_id,
+                model_name=model_name,
+                session_id=session_id,
+                extra={
+                    "source": source,
+                    "kernel_version": self.env_state.get("kernel_version", "0.8.2"),
+                },
+            )
+        except Exception:
+            # NEVER crash NovaOS due to logging failure
+            pass
 
     def _normalize_commands(self, raw: Any) -> Dict[str, Dict[str, Any]]:
         """

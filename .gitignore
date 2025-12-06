@@ -1,17 +1,45 @@
-# Ignore Python cache
+# -------------------------
+# Python cache / build junk
+# -------------------------
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.egg-info/
+build/
+dist/
 
-# Ignore logs
-*.log
-
-# Ignore local environment
-.env
+# -------------------------
+# Virtual env
+# -------------------------
+venv/
 .venv/
 
-# Ignore data memory snapshots
+# -------------------------
+# Local environment config
+# -------------------------
+.env
+
+# -------------------------
+# Logs
+# -------------------------
+*.log
+nova_kernel.log
+data/kernel.log
+
+# Persona / conversation logs (JSON or JSONL)
+data/logs/
+data/*_logs.json
+data/*_logs.jsonl
+data/persona_logs.json
+data/persona_logs.jsonl
+
+# -------------------------
+# Data snapshots you DON'T want in git
+# (tweak if you actually want these tracked)
+# -------------------------
 data/memory/
 data/snapshots/
 
-# But keep the folders
+# If you ever add .gitkeep files to keep empty dirs:
 !.gitkeep
