@@ -42,9 +42,8 @@ from .nova_wm import (
     wm_answer_reference,
     wm_clear,
 )
-# InterpretationEngine is kept for explicit #interpret, #derive, etc. commands
-# but is NO LONGER used for automatic NL → command routing
-from kernel.interpretation_engine import InterpretationEngine
+# v0.8.0: InterpretationEngine removed - wizard logic handled by wizard_mode.py
+# NL routing handled by nl_router.py
 
 # v0.6 Config flag - DEPRECATED, kept for reference only
 # Legacy NL routing has been fully removed from runtime
@@ -115,16 +114,12 @@ class NovaKernel:
             self.time_rhythm_manager = None
             self.time_rhythm_engine = None
         
-        # v0.8.0: Quest Engine (replaces legacy WorkflowEngine)
+        # v0.8.0: Quest Engine (the ONLY quest/workflow system)
         try:
             from kernel.quest_engine import QuestEngine
             self.quest_engine = QuestEngine(self.config.data_dir)
-            self.workflow_engine = None  # Legacy - kept for compatibility checks
         except ImportError:
-            # Fallback to legacy workflow engine if quest engine not available
-            from kernel.workflow_engine import WorkflowEngine
             self.quest_engine = None
-            self.workflow_engine = WorkflowEngine()
         
         # v0.8.0: Player Profile Manager
         try:
@@ -184,9 +179,9 @@ class NovaKernel:
         from persona.nova_persona import NovaPersona
         self.persona = NovaPersona(self.llm_client)
 
-        # ---------------- Interpretation Engine (v0.5) ----------------
-        custom_cmds = nova_registry.load_custom_commands(config=self.config)
-        self.interpreter = InterpretationEngine(self.commands, custom_cmds)
+        # v0.8.0: InterpretationEngine removed - dead code
+        # Wizard logic is now handled by wizard_mode.py
+        # NL routing is handled by nl_router.py
 
 
     # ------------------------------------------------------------------
@@ -736,6 +731,6 @@ class NovaKernel:
         Not yet wired into MemoryManager, but safe to call from snapshot logic.
         """
         return {
-            "time_rhythm": getattr(self.time_rhythm_engine, "to_dict", lambda: {})(),
-            "workflows": getattr(self.workflow_engine, "to_dict", lambda: {})(),
+            "time_rhythm": getattr(self.time_rhythm_manager, "to_dict", lambda: {})() if self.time_rhythm_manager else {},
+            "quest_progress": self.quest_engine.get_progress().to_dict() if self.quest_engine else {},
         }
