@@ -2,29 +2,50 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>NovaOS Web</title>
+  <title>NovaOS</title>
 
-  <!-- Viewport / no zoom -->
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Viewport: no zoom, proper scaling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-  <!-- Dark theme color for status bars -->
-  <meta name="theme-color" content="#000000">
+  <!-- Dark theme for status bar -->
+  <meta name="theme-color" content="#0a0a0b">
 
   <!-- iOS PWA fullscreen -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="apple-touch-icon" href="/icon.png">
+  <meta name="apple-mobile-web-app-title" content="NovaOS">
+  <link rel="apple-touch-icon" href="nova-avatar.png">
 
-  <!-- PWA manifest -->
-  <link rel="manifest" href="/manifest.json">
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="nova-avatar.png">
 
   <style>
+    /* ═══════════════════════════════════════════════════════════════════════
+       CSS RESET & BASE
+       ═══════════════════════════════════════════════════════════════════════ */
+    
     :root {
-      color-scheme: dark;
+      --bg-primary: #0a0a0b;
+      --bg-secondary: #141415;
+      --bg-nova: #1a1a1d;
+      --bg-user: #2563eb;
+      --bg-input: #1a1a1d;
+      --text-primary: #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --text-muted: #71717a;
+      --border-color: #27272a;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.15);
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      
+      /* Safe area fallbacks */
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
     }
 
-    /* Reset */
     * {
       margin: 0;
       padding: 0;
@@ -33,294 +54,725 @@
 
     html, body {
       height: 100%;
-      min-height: 100%;
-      background: #000000;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
       overscroll-behavior: none;
     }
 
-    body {
-      display: flex;
-      justify-content: center;
-      color: #ffffff;
-    }
+    /* ═══════════════════════════════════════════════════════════════════════
+       APP CONTAINER - FLEXBOX LAYOUT
+       ═══════════════════════════════════════════════════════════════════════ */
 
-    /* App container – full height, uses safe areas */
     .app {
-      flex: 1;
-      max-width: 720px;
       display: flex;
       flex-direction: column;
-      padding-top: calc(12px + env(safe-area-inset-top));
-      padding-bottom: calc(12px + env(safe-area-inset-bottom));
-      padding-left: 12px;
-      padding-right: 12px;
-      background: #000000;
+      height: 100%;
+      height: 100dvh; /* Dynamic viewport height for mobile */
+      max-width: 800px;
+      margin: 0 auto;
+      background: var(--bg-primary);
     }
 
-    /* Top bar (minimal like ChatGPT) */
+    /* ═══════════════════════════════════════════════════════════════════════
+       TOP HEADER BAR
+       ═══════════════════════════════════════════════════════════════════════ */
+
     .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding-inline: 4px;
-      margin-bottom: 8px;
-    }
-
-    .header-title {
-      font-size: 1rem;
-      font-weight: 600;
-      opacity: 0.9;
-    }
-
-    .header-sub {
-      font-size: 0.75rem;
-      opacity: 0.5;
-    }
-
-    /* Chat area – full remaining height */
-    .chat {
-      flex: 1;
-      overflow-y: auto;
-      padding-top: 4px;
-      padding-bottom: 8px;
-    }
-
-    /* A single message row (Nova or user) */
-    .msg-row {
-      display: flex;
-      margin: 4px 0;
-      gap: 8px;
-    }
-
-    .msg-row.nova {
-      justify-content: flex-start;
-    }
-
-    .msg-row.user {
-      justify-content: flex-end;
-    }
-
-    .bubble {
-      margin: 0;
-      padding: 8px 12px;
-      border-radius: 18px;
-      max-width: 80%;
-      font-size: 15px;
-      line-height: 1.4;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      position: relative;
-    }
-
-    /* Nova bubble: left, dark grey */
-    .bubble.nova {
-      background: #222326;
-    }
-
-    /* User bubble: right, slightly lighter */
-    .bubble.user {
-      background: #343541;
-    }
-
-    /* Avatar for Nova (uses your PNG) */
-    .nova-avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background-image: url("nova-avatar.png");  /* No need for /static */
-    background-size: cover;
-    background-position: center;
-    flex-shrink: 0;
-    align-self: flex-start;
-    }
-
-    /* Bigger bottom bar */
-    .input-row {
+      flex-shrink: 0;
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-top: 12px;
-      padding: 12px 4px; /* Increased padding */
-      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      padding: 12px 16px;
+      padding-top: calc(12px + var(--sat));
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
     }
 
-    /* Make input container taller */
-    .input-shell {
+    .header-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-image: url("nova-avatar.png");
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .header-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .header-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .header-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .header-status {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       CHAT CONTAINER - SCROLLABLE AREA
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 16px;
+      padding-left: calc(16px + var(--sal));
+      padding-right: calc(16px + var(--sar));
+      scroll-behavior: smooth;
+    }
+
+    .chat-messages {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-height: 100%;
+    }
+
+    /* Welcome message */
+    .welcome-message {
+      text-align: center;
+      padding: 32px 16px;
+      color: var(--text-muted);
+    }
+
+    .welcome-message h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .welcome-message p {
+      font-size: 0.875rem;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       MESSAGE BUBBLES
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    .message {
+      display: flex;
+      gap: 10px;
+      max-width: 100%;
+    }
+
+    .message.nova {
+      flex-direction: row;
+      align-items: flex-start;
+    }
+
+    .message.user {
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background-image: url("nova-avatar.png");
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+    }
+
+    .message.user .message-avatar {
+      display: none; /* Hide avatar for user messages */
+    }
+
+    .message-content {
+      max-width: calc(100% - 50px);
+      min-width: 0;
+    }
+
+    .message.user .message-content {
+      max-width: 85%;
+    }
+
+    .message-bubble {
+      padding: 12px 16px;
+      border-radius: 18px;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .message.nova .message-bubble {
+      background: var(--bg-nova);
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .message.user .message-bubble {
+      background: var(--bg-user);
+      border-bottom-right-radius: 4px;
+    }
+
+    /* Regular text content */
+    .message-text {
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      color: var(--text-primary);
+    }
+
+    /* Syscommand / code output */
+    .message-pre {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      color: var(--text-primary);
+      background: var(--bg-secondary);
+      padding: 12px;
+      border-radius: 8px;
+      margin: 8px 0 0 0;
+      overflow-x: auto;
+      max-width: 100%;
+    }
+
+    .message-pre:first-child {
+      margin-top: 0;
+    }
+
+    /* Timestamp */
+    .message-time {
+      font-size: 0.6875rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+
+    .message.user .message-time {
+      text-align: right;
+    }
+
+    /* Typing indicator */
+    .typing-indicator {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .typing-bubble {
+      background: var(--bg-nova);
+      padding: 16px 20px;
+      border-radius: 18px;
+      border-bottom-left-radius: 4px;
+    }
+
+    .typing-dots {
+      display: flex;
+      gap: 4px;
+    }
+
+    .typing-dots span {
+      width: 8px;
+      height: 8px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      animation: typing 1.4s ease-in-out infinite;
+    }
+
+    .typing-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes typing {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+      }
+      30% {
+        transform: translateY(-4px);
+        opacity: 1;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       INPUT BAR
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    .input-bar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 12px 16px;
+      padding-left: calc(16px + var(--sal));
+      padding-right: calc(16px + var(--sar));
+      padding-bottom: calc(12px + var(--sab));
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .input-wrapper {
       flex: 1;
       display: flex;
-      align-items: center;
-      background: #101012;
-      border-radius: 999px;
-      padding: 14px 18px; /* Bigger pill height */
+      align-items: flex-end;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 24px;
+      padding: 8px 16px;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
-    /* Make actual input text area taller & bigger text */
-    .input-shell input {
+    .input-wrapper:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .input-field {
       flex: 1;
       border: none;
       outline: none;
       background: transparent;
-      color: #ffffff;
-      font-size: 18px;       /* Larger text */
-      padding: 6px 0;        /* Taller input feel */
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      line-height: 1.5;
+      resize: none;
+      max-height: 120px;
+      overflow-y: auto;
     }
 
-/* Make Send button bigger */
-.send-button {
-  border: none;
-  outline: none;
-  border-radius: 999px;
-  background: #3b82f6;
-  color: #ffffff;
-  font-size: 15px;
-  font-weight: 600;
-  padding: 12px 20px;    /* Bigger button */
-}
-
-
-    /* Typing indicator – subtle text under last message */
-    .typing-indicator {
-      font-style: italic;
-      color: #a0a0c0;
-      font-size: 0.8rem;
-      margin: 4px 8px;
+    .input-field::placeholder {
+      color: var(--text-muted);
     }
 
-    /* Timestamp for each message */
-    .timestamp {
-      font-size: 0.75rem;
-      color: #888888;
-      margin-top: 4px;
-      text-align: right;
+    .send-button {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 50%;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s, transform 0.1s;
     }
 
-    @media (max-width: 500px) {
+    .send-button:hover {
+      background: #2563eb;
+    }
+
+    .send-button:active {
+      transform: scale(0.95);
+    }
+
+    .send-button:disabled {
+      background: var(--border-color);
+      cursor: not-allowed;
+    }
+
+    .send-button svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       UTILITIES
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       RESPONSIVE
+       ═══════════════════════════════════════════════════════════════════════ */
+
+    @media (max-width: 480px) {
+      .message-content {
+        max-width: calc(100% - 44px);
+      }
+
+      .message.user .message-content {
+        max-width: 90%;
+      }
+
+      .message-pre {
+        font-size: 0.75rem;
+        padding: 10px;
+      }
+    }
+
+    /* Larger screens */
+    @media (min-width: 800px) {
       .app {
-        padding-left: 10px;
-        padding-right: 10px;
+        border-left: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
       }
     }
   </style>
 </head>
+
 <body>
   <div class="app">
-    <div class="header">
-      <div>
+    <!-- Header -->
+    <header class="header">
+      <div class="header-avatar" aria-hidden="true"></div>
+      <div class="header-text">
         <div class="header-title">NovaOS</div>
-        <div class="header-sub">Linked to your desktop kernel</div>
+        <div class="header-subtitle">Life RPG Companion</div>
       </div>
-    </div>
+      <div class="header-status" title="Online"></div>
+    </header>
 
-    <div id="chat" class="chat"></div>
-
-    <div class="input-row">
-      <div class="input-shell">
-        <input id="input" type="text" autocomplete="off" placeholder="Talk to Nova..." />
+    <!-- Chat Container -->
+    <main class="chat-container" id="chatContainer">
+      <div class="chat-messages" id="chatMessages">
+        <!-- Welcome message -->
+        <div class="welcome-message">
+          <h2>Welcome to NovaOS</h2>
+          <p>Type a message or use commands like <code>#help</code>, <code>#quest</code>, or <code>#capture</code></p>
+        </div>
       </div>
-      <button id="send" class="send-button">Send</button>
-    </div>
+    </main>
+
+    <!-- Input Bar -->
+    <footer class="input-bar">
+      <div class="input-wrapper">
+        <textarea 
+          class="input-field" 
+          id="inputField" 
+          placeholder="Message Nova..." 
+          rows="1"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="sentences"
+        ></textarea>
+      </div>
+      <button class="send-button" id="sendButton" aria-label="Send message">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </footer>
   </div>
 
   <script>
-    const chatEl = document.getElementById("chat");
-    const inputEl = document.getElementById("input");
-    const sendBtn = document.getElementById("send");
+    // ═══════════════════════════════════════════════════════════════════════
+    // DOM ELEMENTS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    const chatContainer = document.getElementById('chatContainer');
+    const chatMessages = document.getElementById('chatMessages');
+    const inputField = document.getElementById('inputField');
+    const sendButton = document.getElementById('sendButton');
+
+    // Session ID for this client
+    const SESSION_ID = 'web-' + Date.now();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // UTILITIES
+    // ═══════════════════════════════════════════════════════════════════════
 
     function formatTime(date) {
-      const h = date.getHours();
-      const m = String(date.getMinutes()).padStart(2, "0");
-      return `${h}:${m}`;
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    function addBubble(text, who) {
-      const row = document.createElement("div");
-      row.className = "msg-row " + who;
+    function scrollToBottom() {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      });
+    }
 
-      // Nova avatar on the left
-      if (who === "nova") {
-        const avatar = document.createElement("div");
-        avatar.className = "nova-avatar";
-        row.appendChild(avatar);
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Detect if text looks like syscommand output (has box chars, multiple lines, or starts with #)
+    function isSyscommandOutput(text) {
+      if (!text) return false;
+      const lines = text.split('\n');
+      // Check for box drawing characters or 3+ lines or command-like structure
+      const hasBoxChars = /[═╔╗╚╝║┌┐└┘─│├┤┬┴┼▀▄█▌▐░▒▓]/.test(text);
+      const isMultiLine = lines.length > 3;
+      const hasCommandStructure = /^(#|Run:|Tip:|Commands?:|Example:)/m.test(text);
+      return hasBoxChars || isMultiLine || hasCommandStructure;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MESSAGE RENDERING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function createMessageElement(text, isUser) {
+      const message = document.createElement('div');
+      message.className = `message ${isUser ? 'user' : 'nova'}`;
+
+      // Avatar (only for Nova)
+      if (!isUser) {
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        message.appendChild(avatar);
       }
 
-      const bubble = document.createElement("div");
-      bubble.className = "bubble " + who;
-      bubble.textContent = text;
+      // Content wrapper
+      const content = document.createElement('div');
+      content.className = 'message-content';
 
-      const timestamp = document.createElement("div");
-      timestamp.className = "timestamp";
-      timestamp.textContent = formatTime(new Date());
-      bubble.appendChild(timestamp);
+      // Bubble
+      const bubble = document.createElement('div');
+      bubble.className = 'message-bubble';
 
-      row.appendChild(bubble);
-      chatEl.appendChild(row);
+      // Determine if this is syscommand output
+      if (!isUser && isSyscommandOutput(text)) {
+        // Render as preformatted text
+        const pre = document.createElement('pre');
+        pre.className = 'message-pre';
+        pre.textContent = text;
+        bubble.appendChild(pre);
+      } else {
+        // Render as regular text
+        const textEl = document.createElement('div');
+        textEl.className = 'message-text';
+        textEl.textContent = text;
+        bubble.appendChild(textEl);
+      }
 
-      // Optional: auto-scroll
-      // chatEl.scrollTop = chatEl.scrollHeight;
+      content.appendChild(bubble);
+
+      // Timestamp
+      const time = document.createElement('div');
+      time.className = 'message-time';
+      time.textContent = formatTime(new Date());
+      content.appendChild(time);
+
+      message.appendChild(content);
+
+      return message;
     }
 
-    // Turn kernel JSON into human-readable text
-    function formatNovaResponse(data) {
-      if (!data) return "[empty response]";
+    function createTypingIndicator() {
+      const indicator = document.createElement('div');
+      indicator.className = 'typing-indicator';
+      indicator.id = 'typingIndicator';
 
-      // Persona / NL summary
-      if (typeof data.summary === "string") {
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      indicator.appendChild(avatar);
+
+      const bubble = document.createElement('div');
+      bubble.className = 'typing-bubble';
+
+      const dots = document.createElement('div');
+      dots.className = 'typing-dots';
+      dots.innerHTML = '<span></span><span></span><span></span>';
+      bubble.appendChild(dots);
+
+      indicator.appendChild(bubble);
+
+      return indicator;
+    }
+
+    function addMessage(text, isUser) {
+      // Remove welcome message if present
+      const welcome = chatMessages.querySelector('.welcome-message');
+      if (welcome) {
+        welcome.remove();
+      }
+
+      const messageEl = createMessageElement(text, isUser);
+      chatMessages.appendChild(messageEl);
+      scrollToBottom();
+    }
+
+    function showTypingIndicator() {
+      const indicator = createTypingIndicator();
+      chatMessages.appendChild(indicator);
+      scrollToBottom();
+    }
+
+    function hideTypingIndicator() {
+      const indicator = document.getElementById('typingIndicator');
+      if (indicator) {
+        indicator.remove();
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // API COMMUNICATION
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function extractNovaResponse(data) {
+      // Handle various response formats from nova_api.py
+
+      // Direct summary string
+      if (typeof data.summary === 'string') {
         return data.summary;
       }
 
-      // Common pattern: { content: { summary: "..." } }
+      // Content object with summary
       if (data.content) {
-        if (typeof data.content === "string") return data.content;
-        if (typeof data.content.summary === "string") return data.content.summary;
-
-        // Help: list commands
-        if (data.type === "help" && Array.isArray(data.content.commands)) {
-          const lines = data.content.commands.map(c =>
-            `#${c.name} — ${c.description}`
-          );
-          return lines.join("\n");
+        if (typeof data.content === 'string') {
+          return data.content;
+        }
+        if (typeof data.content.summary === 'string') {
+          return data.content.summary;
         }
       }
 
-      // Fallback – pretty JSON
+      // Error response
+      if (data.error) {
+        if (typeof data.error === 'string') {
+          return `Error: ${data.error}`;
+        }
+        if (data.error.message) {
+          return `Error: ${data.error.message}`;
+        }
+      }
+
+      // Fallback: stringify the whole response
       return JSON.stringify(data, null, 2);
     }
 
-    async function sendMessage() {
-      const text = inputEl.value.trim();
-      if (!text) return;
+    async function sendMessage(text) {
+      if (!text.trim()) return;
 
-      inputEl.value = "";
-      addBubble(text, "user");
+      // Add user message
+      addMessage(text, true);
 
-      const typing = document.createElement("div");
-      typing.className = "typing-indicator";
-      typing.textContent = "Nova is thinking…";
-      chatEl.appendChild(typing);
+      // Clear input
+      inputField.value = '';
+      autoResizeInput();
+
+      // Disable send while processing
+      sendButton.disabled = true;
+
+      // Show typing indicator
+      showTypingIndicator();
 
       try {
-        const res = await fetch("/nova", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, session_id: "iphone" })
+        const response = await fetch('/nova', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            text: text,
+            session_id: SESSION_ID
+          })
         });
 
-        const data = await res.json();
-        typing.remove();
+        const data = await response.json();
 
-        const reply = formatNovaResponse(data);
-        addBubble(reply, "nova");
-      } catch (e) {
-        typing.remove();
-        addBubble("Network error: " + e.message, "nova");
+        // Hide typing indicator
+        hideTypingIndicator();
+
+        // Extract and display Nova's response
+        const reply = extractNovaResponse(data);
+        addMessage(reply, false);
+
+      } catch (error) {
+        // Hide typing indicator
+        hideTypingIndicator();
+
+        // Show error message
+        addMessage(`Connection error: ${error.message}. Please try again.`, false);
+      } finally {
+        // Re-enable send button
+        sendButton.disabled = false;
+        inputField.focus();
       }
     }
 
-    sendBtn.addEventListener("click", sendMessage);
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendMessage();
+    // ═══════════════════════════════════════════════════════════════════════
+    // INPUT HANDLING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    function autoResizeInput() {
+      inputField.style.height = 'auto';
+      inputField.style.height = Math.min(inputField.scrollHeight, 120) + 'px';
+    }
+
+    // Handle send button click
+    sendButton.addEventListener('click', () => {
+      sendMessage(inputField.value);
     });
+
+    // Handle Enter key (Shift+Enter for newline)
+    inputField.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(inputField.value);
+      }
+    });
+
+    // Auto-resize textarea as user types
+    inputField.addEventListener('input', autoResizeInput);
+
+    // Focus input on load
+    inputField.focus();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // MOBILE KEYBOARD HANDLING
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Scroll to bottom when keyboard appears (iOS)
+    if ('visualViewport' in window) {
+      window.visualViewport.addEventListener('resize', () => {
+        scrollToBottom();
+      });
+    }
+
+    // Prevent body scroll when chat is scrolled to top/bottom
+    chatContainer.addEventListener('touchmove', (e) => {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainer;
+      const atTop = scrollTop <= 0;
+      const atBottom = scrollTop + clientHeight >= scrollHeight;
+      
+      if ((atTop && e.touches[0].clientY > 0) || (atBottom && e.touches[0].clientY < 0)) {
+        // Allow scrolling within chat
+      }
+    }, { passive: true });
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // INITIALIZATION
+    // ═══════════════════════════════════════════════════════════════════════
+
+    console.log('NovaOS Web UI initialized');
+    console.log('Session ID:', SESSION_ID);
   </script>
 </body>
 </html>
