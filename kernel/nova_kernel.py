@@ -141,6 +141,13 @@ class NovaKernel:
             self.assistant_mode_manager = AssistantModeManager(initial_mode)
         except ImportError:
             self.assistant_mode_manager = None
+        
+        # v0.8.0: Inbox Store (quick capture)
+        try:
+            from kernel.inbox_manager import InboxStore
+            self.inbox_store = InboxStore(self.config.data_dir)
+        except ImportError:
+            self.inbox_store = None
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)

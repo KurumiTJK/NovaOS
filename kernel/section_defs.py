@@ -7,19 +7,19 @@ Updated for Quest Engine (replaces legacy workflow system).
 
 Sections:
 1. core          — Nova's heart & OS control center
-2. memory        — Lore / knowledge store
-3. continuity    — Long-term arcs & projects
-4. human_state   — HP / stamina / stress / mood
-5. modules       — Regions/domains on the world map
-6. identity      — Player Profile: level, XP, domains, titles
-7. system        — Environment, modes, snapshots
-8. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
-9. timerhythm    — Time model, daily/weekly rhythm
-10. reminders    — Time-based reminders / quest pins
-11. commands     — Abilities/macros
-12. interpretation — Strategy/oracle (READ-ONLY)
-13. debug        — Diagnostics & dev tools
-14. inbox        — Capture layer for raw thoughts/tasks
+2. inbox         — Quick capture for thoughts/ideas/tasks
+3. memory        — Lore / knowledge store
+4. continuity    — Long-term arcs & projects
+5. human_state   — HP / stamina / stress / mood
+6. modules       — Regions/domains on the world map
+7. identity      — Player Profile: level, XP, domains, titles
+8. system        — Environment, modes, snapshots
+9. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
+10. timerhythm   — Time model, daily/weekly rhythm
+11. reminders    — Time-based reminders / quest pins
+12. commands     — Abilities/macros
+13. interpretation — Strategy/oracle (READ-ONLY)
+14. debug        — Diagnostics & dev tools
 """
 
 from dataclasses import dataclass, field
@@ -60,6 +60,18 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("reset", "Reload system memory and modules", "#reset"),
             CommandInfo("status", "Display system state", "#status"),
             CommandInfo("help", "Show command sections and help", "#help"),
+        ]
+    ),
+    "inbox": Section(
+        title="Inbox",
+        description="Quick capture for thoughts, ideas, and tasks.",
+        commands=[
+            CommandInfo("capture", "Quick capture to inbox", "#capture Buy milk"),
+            CommandInfo("in", "Quick capture (alias)", "#in Learn about JWT"),
+            CommandInfo("inbox", "List inbox items", "#inbox"),
+            CommandInfo("inbox-process", "Process item (quest/reminder/archive)", "#inbox-process abc123 quest"),
+            CommandInfo("inbox-delete", "Delete an inbox item", "#inbox-delete abc123"),
+            CommandInfo("inbox-clear", "Clear processed items", "#inbox-clear confirm=yes"),
         ]
     ),
     "memory": Section(

@@ -122,6 +122,37 @@
     "description": "Bind multiple memory items into a cluster."
   },
 
+  "capture": {
+    "handler": "handle_capture",
+    "category": "inbox",
+    "description": "Quick capture a thought/idea/task to inbox."
+  },
+  "in": {
+    "handler": "handle_capture",
+    "category": "inbox",
+    "description": "Quick capture to inbox (alias for capture)."
+  },
+  "inbox": {
+    "handler": "handle_inbox",
+    "category": "inbox",
+    "description": "List inbox items."
+  },
+  "inbox-process": {
+    "handler": "handle_inbox_process",
+    "category": "inbox",
+    "description": "Process an inbox item (convert to quest/reminder/archive)."
+  },
+  "inbox-delete": {
+    "handler": "handle_inbox_delete",
+    "category": "inbox",
+    "description": "Delete an inbox item."
+  },
+  "inbox-clear": {
+    "handler": "handle_inbox_clear",
+    "category": "inbox",
+    "description": "Clear all processed items from inbox."
+  },
+
   "modules": {
     "handler": "handle_modules",
     "category": "modules",
