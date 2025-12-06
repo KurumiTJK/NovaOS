@@ -126,6 +126,13 @@ class NovaKernel:
             self.player_profile_manager = PlayerProfileManager(self.config.data_dir)
         except ImportError:
             self.player_profile_manager = None
+        
+        # v0.8.1: Module Store (regions/world map) - NO DEFAULTS
+        try:
+            from kernel.module_manager import ModuleStore
+            self.module_store = ModuleStore(self.config.data_dir)
+        except ImportError:
+            self.module_store = None
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)

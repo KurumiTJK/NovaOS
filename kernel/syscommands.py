@@ -38,6 +38,15 @@ except ImportError:
     def get_player_profile_handlers():
         return {}
 
+# v0.8.0: Module Manager handlers (regions/world map)
+try:
+    from .module_manager import get_module_handlers
+    _HAS_MODULE_MANAGER = True
+except ImportError:
+    _HAS_MODULE_MANAGER = False
+    def get_module_handlers():
+        return {}
+
 # v0.7: Working Memory Engine integration
 try:
     from .nova_wm import wm_clear
@@ -5473,3 +5482,7 @@ if _HAS_INBOX:
 # v0.8.0: Player Profile handlers
 if _HAS_PLAYER_PROFILE:
     SYS_HANDLERS.update(get_player_profile_handlers())
+
+# v0.8.0: Module Manager handlers (regions/world map)
+if _HAS_MODULE_MANAGER:
+    SYS_HANDLERS.update(get_module_handlers())

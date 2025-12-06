@@ -86,26 +86,40 @@ def handle_quest(cmd_name, args, session_id, context, kernel, meta) -> CommandRe
     Open the Quest Board to list, start, or resume a quest.
     
     Usage:
-        #quest              - Show quest board
+        #quest              - Show quest board (all regions)
+        #quest cyber        - Show quests in cyber region
         #quest id=jwt_t1    - Start/resume specific quest
         #quest 1            - Start quest by index
     """
     engine = kernel.quest_engine
+    module_store = getattr(kernel, 'module_store', None)
     
-    # Check if specific quest requested
+    # Check if specific quest or region requested
     quest_id = None
+    region_filter = None
+    
     if isinstance(args, dict):
         quest_id = args.get("id") or args.get("name")
-        # Check for numeric selection
+        region_filter = args.get("region") or args.get("module")
+        
+        # Check for positional argument
         positional = args.get("_", [])
-        if positional and not quest_id:
+        if positional and not quest_id and not region_filter:
+            arg = positional[0]
+            
+            # Check if it's a number (quest index)
             try:
-                index = int(positional[0]) - 1  # 1-based to 0-based
+                index = int(arg) - 1  # 1-based to 0-based
                 quests = engine.list_quests()
                 if 0 <= index < len(quests):
                     quest_id = quests[index].id
             except (ValueError, IndexError):
-                quest_id = positional[0]  # Treat as quest ID
+                # Not a number - check if it's a module ID
+                if module_store and module_store.exists(arg):
+                    region_filter = arg
+                else:
+                    # Treat as quest ID
+                    quest_id = arg
     
     # If quest ID provided, start/resume that quest
     if quest_id:
@@ -152,11 +166,18 @@ def handle_quest(cmd_name, args, session_id, context, kernel, meta) -> CommandRe
             "step_type": current_step.type,
         })
     
-    # No quest ID - show Quest Board
+    # No quest ID - show Quest Board (optionally filtered by region)
     quests = engine.list_quests()
     active_run = engine.get_active_run()
     
-    lines = ["╔══ Quest Board ══╗", ""]
+    # Apply region filter if specified
+    if region_filter:
+        quests = [q for q in quests if (q.module_id or q.category) == region_filter]
+        module = module_store.get(region_filter) if module_store else None
+        region_name = module.realm_name if module else region_filter.title()
+        lines = [f"╔══ {region_name} Quests ══╗", ""]
+    else:
+        lines = ["╔══ Quest Board ══╗", ""]
     
     # Show active quest if any
     if active_run:
@@ -167,25 +188,85 @@ def handle_quest(cmd_name, args, session_id, context, kernel, meta) -> CommandRe
             lines.append(f"   Step {step_num}/{len(active_quest.steps)} • Run `#next` to continue")
             lines.append("")
     
-    # List all quests
-    lines.append("**Available Quests:**")
-    lines.append("")
-    
+    # v0.8.1: Group quests by module (if modules exist)
     if not quests:
-        lines.append("No quests available. Create one with #quest-compose.")
-    else:
+        if region_filter:
+            lines.append(f"No quests in this module yet.")
+        else:
+            lines.append("No quests available. Create one with `#quest-compose`.")
+    elif region_filter:
+        # Filtered view - show flat list for the specific module
         for i, q in enumerate(quests, 1):
             status_icon = _status_emoji(q.status)
             boss_icon = "👑" if q.has_boss else ""
-            lines.append(f"{i}. {status_icon} **{q.title}** [{q.category}] {_difficulty_stars(q.difficulty)} {boss_icon}")
+            lines.append(f"{i}. {status_icon} **{q.title}** {_difficulty_stars(q.difficulty)} {boss_icon}")
+            lines.append(f"   └─ {q.step_count} steps • id: `{q.id}`")
+    elif module_store and module_store.count() > 0:
+        # Group by module
+        modules = module_store.list_all()
+        module_map = {m.id: m for m in modules}
+        
+        # Organize quests by module
+        quests_by_module: Dict[str, List] = {}
+        uncategorized = []
+        
+        for q in quests:
+            module_id = q.module_id or q.category
+            if module_id in module_map:
+                if module_id not in quests_by_module:
+                    quests_by_module[module_id] = []
+                quests_by_module[module_id].append(q)
+            else:
+                uncategorized.append(q)
+        
+        # Display by module
+        quest_index = 1
+        for module in modules:
+            if module.id not in quests_by_module:
+                continue
+            
+            module_quests = quests_by_module[module.id]
+            icon = module.icon
+            realm = module.realm_name
+            
+            lines.append(f"{icon} **{realm}**")
+            
+            for q in module_quests:
+                status_icon = _status_emoji(q.status)
+                boss_icon = "👑" if q.has_boss else ""
+                lines.append(f"   {quest_index}. {status_icon} {q.title} {_difficulty_stars(q.difficulty)} {boss_icon}")
+                quest_index += 1
+            
+            lines.append("")
+        
+        # Uncategorized quests (module_id doesn't match any module)
+        if uncategorized:
+            lines.append("📁 **Unassigned**")
+            for q in uncategorized:
+                status_icon = _status_emoji(q.status)
+                boss_icon = "👑" if q.has_boss else ""
+                lines.append(f"   {quest_index}. {status_icon} {q.title} {_difficulty_stars(q.difficulty)} {boss_icon}")
+                quest_index += 1
+            lines.append("")
+    else:
+        # Flat list (no modules defined)
+        for i, q in enumerate(quests, 1):
+            status_icon = _status_emoji(q.status)
+            boss_icon = "👑" if q.has_boss else ""
+            lines.append(f"{i}. {status_icon} **{q.title}** {_difficulty_stars(q.difficulty)} {boss_icon}")
             lines.append(f"   └─ {q.step_count} steps • id: `{q.id}`")
     
     lines.append("")
     lines.append("**Commands:**")
     lines.append("• `#quest <number>` or `#quest id=<id>` — Start/resume quest")
+    if region_filter:
+        lines.append("• `#quest` — View all quests")
+    elif module_store and module_store.count() > 0:
+        lines.append("• `#quest <module>` — Filter by module")
     lines.append("• `#quest-log` — View your progress")
+    lines.append("• `#modules` — View world map")
     
-    return _base_response(cmd_name, "\n".join(lines), {"quests": [q.to_dict() for q in quests]})
+    return _base_response(cmd_name, "\n".join(lines), {"quests": [q.to_dict() for q in quests], "region_filter": region_filter})
 
 
 # =============================================================================

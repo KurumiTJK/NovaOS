@@ -93,13 +93,12 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "modules": Section(
         title="Modules",
-        description="Regions/domains on the world map.",
+        description="Regions/domains on the world map. User-created, no defaults.",
         commands=[
-            CommandInfo("map", "List all registered modules (regions)", "#map"),
-            CommandInfo("forge", "Forge a new module/region", "#forge key=cyber mission=\"Security domain\""),
-            CommandInfo("dismantle", "Dismantle (delete) a module", "#dismantle key=mymod"),
-            CommandInfo("inspect", "Inspect a module's metadata and bindings", "#inspect key=cyber"),
-            CommandInfo("bind-module", "Bind two modules for cross-domain interaction", "#bind-module a=mod1 b=mod2"),
+            CommandInfo("modules", "List all modules/regions", "#modules"),
+            CommandInfo("module-create", "Create a new module/region", "#module-create id=\"cyber\" name=\"Cybersecurity\""),
+            CommandInfo("module-delete", "Delete a module/region", "#module-delete cyber"),
+            CommandInfo("module-inspect", "Inspect a module's details", "#module-inspect cyber"),
         ]
     ),
     "identity": Section(

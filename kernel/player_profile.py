@@ -42,15 +42,8 @@ TIER_THRESHOLDS = {
     5: 2000,   # 2000+ XP
 }
 
-# Default domains (can be extended)
-DEFAULT_DOMAINS = [
-    "cyber",
-    "finance", 
-    "real_estate",
-    "business",
-    "health",
-    "meta",  # NovaOS itself, learning how to learn
-]
+# NOTE: No default domains. Domains are created dynamically when XP is awarded.
+# The domain ID should match a module ID (if modules are used).
 
 
 # =============================================================================
@@ -248,10 +241,9 @@ class PlayerProfileManager:
             except (json.JSONDecodeError, KeyError):
                 pass
         
-        # Create new profile with default domains
+        # Create new empty profile (no default domains)
         profile = PlayerProfile()
-        for domain in DEFAULT_DOMAINS:
-            profile.domains[domain] = DomainXP()
+        # Domains are created dynamically when XP is awarded
         return profile
     
     def award_xp(
@@ -412,10 +404,9 @@ class PlayerProfileManager:
         return summary
     
     def reset_profile(self) -> None:
-        """Reset player profile to defaults."""
+        """Reset player profile to empty state (no default domains)."""
         self._profile = PlayerProfile()
-        for domain in DEFAULT_DOMAINS:
-            self._profile.domains[domain] = DomainXP()
+        # Domains are created dynamically when XP is awarded
         self.save_profile()
 
 

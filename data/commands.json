@@ -122,30 +122,25 @@
     "description": "Bind multiple memory items into a cluster."
   },
 
-  "map": {
-    "handler": "handle_map",
+  "modules": {
+    "handler": "handle_modules",
     "category": "modules",
-    "description": "List all registered modules (regions)."
+    "description": "List all modules/regions on the world map."
   },
-  "forge": {
-    "handler": "handle_forge",
+  "module-create": {
+    "handler": "handle_module_create",
     "category": "modules",
-    "description": "Forge (create) a new module with mission and state."
+    "description": "Create a new module/region."
   },
-  "dismantle": {
-    "handler": "handle_dismantle",
+  "module-delete": {
+    "handler": "handle_module_delete",
     "category": "modules",
-    "description": "Dismantle (delete) a module."
+    "description": "Delete a module/region."
   },
-  "inspect": {
-    "handler": "handle_inspect",
+  "module-inspect": {
+    "handler": "handle_module_inspect",
     "category": "modules",
-    "description": "Inspect a module's metadata and bindings."
-  },
-  "bind-module": {
-    "handler": "handle_bind_module",
-    "category": "modules",
-    "description": "Bind two modules for cross-domain interaction."
+    "description": "Inspect a module's details and player progress."
   },
 
   "identity-show": {

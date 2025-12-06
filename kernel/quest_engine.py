@@ -381,12 +381,14 @@ class QuestSummary:
     has_boss: bool
     step_count: int
     status: QuestStatus = "not_started"
+    module_id: Optional[str] = None  # v0.8.0: Links quest to a region
     
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
             "title": self.title,
             "category": self.category,
+            "module_id": self.module_id,
             "difficulty": self.difficulty,
             "has_boss": self.has_boss,
             "step_count": self.step_count,
@@ -729,6 +731,7 @@ class QuestEngine:
                 has_boss=quest.has_boss,
                 step_count=len(quest.steps),
                 status=status,
+                module_id=quest.module_id,  # v0.8.0
             ))
         
         return summaries
