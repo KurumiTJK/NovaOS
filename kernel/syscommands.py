@@ -56,6 +56,15 @@ except ImportError:
     def get_assistant_mode_handlers():
         return {}
 
+# v0.8.0: Strategist handlers (analyze, route, insight)
+try:
+    from .strategist import get_strategist_handlers
+    _HAS_STRATEGIST = True
+except ImportError:
+    _HAS_STRATEGIST = False
+    def get_strategist_handlers():
+        return {}
+
 # v0.7: Working Memory Engine integration
 try:
     from .nova_wm import wm_clear
@@ -5499,3 +5508,7 @@ if _HAS_MODULE_MANAGER:
 # v0.8.0: Assistant Mode handlers (story vs utility)
 if _HAS_ASSISTANT_MODE:
     SYS_HANDLERS.update(get_assistant_mode_handlers())
+
+# v0.8.0: Strategist handlers (analyze, route, insight)
+if _HAS_STRATEGIST:
+    SYS_HANDLERS.update(get_strategist_handlers())
