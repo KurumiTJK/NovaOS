@@ -64,12 +64,15 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "inbox": Section(
         title="Inbox",
-        description="Quick capture for thoughts, ideas, and tasks.",
+        description="Quick capture for thoughts, ideas, and tasks (GTD-style).",
         commands=[
             CommandInfo("capture", "Quick capture to inbox", "#capture Buy milk"),
             CommandInfo("in", "Quick capture (alias)", "#in Learn about JWT"),
             CommandInfo("inbox", "List inbox items", "#inbox"),
+            CommandInfo("inbox-list", "Simple list of inbox items", "#inbox-list"),
             CommandInfo("inbox-process", "Process item (quest/reminder/archive)", "#inbox-process abc123 quest"),
+            CommandInfo("inbox-to-quest", "Convert inbox item to quest", "#inbox-to-quest id=abc123"),
+            CommandInfo("inbox-to-reminder", "Convert inbox item to reminder", "#inbox-to-reminder id=abc123"),
             CommandInfo("inbox-delete", "Delete an inbox item", "#inbox-delete abc123"),
             CommandInfo("inbox-clear", "Clear processed items", "#inbox-clear confirm=yes"),
         ]
@@ -204,16 +207,6 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("behavior-debug", "Show Behavior Layer state", "#behavior-debug"),
             CommandInfo("self-test", "Run internal diagnostics", "#self-test"),
             CommandInfo("quest-debug", "Show raw quest engine state", "#quest-debug"),
-        ]
-    ),
-    "inbox": Section(
-        title="Inbox",
-        description="Capture layer for raw thoughts, ideas, and tasks.",
-        commands=[
-            CommandInfo("capture", "Capture a raw thought/idea/task to inbox", "#capture \"Prep for client review\""),
-            CommandInfo("inbox-list", "List open inbox items", "#inbox-list"),
-            CommandInfo("inbox-to-quest", "Turn an inbox item into a quest", "#inbox-to-quest id=inbox_001"),
-            CommandInfo("inbox-to-reminder", "Turn an inbox item into a reminder", "#inbox-to-reminder id=inbox_001"),
         ]
     ),
 }

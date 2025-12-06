@@ -1788,26 +1788,143 @@ def handle_diagnostics(cmd_name, args, session_id, context, kernel, meta) -> Ker
 
 
 def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    cmds = []
-    formatted = []
-    for name, info in kernel.commands.items():
-        entry = {
-            "name": name,
-            "category": info.get("category", "misc"),
-            "description": info.get("description", ""),
-        }
-        cmds.append(entry)
-        formatted.append(
-            F.item(
-                id=name,
-                label=entry["category"],
-                details=entry["description"],
-            )
-        )
-
-    summary = F.header("Available syscommands") + F.list(formatted)
-    extra = {"commands": cmds}
-    return _base_response(cmd_name, summary, extra)
+    """
+    v0.8.1 — Section-based help command.
+    
+    Shows the 14 NovaOS sections in a clean overview, NOT a flat dump of all commands.
+    Optionally drill down into a specific section with #help <section>.
+    
+    Usage:
+        #help              — Show section overview
+        #help memory       — Show commands in the MEMORY section
+        #help workflow     — Show commands in the QUEST ENGINE section
+    """
+    # Import section definitions
+    from .section_defs import SECTION_DEFS, get_section
+    
+    # Canonical section order for display
+    SECTION_ORDER = [
+        "core",
+        "inbox",
+        "memory",
+        "continuity",
+        "human_state",
+        "modules",
+        "identity",
+        "system",
+        "workflow",
+        "timerhythm",
+        "reminders",
+        "commands",
+        "interpretation",
+        "debug",
+    ]
+    
+    # RPG-style section descriptions (can override SECTION_DEFS descriptions)
+    SECTION_DESCRIPTIONS = {
+        "core": "Nova's heart & OS control center",
+        "inbox": "Quick capture layer for thoughts, ideas, tasks",
+        "memory": "Lore & knowledge store (semantic/procedural/episodic)",
+        "continuity": "Long-term arcs, projects, and session state",
+        "human_state": "HP / stamina / stress / mood tracking",
+        "modules": "World map: regions & domains you create",
+        "identity": "Player Profile: level, XP, domains, titles",
+        "system": "Environment, modes, snapshots, config",
+        "workflow": "Quest Engine: quests, XP, skills, streaks",
+        "timerhythm": "Time rhythm: daily/weekly presence, seasons",
+        "reminders": "Time-based reminders & pins",
+        "commands": "Custom commands & macros (abilities)",
+        "interpretation": "Strategy & oracle (READ-ONLY)",
+        "debug": "Diagnostics & dev tools",
+    }
+    
+    # Parse optional section argument
+    target_section = None
+    if isinstance(args, dict):
+        target_section = args.get("section")
+        positional = args.get("_", [])
+        if not target_section and positional:
+            target_section = str(positional[0]).lower()
+    elif isinstance(args, str) and args.strip():
+        target_section = args.strip().lower()
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # DRILL-DOWN: Show specific section's commands
+    # ─────────────────────────────────────────────────────────────────────────
+    if target_section:
+        section = get_section(target_section)
+        if not section:
+            # Unknown section — show error + fallback to global help
+            lines = [
+                f"Unknown section '{target_section}'.",
+                "",
+                "Available sections:",
+            ]
+            for key in SECTION_ORDER:
+                lines.append(f"  • {key}")
+            lines.append("")
+            lines.append("Usage: #help <section>  (e.g., #help memory)")
+            
+            return _base_response(cmd_name, "\n".join(lines), {"ok": False, "error": "unknown_section"})
+        
+        # Build section detail view
+        lines = [
+            f"══════════════════════════════════════",
+            f"  {section.title.upper()}",
+            f"══════════════════════════════════════",
+            "",
+            section.description,
+            "",
+            "Commands:",
+            "",
+        ]
+        
+        for cmd in section.commands:
+            lines.append(f"  #{cmd.name}")
+            lines.append(f"    {cmd.description}")
+            if cmd.example:
+                lines.append(f"    Example: {cmd.example}")
+            lines.append("")
+        
+        lines.append(f"Enter this section: #{target_section}")
+        lines.append(f"Back to overview: #help")
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "section": target_section,
+            "commands": [cmd.name for cmd in section.commands],
+        })
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # GLOBAL OVERVIEW: Show all sections
+    # ─────────────────────────────────────────────────────────────────────────
+    lines = [
+        "╔════════════════════════════════════════════════════════╗",
+        "║           NovaOS Help — Section Overview               ║",
+        "╚════════════════════════════════════════════════════════╝",
+        "",
+        "NovaOS is organized into 14 sections. Type the section",
+        "name to enter its menu, or use #help <section> for details.",
+        "",
+    ]
+    
+    # Calculate max key length for alignment
+    max_key_len = max(len(key) for key in SECTION_ORDER)
+    
+    for key in SECTION_ORDER:
+        desc = SECTION_DESCRIPTIONS.get(key, "")
+        padded_key = key.ljust(max_key_len)
+        lines.append(f"  {padded_key}  —  {desc}")
+        lines.append(f"  {''.ljust(max_key_len)}     Run: #{key}")
+        lines.append("")
+    
+    lines.append("─────────────────────────────────────────────────────────")
+    lines.append("Tip: #help <section> shows commands in that section.")
+    lines.append("     Example: #help workflow")
+    
+    return _base_response(cmd_name, "\n".join(lines), {
+        "sections": SECTION_ORDER,
+        "count": len(SECTION_ORDER),
+    })
 
 
 # ---------------------------------------------------------------------
