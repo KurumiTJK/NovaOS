@@ -20,7 +20,7 @@
     "description": "Display system state"
   },
   "help": {
-    "handler": "handle_help_v06",
+    "handler": "handle_help",
     "category": "core",
     "description": "Show command sections and help"
   },
@@ -45,7 +45,7 @@
     "category": "section",
     "description": "Open the HUMAN STATE section menu"
   },
-  "modules": {
+  "modules-section": {
     "handler": "handle_section_modules",
     "category": "section",
     "description": "Open the MODULES (Regions) section menu"
@@ -90,7 +90,7 @@
     "category": "section",
     "description": "Open the DEBUG section menu"
   },
-  "inbox": {
+  "inbox-section": {
     "handler": "handle_section_inbox",
     "category": "section",
     "description": "Open the INBOX section menu"
@@ -137,6 +137,11 @@
     "category": "inbox",
     "description": "List inbox items."
   },
+  "inbox-list": {
+    "handler": "handle_inbox_list",
+    "category": "inbox",
+    "description": "List open inbox items (simple view)."
+  },
   "inbox-process": {
     "handler": "handle_inbox_process",
     "category": "inbox",
@@ -151,6 +156,16 @@
     "handler": "handle_inbox_clear",
     "category": "inbox",
     "description": "Clear all processed items from inbox."
+  },
+  "inbox-to-quest": {
+    "handler": "handle_inbox_to_quest",
+    "category": "inbox",
+    "description": "Turn an inbox item into a quest."
+  },
+  "inbox-to-reminder": {
+    "handler": "handle_inbox_to_reminder",
+    "category": "inbox",
+    "description": "Turn an inbox item into a reminder."
   },
 
   "modules": {
@@ -193,17 +208,42 @@
   "analyze": {
     "handler": "handle_analyze",
     "category": "interpretation",
-    "description": "Analyze current state and suggest best actions."
+    "description": "Suggest best quests/actions for right now (READ-ONLY strategist)."
   },
   "route": {
     "handler": "handle_route",
     "category": "interpretation",
-    "description": "Map a goal to relevant modules, quests, and actions."
+    "description": "Map a goal to modules, quests, and abilities (READ-ONLY)."
   },
   "insight": {
     "handler": "handle_insight",
     "category": "interpretation",
-    "description": "Summarize patterns, strengths, and areas for growth."
+    "description": "Summarize patterns, strengths, and weaknesses (READ-ONLY)."
+  },
+  "interpret": {
+    "handler": "handle_interpret",
+    "category": "interpretation",
+    "description": "Explain what an input means and what you are trying to do."
+  },
+  "derive": {
+    "handler": "handle_derive",
+    "category": "interpretation",
+    "description": "Break a topic down into first principles."
+  },
+  "synthesize": {
+    "handler": "handle_synthesize",
+    "category": "interpretation",
+    "description": "Integrate ideas into a coherent structure."
+  },
+  "frame": {
+    "handler": "handle_frame",
+    "category": "interpretation",
+    "description": "Reframe the problem or direction."
+  },
+  "forecast": {
+    "handler": "handle_forecast",
+    "category": "interpretation",
+    "description": "Generate plausible future outcomes based on the current state."
   },
 
   "snapshot": {
@@ -235,6 +275,11 @@
     "handler": "handle_assistant_mode",
     "category": "system",
     "description": "Set presentation style: story (full RPG) or utility (minimal)."
+  },
+  "command-wizard": {
+    "handler": "handle_command_wizard",
+    "category": "system",
+    "description": "Create a custom command from natural language."
   },
 
   "quest": {
@@ -354,72 +399,5 @@
     "handler": "handle_command_toggle",
     "category": "commands",
     "description": "Enable or disable a custom command."
-  },
-  "command-wizard": {
-    "handler": "handle_command_wizard",
-    "category": "system",
-    "description": "Create a custom command from natural language."
-  },
-
-  "analyze": {
-    "handler": "handle_analyze",
-    "category": "interpretation",
-    "description": "Suggest best quests/actions for right now (READ-ONLY strategist)."
-  },
-  "route": {
-    "handler": "handle_route",
-    "category": "interpretation",
-    "description": "Map a goal to modules, quests, and abilities (READ-ONLY)."
-  },
-  "insight": {
-    "handler": "handle_insight",
-    "category": "interpretation",
-    "description": "Summarize patterns, strengths, and weaknesses (READ-ONLY)."
-  },
-  "interpret": {
-    "handler": "handle_interpret",
-    "category": "interpretation",
-    "description": "Explain what an input means and what you are trying to do."
-  },
-  "derive": {
-    "handler": "handle_derive",
-    "category": "interpretation",
-    "description": "Break a topic down into first principles."
-  },
-  "synthesize": {
-    "handler": "handle_synthesize",
-    "category": "interpretation",
-    "description": "Integrate ideas into a coherent structure."
-  },
-  "frame": {
-    "handler": "handle_frame",
-    "category": "interpretation",
-    "description": "Reframe the problem or direction."
-  },
-  "forecast": {
-    "handler": "handle_forecast",
-    "category": "interpretation",
-    "description": "Generate plausible future outcomes based on the current state."
-  },
-
-  "capture": {
-    "handler": "handle_capture",
-    "category": "inbox",
-    "description": "Capture a raw thought/idea/task to inbox."
-  },
-  "inbox-list": {
-    "handler": "handle_inbox_list",
-    "category": "inbox",
-    "description": "List open inbox items."
-  },
-  "inbox-to-quest": {
-    "handler": "handle_inbox_to_quest",
-    "category": "inbox",
-    "description": "Turn an inbox item into a quest."
-  },
-  "inbox-to-reminder": {
-    "handler": "handle_inbox_to_reminder",
-    "category": "inbox",
-    "description": "Turn an inbox item into a reminder."
   }
 }

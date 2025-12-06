@@ -460,15 +460,308 @@ def handle_inbox_clear(cmd_name, args, session_id, context, kernel, meta) -> Com
 
 
 # =============================================================================
+# INBOX-LIST (simple read-only list)
+# =============================================================================
+
+def handle_inbox_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
+    """
+    Simple read-only list of inbox items.
+    
+    This is an alias/simplified version of #inbox that just shows items.
+    No processing options, just a quick view.
+    
+    Usage:
+        #inbox-list         — List unprocessed items
+        #inbox-list all     — List all items
+    """
+    inbox = getattr(kernel, 'inbox_store', None)
+    if not inbox:
+        return _error_response(cmd_name, "Inbox not available.", "NO_INBOX")
+    
+    # Check for 'all' flag
+    show_all = False
+    if isinstance(args, dict):
+        positional = args.get("_", [])
+        if positional and positional[0] == "all":
+            show_all = True
+    elif isinstance(args, str) and args == "all":
+        show_all = True
+    
+    # Get items
+    if show_all:
+        items = inbox.list_all()
+    else:
+        items = inbox.list_unprocessed()
+    
+    if not items:
+        return _base_response(
+            cmd_name,
+            "Inbox is empty.",
+            {"items": [], "count": 0},
+        )
+    
+    lines = ["Inbox Items:", ""]
+    
+    for i, item in enumerate(items, 1):
+        status = "[done]" if item.processed else "[open]"
+        priority = f"P{item.priority}" if item.priority else ""
+        content = item.content[:50] + "..." if len(item.content) > 50 else item.content
+        lines.append(f"{i}. {status} {priority} {content}")
+        lines.append(f"   ID: {item.id} | {item.age_str}")
+    
+    lines.append("")
+    lines.append(f"Total: {len(items)} item(s)")
+    
+    return _base_response(
+        cmd_name,
+        "\n".join(lines),
+        {"items": [i.to_dict() for i in items], "count": len(items)},
+    )
+
+
+# =============================================================================
+# INBOX-TO-QUEST (convert inbox item to quest)
+# =============================================================================
+
+def handle_inbox_to_quest(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
+    """
+    Convert an inbox item directly into a quest.
+    
+    Creates a simple quest with:
+    - Title: First 60 chars of inbox text
+    - Description: Full inbox text
+    - One step: "Complete: <text>"
+    
+    Usage:
+        #inbox-to-quest <id>
+        #inbox-to-quest id=abc123
+    """
+    inbox = getattr(kernel, 'inbox_store', None)
+    quest_engine = getattr(kernel, 'quest_engine', None)
+    
+    if not inbox:
+        return _error_response(cmd_name, "Inbox not available.", "NO_INBOX")
+    if not quest_engine:
+        return _error_response(cmd_name, "Quest engine not available.", "NO_QUEST_ENGINE")
+    
+    # Get item ID
+    item_id = None
+    if isinstance(args, dict):
+        item_id = args.get("id")
+        positional = args.get("_", [])
+        if not item_id and positional:
+            item_id = positional[0]
+    elif isinstance(args, str):
+        item_id = args
+    
+    if not item_id:
+        return _error_response(
+            cmd_name,
+            "Usage: `#inbox-to-quest <id>`\n\n"
+            "Use `#inbox` to see item IDs.",
+            "MISSING_ID",
+        )
+    
+    # Get the inbox item
+    item = inbox.get(item_id)
+    if not item:
+        return _error_response(cmd_name, f"Item '{item_id}' not found.", "NOT_FOUND")
+    
+    if item.processed:
+        return _error_response(
+            cmd_name,
+            f"Item already processed → {item.processed_to}",
+            "ALREADY_PROCESSED",
+        )
+    
+    # Create quest title (first 60 chars, clean)
+    title = item.content[:60].strip()
+    if len(item.content) > 60:
+        # Try to break at word boundary
+        last_space = title.rfind(" ")
+        if last_space > 30:
+            title = title[:last_space]
+        title += "..."
+    
+    # Import Quest model for creation
+    try:
+        from kernel.quest_engine import Quest, QuestStep, QuestRewards
+        import uuid
+        
+        quest_id = f"q-{uuid.uuid4().hex[:8]}"
+        
+        # Create quest with single step
+        quest = Quest(
+            id=quest_id,
+            title=title,
+            description=item.content,
+            category="inbox",
+            module_id=None,  # User can assign later
+            xp_reward=25,  # Small reward for captured tasks
+            steps=[
+                QuestStep(
+                    id=f"{quest_id}-step-1",
+                    title=f"Complete: {title}",
+                    prompt="Mark this task as done when completed.",
+                    xp=25,
+                )
+            ],
+            rewards=QuestRewards(),
+        )
+        
+        # Add quest to engine
+        quest_engine.add_quest(quest)
+        
+        # Mark inbox item as processed
+        inbox.mark_processed(item_id, f"quest:{quest_id}")
+        
+        # Get assistant mode for formatting
+        mode_mgr = getattr(kernel, 'assistant_mode_manager', None)
+        
+        if mode_mgr and mode_mgr.is_story_mode():
+            summary = (
+                f"✨ **Quest created from inbox!**\n\n"
+                f"**{quest.title}**\n"
+                f"ID: `{quest_id}`\n\n"
+                f"Run `#quest {quest_id}` to begin this quest."
+            )
+        else:
+            summary = f"Created quest '{quest_id}' from inbox item. Run `#quest {quest_id}` to start."
+        
+        return _base_response(cmd_name, summary, {
+            "quest_id": quest_id,
+            "item_id": item_id,
+            "quest": quest.to_dict(),
+        })
+        
+    except Exception as e:
+        return _error_response(
+            cmd_name,
+            f"Failed to create quest: {e}",
+            "CREATION_FAILED",
+        )
+
+
+# =============================================================================
+# INBOX-TO-REMINDER (convert inbox item to reminder)
+# =============================================================================
+
+def handle_inbox_to_reminder(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
+    """
+    Convert an inbox item into a reminder.
+    
+    Creates a reminder with:
+    - Title: Inbox text
+    - When: "unscheduled" (user can update later with #remind-update)
+    
+    Usage:
+        #inbox-to-reminder <id>
+        #inbox-to-reminder id=abc123 when="tomorrow 9am"
+    """
+    inbox = getattr(kernel, 'inbox_store', None)
+    reminders = getattr(kernel, 'reminders', None)
+    
+    if not inbox:
+        return _error_response(cmd_name, "Inbox not available.", "NO_INBOX")
+    if not reminders:
+        return _error_response(cmd_name, "Reminders not available.", "NO_REMINDERS")
+    
+    # Parse args
+    item_id = None
+    when = None
+    
+    if isinstance(args, dict):
+        item_id = args.get("id")
+        when = args.get("when") or args.get("at")
+        positional = args.get("_", [])
+        if not item_id and positional:
+            item_id = positional[0]
+    elif isinstance(args, str):
+        item_id = args
+    
+    if not item_id:
+        return _error_response(
+            cmd_name,
+            "Usage: `#inbox-to-reminder <id>`\n\n"
+            "Optional: `when=\"tomorrow 9am\"`\n"
+            "Use `#inbox` to see item IDs.",
+            "MISSING_ID",
+        )
+    
+    # Get the inbox item
+    item = inbox.get(item_id)
+    if not item:
+        return _error_response(cmd_name, f"Item '{item_id}' not found.", "NOT_FOUND")
+    
+    if item.processed:
+        return _error_response(
+            cmd_name,
+            f"Item already processed → {item.processed_to}",
+            "ALREADY_PROCESSED",
+        )
+    
+    # Use current time or provided time
+    from datetime import datetime, timezone
+    
+    if not when:
+        # Default to "unscheduled" - use far future date as placeholder
+        when = "2099-12-31T23:59:59Z"
+        when_display = "unscheduled"
+    else:
+        when_display = when
+    
+    try:
+        # Create reminder
+        reminder = reminders.add(
+            title=item.content,
+            when=when,
+            repeat=None,
+        )
+        
+        # Mark inbox item as processed
+        reminder_id = reminder.id if hasattr(reminder, 'id') else reminder.to_dict().get('id', 'unknown')
+        inbox.mark_processed(item_id, f"reminder:{reminder_id}")
+        
+        # Get assistant mode for formatting
+        mode_mgr = getattr(kernel, 'assistant_mode_manager', None)
+        
+        if mode_mgr and mode_mgr.is_story_mode():
+            summary = (
+                f"⏰ **Reminder created from inbox!**\n\n"
+                f"**{item.content[:50]}{'...' if len(item.content) > 50 else ''}**\n"
+                f"When: {when_display}\n\n"
+                f"Use `#remind-list` to view or `#remind-update` to reschedule."
+            )
+        else:
+            summary = f"Created reminder from inbox item. When: {when_display}. Use #remind-list to view."
+        
+        return _base_response(cmd_name, summary, {
+            "reminder_id": reminder_id,
+            "item_id": item_id,
+            "when": when_display,
+        })
+        
+    except Exception as e:
+        return _error_response(
+            cmd_name,
+            f"Failed to create reminder: {e}",
+            "CREATION_FAILED",
+        )
+
+
+# =============================================================================
 # HANDLER REGISTRY
 # =============================================================================
 
 INBOX_HANDLERS = {
     "handle_capture": handle_capture,
     "handle_inbox": handle_inbox,
+    "handle_inbox_list": handle_inbox_list,
     "handle_inbox_process": handle_inbox_process,
     "handle_inbox_delete": handle_inbox_delete,
     "handle_inbox_clear": handle_inbox_clear,
+    "handle_inbox_to_quest": handle_inbox_to_quest,
+    "handle_inbox_to_reminder": handle_inbox_to_reminder,
 }
 
 

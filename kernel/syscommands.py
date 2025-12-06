@@ -4509,10 +4509,8 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_forget": handle_forget,
     "handle_trace": handle_trace,
     "handle_bind": handle_bind,
-    "handle_map": handle_map,
-    "handle_forge": handle_forge,
-    "handle_dismantle": handle_dismantle,
-    "handle_inspect": handle_inspect,
+    # v0.8.0: Legacy module handlers removed — ModuleStore provides new ones via get_module_handlers()
+    # handle_map, handle_forge, handle_dismantle, handle_inspect moved to legacy
     "handle_bind_module": handle_bind_module,
     "handle_snapshot": handle_snapshot,
     "handle_restore": handle_restore,
@@ -4581,7 +4579,7 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_projects": handle_projects,
     "handle_continuity_context": handle_continuity_context,
     "handle_reconfirm_prompts": handle_reconfirm_prompts,
-    "handle_suggest_workflow": handle_suggest_workflow,
+    # handle_suggest_workflow removed — legacy workflow system
 
     # v0.5.9 Human State
     "handle_evolution_status": handle_evolution_status,
@@ -4590,7 +4588,6 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_capacity_check": handle_capacity_check,
 
     # v0.6 Sectioned Help and Section Menus
-    "handle_help_v06": handle_help_v06,
     "handle_section_core": handle_section_core,
     "handle_section_memory": handle_section_memory,
     "handle_section_continuity": handle_section_continuity,

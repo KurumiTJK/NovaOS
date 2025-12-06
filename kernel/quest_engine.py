@@ -917,6 +917,23 @@ class QuestEngine:
         self._save_quests()
         return quest
     
+    def add_quest(self, quest: Quest) -> Quest:
+        """
+        Add a Quest object directly to the quest store and persist it.
+        
+        This is a low-level helper used when another subsystem (e.g. Inbox)
+        constructs a Quest instance and wants to register it with the engine.
+        
+        Args:
+            quest: A fully constructed Quest instance
+            
+        Returns:
+            The same quest, for convenience
+        """
+        self._quests[quest.id] = quest
+        self._save_quests()
+        return quest
+    
     def delete_quest(self, quest_id: str) -> bool:
         """Delete a quest and its progress."""
         if quest_id not in self._quests:
