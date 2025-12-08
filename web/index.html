@@ -787,46 +787,88 @@
     /**
      * Extract the human-readable response text from the API response.
      * 
-     * NEVER shows raw JSON in the chat window. Instead:
-     * 1. If parsed.text is a non-empty string, show that.
-     * 2. If text is empty but it's a NovaOS kernel response, show a friendly error.
-     * 3. If text is empty and it's some other response type, show a generic error.
-     * 4. Only if parsing fails completely, show the raw string.
+     * RULES (in order of priority):
+     * 
+     * A. PRIMARY RULE — Use real text whenever it exists.
+     *    If the response has a non-empty string in text/summary/content.summary,
+     *    ALWAYS display that, regardless of mode/handled_by/ok.
+     * 
+     * B. STRICT-MODE FALLBACK — Only when the command actually failed.
+     *    Show the strict-mode error message ONLY when ALL of these are true:
+     *    - parsed.mode === "NovaOS"
+     *    - parsed.handled_by === "kernel"  
+     *    - parsed.ok === false
+     *    - No usable text was found
+     * 
+     * C. GENERIC FALLBACK — For all other empty responses.
+     *    Show "Nova returned an empty response. Please try again."
+     * 
+     * NEVER show raw JSON in the chat window.
      */
     function extractNovaResponse(data) {
+      // DEBUG: Log the raw response to help diagnose issues
+      console.log('NovaOS: Raw API response:', JSON.stringify(data, null, 2));
+
+      // ─────────────────────────────────────────────────────────────────────
       // PRIORITY 1: The "text" field is the standard response from nova_api.py
-      if (typeof data.text === 'string' && data.text.trim()) {
+      // This is the MOST IMPORTANT check - always prefer real text
+      // ─────────────────────────────────────────────────────────────────────
+      if (typeof data.text === 'string' && data.text.trim() !== '') {
+        console.log('NovaOS: Found text in data.text');
         return data.text.trim();
       }
 
       // PRIORITY 2: Direct summary string (alternative format)
-      if (typeof data.summary === 'string' && data.summary.trim()) {
+      if (typeof data.summary === 'string' && data.summary.trim() !== '') {
+        console.log('NovaOS: Found text in data.summary');
         return data.summary.trim();
       }
 
-      // PRIORITY 3: Content object with summary
+      // PRIORITY 3: Content object with summary (syscommand format from CommandResponse.to_dict())
       if (data.content) {
-        if (typeof data.content === 'string' && data.content.trim()) {
+        if (typeof data.content === 'string' && data.content.trim() !== '') {
+          console.log('NovaOS: Found text in data.content (string)');
           return data.content.trim();
         }
-        if (typeof data.content.summary === 'string' && data.content.summary.trim()) {
+        if (data.content.summary && typeof data.content.summary === 'string' && data.content.summary.trim() !== '') {
+          console.log('NovaOS: Found text in data.content.summary');
           return data.content.summary.trim();
         }
       }
 
-      // PRIORITY 4: Error response
+      // PRIORITY 4: Data object with summary (mode_router wraps kernel response in data field)
+      if (data.data) {
+        if (typeof data.data === 'string' && data.data.trim() !== '') {
+          console.log('NovaOS: Found text in data.data (string)');
+          return data.data.trim();
+        }
+        if (data.data.summary && typeof data.data.summary === 'string' && data.data.summary.trim() !== '') {
+          console.log('NovaOS: Found text in data.data.summary');
+          return data.data.summary.trim();
+        }
+        // Also check data.data.content.summary (nested)
+        if (data.data.content && data.data.content.summary && typeof data.data.content.summary === 'string' && data.data.content.summary.trim() !== '') {
+          console.log('NovaOS: Found text in data.data.content.summary');
+          return data.data.content.summary.trim();
+        }
+      }
+
+      // PRIORITY 5: Error response object
       if (data.error) {
-        if (typeof data.error === 'string' && data.error.trim()) {
+        if (typeof data.error === 'string' && data.error.trim() !== '') {
+          console.log('NovaOS: Found text in data.error');
           return `Error: ${data.error}`;
         }
-        if (data.error.message && data.error.message.trim()) {
+        if (data.error.message && typeof data.error.message === 'string' && data.error.message.trim() !== '') {
+          console.log('NovaOS: Found text in data.error.message');
           return `Error: ${data.error.message}`;
         }
       }
 
-      // PRIORITY 5: Try other common text-like fields
+      // PRIORITY 6: Try other common text-like fields
       for (const key of ['message', 'response', 'reply', 'output']) {
-        if (typeof data[key] === 'string' && data[key].trim()) {
+        if (typeof data[key] === 'string' && data[key].trim() !== '') {
+          console.log(`NovaOS: Found text in data.${key}`);
           return data[key].trim();
         }
       }
@@ -835,28 +877,22 @@
       // NO USABLE TEXT FOUND - Provide friendly fallback messages
       // NEVER show raw JSON to the user
       // ─────────────────────────────────────────────────────────────────────
+      console.warn('NovaOS: No usable text found in response. Checking fallback conditions...');
+      console.warn('NovaOS: mode =', data.mode, ', handled_by =', data.handled_by, ', ok =', data.ok);
 
-      // Check if this is a NovaOS kernel/syscommand response with empty text
-      // These have mode="NovaOS" and handled_by="kernel"
-      if (data.mode === 'NovaOS' && data.handled_by === 'kernel') {
-        console.warn('NovaOS: Empty kernel response, showing friendly fallback:', data);
+      // STRICT-MODE FALLBACK: Only when ALL conditions are met:
+      // - NovaOS mode
+      // - Kernel handled it
+      // - Command FAILED (ok === false)
+      // - No usable text (already checked above)
+      if (data.mode === 'NovaOS' && data.handled_by === 'kernel' && data.ok === false) {
+        console.warn('NovaOS: Strict mode fallback triggered (ok === false)');
         return 'Nova cannot complete this request in NovaOS strict mode. Type #help to see available commands, or #shutdown to exit strict mode.';
       }
 
-      // Check if this is any NovaOS response (even if not kernel)
-      if (data.mode === 'NovaOS') {
-        console.warn('NovaOS: Empty NovaOS response, showing friendly fallback:', data);
-        return 'Nova cannot complete this request. Type #help to see available commands.';
-      }
-
-      // Check if ok=false (general failure indicator)
-      if (data.ok === false) {
-        console.warn('NovaOS: Response ok=false with no text:', data);
-        return 'Nova encountered an issue processing your request. Please try again.';
-      }
-
       // Generic fallback for any other empty response
-      console.warn('NovaOS: Empty response with no usable text:', data);
+      // This covers: successful commands with empty output, persona empty responses, etc.
+      console.warn('NovaOS: Generic fallback triggered');
       return 'Nova returned an empty response. Please try again.';
     }
 
