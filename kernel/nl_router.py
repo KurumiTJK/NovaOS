@@ -1,6 +1,6 @@
 # kernel/nl_router.py
 """
-v0.8.0 — Natural Language Router (Life RPG Update)
+v0.8.1 — Natural Language Router (Life RPG Update)
 
 Routes natural language input to syscommands via intent detection.
 
@@ -117,19 +117,6 @@ class IntentPatterns:
         (r"\binspect module\s+(\w+)\b", "inspect", "_extract_module_key", 0.9),
     ]
     
-    # ===== INTERPRETATION (READ-ONLY STRATEGIST) =====
-    INTERPRETATION_PATTERNS = [
-        (r"\b(analyze|interpret)\s+(.+)\b", "interpret", "_extract_payload", 0.8),
-        (r"\bfirst principles\b.*\b(.+)\b", "derive", "_extract_payload", 0.85),
-        (r"\breframe\s+(.+)\b", "frame", "_extract_payload", 0.85),
-        (r"\bpredict\s+(.+)\b", "forecast", "_extract_payload", 0.8),
-        (r"\bforecast\s+(.+)\b", "forecast", "_extract_payload", 0.85),
-        # New strategist commands
-        (r"\b(what should i|suggest|analyze)( do| next| now)?\b", "analyze", None, 0.75),
-        (r"\b(route|map)( my)? goal\b", "route", None, 0.8),
-        (r"\b(my |show )?(insights?|patterns?)\b", "insight", None, 0.8),
-    ]
-    
     # ===== HUMAN STATE =====
     STATE_PATTERNS = [
         (r"\b(evolution|my) status\b", "evolution-status", None, 0.85),
@@ -202,27 +189,21 @@ def _extract_recall(match: re.Match) -> Dict[str, Any]:
         for mem_type in ["semantic", "procedural", "episodic"]:
             if mem_type in query.lower():
                 args["type"] = mem_type
-                query = query.lower().replace(mem_type, "").strip()
-        if query:
-            args["tags"] = query
+                break
+        args["query"] = query.strip()
     return args
 
 
 def _extract_forget_id(match: re.Match) -> Dict[str, Any]:
     """Extract memory ID from forget pattern."""
-    return {"ids": match.group(2)}
+    return {"id": match.group(2)}
 
 
 def _extract_reminder(match: re.Match) -> Dict[str, Any]:
-    """Extract reminder details."""
-    msg = match.group(2) if match.lastindex >= 2 else ""
-    time_part = match.group(3) if match.lastindex >= 3 else ""
-    args = {"msg": msg.strip()}
-    if time_part:
-        time_match = re.search(r"(at|in|on)\s+(.+)", time_part, re.IGNORECASE)
-        if time_match:
-            args["at"] = time_match.group(2).strip()
-    return args
+    """Extract reminder info."""
+    msg = match.group(2).strip() if match.lastindex >= 2 else ""
+    time_part = match.group(3).strip() if match.lastindex >= 3 and match.group(3) else ""
+    return {"msg": msg, "raw_time": time_part}
 
 
 def _extract_remind_id(match: re.Match) -> Dict[str, Any]:
@@ -233,12 +214,6 @@ def _extract_remind_id(match: re.Match) -> Dict[str, Any]:
 def _extract_module_key(match: re.Match) -> Dict[str, Any]:
     """Extract module key."""
     return {"key": match.group(1)}
-
-
-def _extract_payload(match: re.Match) -> Dict[str, Any]:
-    """Extract payload/query text."""
-    payload = match.group(match.lastindex) if match.lastindex else match.group(0)
-    return {"_": [payload.strip()]}
 
 
 def _extract_capture(match: re.Match) -> Dict[str, Any]:
@@ -256,7 +231,6 @@ EXTRACTORS = {
     "_extract_reminder": _extract_reminder,
     "_extract_remind_id": _extract_remind_id,
     "_extract_module_key": _extract_module_key,
-    "_extract_payload": _extract_payload,
     "_extract_capture": _extract_capture,
 }
 
@@ -324,7 +298,7 @@ def check_quest_suggestion(text: str) -> Optional[str]:
 
 class NaturalLanguageRouter:
     """
-    v0.8.0 Natural Language Router
+    v0.8.1 Natural Language Router
     
     Routes natural language input to syscommands via pattern matching.
     

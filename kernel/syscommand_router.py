@@ -1,13 +1,13 @@
 # kernel/syscommand_router.py
 """
-v0.7.15 — Syscommand Router (Zero-Latency)
+v0.8.1 — Syscommand Router (Zero-Latency)
 
 Simple syscommands execute instantly with NO LLM API calls.
 Routing decisions are logged locally without network requests.
 
 Architecture:
 - Simple commands (#help, #status, etc.): Pure Python, ~0ms latency
-- LLM-intensive commands (#interpret, #compose, etc.): Use LLM, ~1-2s latency
+- LLM-intensive commands (#compose, etc.): Use LLM, ~1-2s latency
 
 Flow for simple commands:
 1. Python handler executes → CommandResponse
@@ -32,11 +32,6 @@ HandlerFn = Callable[..., CommandResponse]
 # Commands that should skip LLM post-processing (already use LLM internally)
 # These commands call _llm_with_policy or llm_client directly
 SKIP_LLM_POSTPROCESS = {
-    "interpret",
-    "derive", 
-    "synthesize",
-    "frame",
-    "forecast",
     "compose",
     "prompt_command",
     "prompt-command",
@@ -46,7 +41,7 @@ SKIP_LLM_POSTPROCESS = {
 
 class SyscommandRouter:
     """
-    v0.7.15: Zero-latency syscommand routing.
+    v0.8.1: Zero-latency syscommand routing.
     
     - Simple commands: Pure Python, routing logged locally, NO API call
     - LLM-intensive commands: Use gpt-5.1 via internal _llm_with_policy

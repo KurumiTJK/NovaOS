@@ -105,7 +105,7 @@ NovaOS/
 │   ├── inbox_handlers.py    # Inbox commands
 │   ├── player_profile.py    # XP/level system
 │   ├── module_manager.py    # Domain management
-│   ├── strategist.py        # AI recommendations
+
 │   ├── time_rhythm.py       # Time awareness
 │   ├── assistant_mode.py    # Story/utility modes
 │   ├── syscommands.py       # All system commands
@@ -131,7 +131,7 @@ NovaOS/
 
 ## 🎯 Command Reference
 
-NovaOS uses 14 sections to organize commands. Type `#help` for an overview or `#help <section>` for details.
+NovaOS uses 13 sections to organize commands. Type `#help` for an overview or `#help <section>` for details.
 
 ### Core Sections
 
@@ -144,7 +144,7 @@ NovaOS uses 14 sections to organize commands. Type `#help` for an overview or `#
 | **identity** | Player profile | `#identity-show` |
 | **timerhythm** | Time awareness | `#presence`, `#align` |
 | **reminders** | Time-based pins | `#remind-add`, `#remind-list` |
-| **interpretation** | AI strategist | `#analyze`, `#route`, `#insight` |
+
 | **system** | Configuration | `#mode`, `#assistant-mode` |
 | **memory** | Knowledge store | `#store`, `#recall` |
 
@@ -162,9 +162,6 @@ NovaOS uses 14 sections to organize commands. Type `#help` for an overview or `#
 
 # Check your progress
 #quest-log
-
-# Get recommendations
-#analyze
 
 # Set story mode for full RPG experience
 #assistant-mode story

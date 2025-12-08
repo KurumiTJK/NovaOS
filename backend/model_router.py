@@ -1,6 +1,6 @@
 # backend/model_router.py
 """
-v0.6.6 — Model Routing Engine
+v0.8.1 — Model Routing Engine
 
 Model Tiers (TWO tiers only):
 - MINI:     gpt-4.1-mini  — default for non-intensive syscommands
@@ -59,11 +59,6 @@ TIER_THINKING = ModelTier(
 # -----------------------------------------------------------------------------
 
 LLM_INTENSIVE_COMMANDS: Set[str] = {
-    "interpret",
-    "derive",
-    "synthesize",
-    "frame",
-    "forecast",
     "compose",
     "prompt_command",
     "prompt-command",
@@ -91,7 +86,7 @@ class RoutingContext:
 
 class ModelRouter:
     """
-    v0.6.6 Model Routing Engine
+    v0.8.1 Model Routing Engine
     
     Logs EVERY routing decision to terminal via print().
     """

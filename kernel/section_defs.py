@@ -1,8 +1,8 @@
 # kernel/section_defs.py
 """
-v0.8.0 — Section Definitions for NovaOS Life RPG
+v0.8.1 — Section Definitions for NovaOS Life RPG
 
-Defines the 14 canonical sections and their associated commands.
+Defines the 13 canonical sections and their associated commands.
 Updated for Quest Engine (replaces legacy workflow system).
 
 Sections:
@@ -18,8 +18,7 @@ Sections:
 10. timerhythm   — Time model, daily/weekly rhythm
 11. reminders    — Time-based reminders / quest pins
 12. commands     — Abilities/macros
-13. interpretation — Strategy/oracle (READ-ONLY)
-14. debug        — Diagnostics & dev tools
+13. debug        — Diagnostics & dev tools
 """
 
 from dataclasses import dataclass, field
@@ -182,20 +181,6 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("command-inspect", "Inspect a custom command's metadata", "#command-inspect name=mycommand"),
             CommandInfo("command-remove", "Remove a custom command by name", "#command-remove name=mycommand"),
             CommandInfo("command-toggle", "Enable or disable a custom command", "#command-toggle name=mycommand"),
-        ]
-    ),
-    "interpretation": Section(
-        title="Interpretation",
-        description="Strategy & oracle (READ-ONLY, suggests but never executes).",
-        commands=[
-            CommandInfo("analyze", "Suggest best quests/actions for right now", "#analyze"),
-            CommandInfo("route", "Map a goal to modules, quests, and abilities", "#route goal=\"Learn JWT attacks\""),
-            CommandInfo("insight", "Summarize patterns, strengths, and weaknesses", "#insight"),
-            CommandInfo("interpret", "Explain what an input means", "#interpret \"...\""),
-            CommandInfo("derive", "Break a topic down into first principles", "#derive \"...\""),
-            CommandInfo("synthesize", "Integrate ideas into a coherent structure", "#synthesize \"...\""),
-            CommandInfo("frame", "Reframe the problem or direction", "#frame \"...\""),
-            CommandInfo("forecast", "Generate plausible future outcomes", "#forecast \"...\""),
         ]
     ),
     "debug": Section(

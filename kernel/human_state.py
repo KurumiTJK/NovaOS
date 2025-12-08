@@ -640,38 +640,6 @@ class HumanStateManager:
             "momentum": state.aspiration.momentum,
         }
 
-    def get_interpretation_context(self) -> Dict[str, Any]:
-        """
-        Get context for interpretation engine integration.
-        """
-        self._load()
-        state = self._state
-        
-        ctx = {
-            "bio_state": {
-                "energy": state.bio.energy,
-                "stress": state.bio.stress,
-            },
-            "load_state": {
-                "cognitive_load": state.load.cognitive_load,
-                "active_tasks": state.load.active_tasks,
-                "focus_quality": state.load.focus_quality,
-            },
-            "aspiration_state": {
-                "current_focus": state.aspiration.current_focus,
-                "momentum": state.aspiration.momentum,
-                "blockers": state.aspiration.blockers[:3],
-            },
-            "flags": {
-                "needs_small_version": state.needs_small_version(),
-                "high_strain": state.get_overall_strain() >= 0.6,
-                "low_energy": state.bio.energy in ("depleted", "low"),
-                "overwhelmed": state.bio.stress in ("overwhelmed", "high"),
-            },
-        }
-        
-        return ctx
-
     # ---------- Export/Import ----------
 
     def export_state(self) -> Dict[str, Any]:

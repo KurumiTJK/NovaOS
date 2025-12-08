@@ -56,15 +56,6 @@ except ImportError:
     def get_assistant_mode_handlers():
         return {}
 
-# v0.8.0: Strategist handlers (analyze, route, insight)
-try:
-    from .strategist import get_strategist_handlers
-    _HAS_STRATEGIST = True
-except ImportError:
-    _HAS_STRATEGIST = False
-    def get_strategist_handlers():
-        return {}
-
 # v0.8.0: Time Rhythm handlers (presence, pulse, align, weekly-review)
 try:
     from .time_rhythm import get_time_rhythm_handlers
@@ -180,184 +171,6 @@ def _base_response(
         data=extra or {},
         type=cmd_name,
     )
-
-# ---------------------------------------------------------------------
-# v0.5 — Interpretation Commands
-# ---------------------------------------------------------------------
-
-def _extract_input_arg(args: Any) -> str:
-    """
-    Small helper to extract the main input string for interpretation commands.
-    Supports:
-      - args["input"]
-      - args["_"][0]
-      - args["full_input"]
-    """
-    if isinstance(args, dict):
-        if "input" in args and isinstance(args["input"], str):
-            return args["input"]
-        if "_" in args and isinstance(args["_"], list) and args["_"]:
-            return str(args["_"][0])
-        if "full_input" in args and isinstance(args["full_input"], str):
-            return args["full_input"]
-    return ""
-
-
-def handle_interpret(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    """
-    Explain what the given text means in a clear, structured way.
-    """
-    text = _extract_input_arg(args)
-    if not text:
-        return _base_response(cmd_name, "Nothing to interpret (no input provided).", {"ok": False})
-
-    system = (
-        "You are the Interpretation Engine of NovaOS. "
-        "Your job is to read the user's input and explain:\n"
-        "1) What it means\n"
-        "2) What the user is probably trying to do or ask\n"
-        "3) Any hidden assumptions or ambiguities\n"
-        "Be concise but structured."
-    )
-    user = text
-
-    result = _llm_with_policy(
-        kernel=kernel,
-        session_id=session_id,
-        system=system,
-        user=user,
-        meta={"command": "interpret"},
-    )
-
-    out = result.get("text", "").strip()
-    summary = F.header("Interpretation") + out
-    return _base_response(cmd_name, summary, {"result": out})
-
-
-def handle_derive(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    """
-    Break a topic down into first principles.
-    """
-    text = _extract_input_arg(args)
-    if not text:
-        return _base_response(cmd_name, "Nothing to derive (no input provided).", {"ok": False})
-
-    system = (
-        "You are the First Principles Engine of NovaOS. "
-        "Given the user's topic or question, you must:\n"
-        "- Identify core assumptions\n"
-        "- Reduce it to first principles\n"
-        "- Rebuild the reasoning from those basics\n"
-        "Return a structured breakdown."
-    )
-    user = text
-
-    result = _llm_with_policy(
-        kernel=kernel,
-        session_id=session_id,
-        system=system,
-        user=user,
-        meta={"command": "derive"},
-    )
-
-    out = result.get("text", "").strip()
-    summary = F.header("First Principles Derivation") + out
-    return _base_response(cmd_name, summary, {"result": out})
-
-
-def handle_synthesize(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    """
-    Integrate several ideas into a coherent structure.
-    """
-    text = _extract_input_arg(args)
-    if not text:
-        return _base_response(cmd_name, "Nothing to synthesize (no input provided).", {"ok": False})
-
-    system = (
-        "You are the Synthesis Engine of NovaOS. "
-        "The user is giving you multiple ideas, notes, or signals. "
-        "Your job:\n"
-        "- Identify the main themes\n"
-        "- Group related ideas\n"
-        "- Produce a coherent, high-level structure\n"
-        "- Highlight tensions or trade-offs"
-    )
-    user = text
-
-    result = _llm_with_policy(
-        kernel=kernel,
-        session_id=session_id,
-        system=system,
-        user=user,
-        meta={"command": "synthesize"},
-    )
-
-    out = result.get("text", "").strip()
-    summary = F.header("Synthesis") + out
-    return _base_response(cmd_name, summary, {"result": out})
-
-
-def handle_frame(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    """
-    Reframe a problem or direction.
-    """
-    text = _extract_input_arg(args)
-    if not text:
-        return _base_response(cmd_name, "Nothing to frame (no input provided).", {"ok": False})
-
-    system = (
-        "You are the Framing Engine of NovaOS. "
-        "The user is stuck in one perspective. "
-        "Your job:\n"
-        "- Identify the current frame\n"
-        "- Offer 2–3 alternative frames (e.g., risk vs opportunity, short vs long term)\n"
-        "- For each frame, briefly say what changes in decisions."
-    )
-    user = text
-
-    result = _llm_with_policy(
-        kernel=kernel,
-        session_id=session_id,
-        system=system,
-        user=user,
-        meta={"command": "frame"},
-    )
-
-    out = result.get("text", "").strip()
-    summary = F.header("Reframing") + out
-    return _base_response(cmd_name, summary, {"result": out})
-
-
-def handle_forecast(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    """
-    Generate plausible future outcomes based on current state.
-    """
-    text = _extract_input_arg(args)
-    if not text:
-        return _base_response(cmd_name, "Nothing to forecast (no input provided).", {"ok": False})
-
-    system = (
-        "You are the Forecast Engine of NovaOS. "
-        "Given the user's situation or plan, you must:\n"
-        "- Identify key variables and uncertainties\n"
-        "- Sketch 2–3 plausible future paths (e.g., base, upside, downside)\n"
-        "- For each path, note leading indicators the user can watch."
-    )
-    user = text
-
-    result = _llm_with_policy(
-        kernel=kernel,
-        session_id=session_id,
-        system=system,
-        user=user,
-        meta={"command": "forecast"},
-    )
-
-    out = result.get("text", "").strip()
-    summary = F.header("Forecast") + out
-    return _base_response(cmd_name, summary, {"result": out})
-
-
 
 # ---------------------------------------------------------------------
 # v0.5 — Prompt Command Executor
@@ -1816,7 +1629,6 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
         "timerhythm",
         "reminders",
         "commands",
-        "interpretation",
         "debug",
     ]
     
@@ -1834,7 +1646,6 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
         "timerhythm": "Time rhythm: daily/weekly presence, seasons",
         "reminders": "Time-based reminders & pins",
         "commands": "Custom commands & macros (abilities)",
-        "interpretation": "Strategy & oracle (READ-ONLY)",
         "debug": "Diagnostics & dev tools",
     }
     
@@ -1961,7 +1772,6 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         "timerhythm": "Time model, daily/weekly rhythm, and seasons",
         "reminders": "Time-based reminders and quest pins",
         "commands": "Abilities/macros you can unlock and reuse",
-        "interpretation": "Strategy & oracle (READ-ONLY, suggests but never executes)",
         "debug": "Diagnostics and dev tools",
         "inbox": "Capture layer for raw thoughts, ideas, and tasks",
     }
@@ -1978,7 +1788,6 @@ def handle_help_v06(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         "timerhythm",
         "reminders",
         "commands",
-        "interpretation",
         "debug",
         "inbox",  # v0.8.0
     ]
@@ -2096,9 +1905,6 @@ def handle_section_reminders(cmd_name, args, session_id, context, kernel, meta) 
 
 def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
     return _handle_section_menu("commands", cmd_name, args, session_id, context, kernel, meta)
-
-def handle_section_interpretation(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
-    return _handle_section_menu("interpretation", cmd_name, args, session_id, context, kernel, meta)
 
 # v0.7.2: Debug section
 def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
@@ -4648,12 +4454,6 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_command_inspect": handle_command_inspect,
     "handle_command_remove": handle_command_remove,
     "handle_command_toggle": handle_command_toggle,
-        # v0.5 Interpretation
-    "handle_interpret": handle_interpret,
-    "handle_derive": handle_derive,
-    "handle_synthesize": handle_synthesize,
-    "handle_frame": handle_frame,
-    "handle_forecast": handle_forecast,
     "handle_command_wizard": handle_command_wizard,
     # v0.5.1 Environment / Mode
     "handle_env": handle_env,
@@ -4716,7 +4516,6 @@ SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
     "handle_section_timerhythm": handle_section_timerhythm,
     "handle_section_reminders": handle_section_reminders,
     "handle_section_commands": handle_section_commands,
-    "handle_section_interpretation": handle_section_interpretation,
     "handle_section_debug": handle_section_debug,
     "handle_section_inbox": handle_section_inbox,  # v0.8.0
 
@@ -4745,10 +4544,6 @@ if _HAS_MODULE_MANAGER:
 # v0.8.0: Assistant Mode handlers (story vs utility)
 if _HAS_ASSISTANT_MODE:
     SYS_HANDLERS.update(get_assistant_mode_handlers())
-
-# v0.8.0: Strategist handlers (analyze, route, insight)
-if _HAS_STRATEGIST:
-    SYS_HANDLERS.update(get_strategist_handlers())
 
 # v0.8.0: Time Rhythm handlers (presence, pulse, align, weekly-review)
 if _HAS_TIME_RHYTHM:

@@ -80,11 +80,6 @@
     "category": "section",
     "description": "Open the CUSTOM COMMANDS section menu"
   },
-  "interpretation": {
-    "handler": "handle_section_interpretation",
-    "category": "section",
-    "description": "Open the INTERPRETATION section menu"
-  },
   "debug": {
     "handler": "handle_section_debug",
     "category": "section",
@@ -203,47 +198,6 @@
     "handler": "handle_identity_clear",
     "category": "identity",
     "description": "Clear identity configuration."
-  },
-
-  "analyze": {
-    "handler": "handle_analyze",
-    "category": "interpretation",
-    "description": "Suggest best quests/actions for right now (READ-ONLY strategist)."
-  },
-  "route": {
-    "handler": "handle_route",
-    "category": "interpretation",
-    "description": "Map a goal to modules, quests, and abilities (READ-ONLY)."
-  },
-  "insight": {
-    "handler": "handle_insight",
-    "category": "interpretation",
-    "description": "Summarize patterns, strengths, and weaknesses (READ-ONLY)."
-  },
-  "interpret": {
-    "handler": "handle_interpret",
-    "category": "interpretation",
-    "description": "Explain what an input means and what you are trying to do."
-  },
-  "derive": {
-    "handler": "handle_derive",
-    "category": "interpretation",
-    "description": "Break a topic down into first principles."
-  },
-  "synthesize": {
-    "handler": "handle_synthesize",
-    "category": "interpretation",
-    "description": "Integrate ideas into a coherent structure."
-  },
-  "frame": {
-    "handler": "handle_frame",
-    "category": "interpretation",
-    "description": "Reframe the problem or direction."
-  },
-  "forecast": {
-    "handler": "handle_forecast",
-    "category": "interpretation",
-    "description": "Generate plausible future outcomes based on the current state."
   },
 
   "snapshot": {
