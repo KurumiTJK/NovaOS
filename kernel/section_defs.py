@@ -1,9 +1,10 @@
 # kernel/section_defs.py
 """
-v0.8.1 — Section Definitions for NovaOS Life RPG
+v0.9.0 — Section Definitions for NovaOS Life RPG
 
 Defines the 13 canonical sections and their associated commands.
 Updated for Quest Engine (replaces legacy workflow system).
+Added #shutdown command for dual-mode architecture.
 
 Sections:
 1. core          — Nova's heart & OS control center
@@ -56,6 +57,7 @@ SECTION_DEFS: Dict[str, Section] = {
         commands=[
             CommandInfo("why", "State NovaOS purpose, philosophy, and identity", "#why"),
             CommandInfo("boot", "Initialize NovaOS kernel and persona", "#boot"),
+            CommandInfo("shutdown", "Shutdown NovaOS and return to Persona mode", "#shutdown"),
             CommandInfo("reset", "Reload system memory and modules", "#reset"),
             CommandInfo("status", "Display system state", "#status"),
             CommandInfo("help", "Show command sections and help", "#help"),
