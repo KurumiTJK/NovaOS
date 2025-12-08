@@ -45,9 +45,8 @@
       --sal: env(safe-area-inset-left, 0px);
       --sar: env(safe-area-inset-right, 0px);
       
-      /* iOS keyboard accessory bar compensation */
-      --ios-accessory-height: 0px;
-      --keyboard-offset: 0px;
+      /* Input bar height (approx) for padding calculations */
+      --input-bar-height: 68px;
     }
 
     * {
@@ -56,7 +55,12 @@
       box-sizing: border-box;
     }
 
-    html, body {
+    html {
+      height: 100%;
+      background: var(--bg-primary);
+    }
+
+    body {
       height: 100%;
       background: var(--bg-primary);
       color: var(--text-primary);
@@ -66,9 +70,9 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       overscroll-behavior: none;
-      /* Prevent pull-to-refresh on iOS */
       overflow: hidden;
-      position: fixed;
+      /* Allow body to size naturally on iOS */
+      position: relative;
       width: 100%;
     }
 
@@ -79,12 +83,14 @@
     .app {
       display: flex;
       flex-direction: column;
-      height: 100%;
-      height: 100dvh; /* Dynamic viewport height for mobile */
+      /* Use dvh for dynamic viewport height on mobile */
+      height: 100dvh;
+      height: 100vh; /* Fallback for older browsers */
       max-width: 800px;
       margin: 0 auto;
       background: var(--bg-primary);
       position: relative;
+      /* On iOS, the input bar is fixed, so we don't need overflow hidden here */
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
@@ -142,7 +148,7 @@
        CHAT CONTAINER - SCROLLABLE AREA
        
        This is the ONLY scrollable region. Content is never clipped.
-       Accounts for iOS keyboard accessory bar and safe areas.
+       Bottom padding accounts for the fixed input bar.
        ═══════════════════════════════════════════════════════════════════════ */
 
     .chat-container {
@@ -150,13 +156,12 @@
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
-      /* Generous padding to prevent content being hidden */
       padding: 20px 16px;
       padding-left: calc(16px + var(--sal));
       padding-right: calc(16px + var(--sar));
-      /* Extra bottom padding for iOS accessory bar when keyboard is open */
-      padding-bottom: calc(20px + var(--ios-accessory-height) + var(--keyboard-offset));
-      scroll-behavior: auto; /* Changed from smooth for more reliable scrolling */
+      /* Bottom padding: input bar height + safe area + extra space */
+      padding-bottom: calc(var(--input-bar-height) + var(--sab) + 20px);
+      scroll-behavior: auto;
     }
 
     .chat-messages {
@@ -369,24 +374,34 @@
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
-       INPUT BAR
+       INPUT BAR - FIXED TO BOTTOM
        
-       Fixed at bottom. Accounts for iOS safe area AND accessory bar.
+       Uses position: fixed to stay anchored above the iOS keyboard.
+       Uses visualViewport API in JS to track keyboard position.
        ═══════════════════════════════════════════════════════════════════════ */
 
     .input-bar {
-      flex-shrink: 0;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
       display: flex;
       align-items: flex-end;
       gap: 12px;
       padding: 12px 16px;
       padding-left: calc(16px + var(--sal));
       padding-right: calc(16px + var(--sar));
-      /* Account for safe area AND iOS keyboard accessory bar */
-      padding-bottom: calc(12px + var(--sab) + var(--ios-accessory-height));
+      padding-bottom: calc(12px + var(--sab));
       background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
-      z-index: 10;
+      z-index: 100;
+      /* Constrain to max-width like the app container */
+      max-width: 800px;
+      /* Center it if screen is wider than max-width */
+      margin-left: auto;
+      margin-right: auto;
+      /* Smooth transitions for keyboard */
+      transition: transform 0.1s ease-out;
     }
 
     .input-wrapper {
@@ -498,6 +513,12 @@
         border-left: 1px solid var(--border-color);
         border-right: 1px solid var(--border-color);
       }
+      
+      /* On desktop, input bar should also have borders to match */
+      .input-bar {
+        border-left: 1px solid var(--border-color);
+        border-right: 1px solid var(--border-color);
+      }
     }
   </style>
 </head>
@@ -525,8 +546,8 @@
       </div>
     </main>
 
-    <!-- Input Bar -->
-    <footer class="input-bar">
+    <!-- Input Bar (Fixed at bottom) -->
+    <footer class="input-bar" id="inputBar">
       <div class="input-wrapper">
         <textarea 
           class="input-field" 
@@ -549,7 +570,7 @@
 
   <script>
     // ═══════════════════════════════════════════════════════════════════════
-    // iOS DETECTION & ACCESSORY BAR HANDLING
+    // iOS DETECTION & PLATFORM HELPERS
     // ═══════════════════════════════════════════════════════════════════════
 
     function isIOS() {
@@ -560,15 +581,6 @@
       return isIOS() && window.navigator.standalone === true;
     }
 
-    // Set iOS accessory bar height (the black bar above keyboard)
-    if (isIOS()) {
-      // iOS keyboard accessory bar is approximately 44-50px
-      document.documentElement.style.setProperty('--ios-accessory-height', '50px');
-      console.log('iOS detected: accessory bar compensation enabled');
-    } else {
-      document.documentElement.style.setProperty('--ios-accessory-height', '0px');
-    }
-
     // ═══════════════════════════════════════════════════════════════════════
     // DOM ELEMENTS
     // ═══════════════════════════════════════════════════════════════════════
@@ -577,6 +589,7 @@
     const chatMessages = document.getElementById('chatMessages');
     const inputField = document.getElementById('inputField');
     const sendButton = document.getElementById('sendButton');
+    const inputBar = document.getElementById('inputBar');
 
     // Session ID for this client
     const SESSION_ID = 'web-' + Date.now();
@@ -771,20 +784,39 @@
     // API COMMUNICATION
     // ═══════════════════════════════════════════════════════════════════════
 
+    /**
+     * Extract the human-readable response text from the API response.
+     * 
+     * GOAL 1 FIX: The backend returns JSON with a "text" field containing
+     * the human-readable message. We extract just that field instead of
+     * showing the raw JSON.
+     * 
+     * Priority order:
+     * 1. data.text (main response field from nova_api.py)
+     * 2. data.summary (alternative format)
+     * 3. data.content.summary (nested format)
+     * 4. data.content (if string)
+     * 5. data.error (error responses)
+     * 6. Fallback: raw JSON (shouldn't happen with valid responses)
+     */
     function extractNovaResponse(data) {
-      // Handle various response formats from nova_api.py
+      // PRIORITY 1: The "text" field is the standard response from nova_api.py
+      // This is the main fix for GOAL 1
+      if (typeof data.text === 'string' && data.text.trim()) {
+        return data.text;
+      }
 
-      // Direct summary string
-      if (typeof data.summary === 'string') {
+      // Direct summary string (alternative format)
+      if (typeof data.summary === 'string' && data.summary.trim()) {
         return data.summary;
       }
 
       // Content object with summary
       if (data.content) {
-        if (typeof data.content === 'string') {
+        if (typeof data.content === 'string' && data.content.trim()) {
           return data.content;
         }
-        if (typeof data.content.summary === 'string') {
+        if (typeof data.content.summary === 'string' && data.content.summary.trim()) {
           return data.content.summary;
         }
       }
@@ -799,7 +831,17 @@
         }
       }
 
-      // Fallback: stringify the whole response
+      // Fallback: If we still have nothing, try to get ANY text-like field
+      // This handles edge cases where the response format is unexpected
+      for (const key of ['message', 'response', 'reply', 'output']) {
+        if (typeof data[key] === 'string' && data[key].trim()) {
+          return data[key];
+        }
+      }
+
+      // Last resort: stringify the whole response
+      // This should rarely happen with a properly configured backend
+      console.warn('NovaOS: Could not extract text from response, falling back to JSON:', data);
       return JSON.stringify(data, null, 2);
     }
 
@@ -882,37 +924,86 @@
     inputField.focus();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MOBILE KEYBOARD HANDLING
+    // MOBILE KEYBOARD HANDLING - GOAL 2 FIX
+    // 
+    // Uses visualViewport API to position the input bar directly above
+    // the iOS keyboard. The input bar is position:fixed, and we adjust
+    // its bottom position when the keyboard opens/closes.
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Handle iOS visual viewport changes (keyboard appearing/disappearing).
-     * We update the keyboard offset CSS variable but do NOT auto-scroll.
-     * Scrolling only happens when the user explicitly sends a message.
+     * Position the input bar above the keyboard using visualViewport.
+     * 
+     * On iOS Safari, when the keyboard opens:
+     * - window.innerHeight stays the same
+     * - visualViewport.height shrinks to the visible area
+     * - visualViewport.offsetTop gives us the scroll offset
+     * 
+     * We use CSS transform to move the input bar up by the keyboard height.
      */
-    if (window.visualViewport) {
-      let lastHeight = window.visualViewport.height;
+    function updateInputBarPosition() {
+      if (!window.visualViewport) return;
       
-      window.visualViewport.addEventListener('resize', () => {
-        const currentHeight = window.visualViewport.height;
-        const heightDiff = window.innerHeight - currentHeight;
+      const viewport = window.visualViewport;
+      
+      // Calculate how much the viewport has shrunk (keyboard height)
+      const keyboardHeight = window.innerHeight - viewport.height;
+      
+      // On iOS, we also need to account for any viewport offset (scroll)
+      const offsetTop = viewport.offsetTop;
+      
+      if (keyboardHeight > 50) {
+        // Keyboard is open - move input bar up
+        // We use transform instead of bottom because it's smoother
+        inputBar.style.transform = `translateY(-${keyboardHeight}px)`;
         
-        // Update keyboard offset for CSS calculations
-        document.documentElement.style.setProperty('--keyboard-offset', Math.max(0, heightDiff) + 'px');
+        // Also adjust chat container padding so content isn't hidden
+        chatContainer.style.paddingBottom = `calc(var(--input-bar-height) + var(--sab) + 20px + ${keyboardHeight}px)`;
         
-        // NOTE: We do NOT call scrollToBottom() here.
-        // This respects the user's scroll position when reading long outputs.
-        
-        lastHeight = currentHeight;
-      });
+        // Scroll to keep user's position relevant
+        // Only scroll if we were already near the bottom
+        const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100;
+        if (isNearBottom) {
+          scrollToBottom();
+        }
+      } else {
+        // Keyboard is closed - reset position
+        inputBar.style.transform = 'translateY(0)';
+        chatContainer.style.paddingBottom = `calc(var(--input-bar-height) + var(--sab) + 20px)`;
+      }
+    }
+
+    // Set up visualViewport listeners for keyboard handling
+    if (window.visualViewport) {
+      // Use both resize and scroll events for complete coverage
+      window.visualViewport.addEventListener('resize', updateInputBarPosition);
+      window.visualViewport.addEventListener('scroll', updateInputBarPosition);
+      
+      // Initial position
+      updateInputBarPosition();
+      
+      console.log('NovaOS: visualViewport keyboard handling enabled');
+    } else {
+      console.log('NovaOS: visualViewport not available, using fallback');
     }
 
     // Prevent body scroll / bounce on iOS
     document.body.addEventListener('touchmove', (e) => {
+      // Only prevent if touching the body itself, not scrollable containers
       if (e.target === document.body) {
         e.preventDefault();
       }
     }, { passive: false });
+
+    // Handle focus on input to ensure proper keyboard behavior
+    inputField.addEventListener('focus', () => {
+      // Small delay to let keyboard animation start
+      setTimeout(() => {
+        updateInputBarPosition();
+        // Scroll to bottom when focusing input
+        scrollToBottom();
+      }, 100);
+    });
 
     // ═══════════════════════════════════════════════════════════════════════
     // INITIALIZATION
