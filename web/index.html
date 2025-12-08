@@ -787,62 +787,77 @@
     /**
      * Extract the human-readable response text from the API response.
      * 
-     * GOAL 1 FIX: The backend returns JSON with a "text" field containing
-     * the human-readable message. We extract just that field instead of
-     * showing the raw JSON.
-     * 
-     * Priority order:
-     * 1. data.text (main response field from nova_api.py)
-     * 2. data.summary (alternative format)
-     * 3. data.content.summary (nested format)
-     * 4. data.content (if string)
-     * 5. data.error (error responses)
-     * 6. Fallback: raw JSON (shouldn't happen with valid responses)
+     * NEVER shows raw JSON in the chat window. Instead:
+     * 1. If parsed.text is a non-empty string, show that.
+     * 2. If text is empty but it's a NovaOS kernel response, show a friendly error.
+     * 3. If text is empty and it's some other response type, show a generic error.
+     * 4. Only if parsing fails completely, show the raw string.
      */
     function extractNovaResponse(data) {
       // PRIORITY 1: The "text" field is the standard response from nova_api.py
-      // This is the main fix for GOAL 1
       if (typeof data.text === 'string' && data.text.trim()) {
-        return data.text;
+        return data.text.trim();
       }
 
-      // Direct summary string (alternative format)
+      // PRIORITY 2: Direct summary string (alternative format)
       if (typeof data.summary === 'string' && data.summary.trim()) {
-        return data.summary;
+        return data.summary.trim();
       }
 
-      // Content object with summary
+      // PRIORITY 3: Content object with summary
       if (data.content) {
         if (typeof data.content === 'string' && data.content.trim()) {
-          return data.content;
+          return data.content.trim();
         }
         if (typeof data.content.summary === 'string' && data.content.summary.trim()) {
-          return data.content.summary;
+          return data.content.summary.trim();
         }
       }
 
-      // Error response
+      // PRIORITY 4: Error response
       if (data.error) {
-        if (typeof data.error === 'string') {
+        if (typeof data.error === 'string' && data.error.trim()) {
           return `Error: ${data.error}`;
         }
-        if (data.error.message) {
+        if (data.error.message && data.error.message.trim()) {
           return `Error: ${data.error.message}`;
         }
       }
 
-      // Fallback: If we still have nothing, try to get ANY text-like field
-      // This handles edge cases where the response format is unexpected
+      // PRIORITY 5: Try other common text-like fields
       for (const key of ['message', 'response', 'reply', 'output']) {
         if (typeof data[key] === 'string' && data[key].trim()) {
-          return data[key];
+          return data[key].trim();
         }
       }
 
-      // Last resort: stringify the whole response
-      // This should rarely happen with a properly configured backend
-      console.warn('NovaOS: Could not extract text from response, falling back to JSON:', data);
-      return JSON.stringify(data, null, 2);
+      // ─────────────────────────────────────────────────────────────────────
+      // NO USABLE TEXT FOUND - Provide friendly fallback messages
+      // NEVER show raw JSON to the user
+      // ─────────────────────────────────────────────────────────────────────
+
+      // Check if this is a NovaOS kernel/syscommand response with empty text
+      // These have mode="NovaOS" and handled_by="kernel"
+      if (data.mode === 'NovaOS' && data.handled_by === 'kernel') {
+        console.warn('NovaOS: Empty kernel response, showing friendly fallback:', data);
+        return 'Nova cannot complete this request in NovaOS strict mode. Type #help to see available commands, or #shutdown to exit strict mode.';
+      }
+
+      // Check if this is any NovaOS response (even if not kernel)
+      if (data.mode === 'NovaOS') {
+        console.warn('NovaOS: Empty NovaOS response, showing friendly fallback:', data);
+        return 'Nova cannot complete this request. Type #help to see available commands.';
+      }
+
+      // Check if ok=false (general failure indicator)
+      if (data.ok === false) {
+        console.warn('NovaOS: Response ok=false with no text:', data);
+        return 'Nova encountered an issue processing your request. Please try again.';
+      }
+
+      // Generic fallback for any other empty response
+      console.warn('NovaOS: Empty response with no usable text:', data);
+      return 'Nova returned an empty response. Please try again.';
     }
 
     async function sendMessage(text) {
