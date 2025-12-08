@@ -1,6 +1,6 @@
 # core/mode_router.py
 """
-NovaOS v0.9.0 — Mode Router
+NovaOS v0.9.1 — Mode Router
 
 The single entrypoint for all user messages.
 Routes based on NovaState.novaos_enabled:
@@ -10,10 +10,10 @@ Routes based on NovaState.novaos_enabled:
     → Only #boot is recognized to switch modes
     → Everything else goes directly to persona.chat()
 
-- novaos_enabled=True (NovaOS Mode):
+- novaos_enabled=True (NovaOS Mode / STRICT MODE):
     → Full kernel routing (syscommands, modules, NL router)
-    → Kernel returns KernelResponse
-    → Persona renders the response naturally
+    → NO persona fallback - command shell only
+    → Unrecognized input returns fixed error message
     → #shutdown returns to Persona mode
 
 This file is the ONLY place that decides which mode handles input.
@@ -21,10 +21,18 @@ This file is the ONLY place that decides which mode handles input.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Dict, Any
 import re
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from .nova_state import NovaState
+
+# Working Memory imports (shared between modes)
+from kernel.nova_wm import (
+    wm_update,
+    wm_record_response,
+    wm_get_context_string,
+    wm_answer_reference,
+)
 
 if TYPE_CHECKING:
     from kernel.nova_kernel import NovaKernel
@@ -32,20 +40,22 @@ if TYPE_CHECKING:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CONSTANTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Fixed error message for unrecognized input in strict/NovaOS mode
+STRICT_MODE_ERROR_MESSAGE = (
+    "Nova cannot complete this request at this time. "
+    "Please exit NovaOS mode to continue."
+)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # BOOT / SHUTDOWN DETECTION
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Commands that activate NovaOS (only recognized in Persona mode)
-BOOT_PATTERNS = re.compile(
-    r"^#boot\b",
-    re.IGNORECASE
-)
-
-# Commands that deactivate NovaOS (only recognized in NovaOS mode)
-SHUTDOWN_PATTERNS = re.compile(
-    r"^#shutdown\b",
-    re.IGNORECASE
-)
+BOOT_PATTERNS = re.compile(r"^#boot\b", re.IGNORECASE)
+SHUTDOWN_PATTERNS = re.compile(r"^#shutdown\b", re.IGNORECASE)
 
 
 def _is_boot_command(message: str) -> bool:
@@ -73,19 +83,7 @@ def handle_user_message(
     
     Routes based on state.novaos_enabled:
     - False: Persona mode (pure chat, except #boot)
-    - True: NovaOS mode (kernel routing with persona rendering)
-    
-    Args:
-        message: Raw user input
-        state: NovaState object (tracks mode and session)
-        kernel: NovaKernel instance (for OS operations)
-        persona: NovaPersona instance (for chat and rendering)
-    
-    Returns:
-        Dict with at minimum:
-        - "text": The response text
-        - "mode": Current mode name
-        - Additional fields from kernel/persona as needed
+    - True: NovaOS mode (strict command shell, NO persona fallback)
     """
     message = message.strip()
     
@@ -97,21 +95,21 @@ def handle_user_message(
         }
     
     # ─────────────────────────────────────────────────────────────────────
-    # PERSONA MODE (NovaOS OFF)
+    # PERSONA MODE (NovaOS OFF) - Normal conversational behavior
     # ─────────────────────────────────────────────────────────────────────
     
     if not state.novaos_enabled:
         return _handle_persona_mode(message, state, kernel, persona)
     
     # ─────────────────────────────────────────────────────────────────────
-    # NOVAOS MODE (NovaOS ON)
+    # NOVAOS MODE (NovaOS ON) - STRICT command shell, NO persona fallback
     # ─────────────────────────────────────────────────────────────────────
     
-    return _handle_novaos_mode(message, state, kernel, persona)
+    return _handle_novaos_mode_strict(message, state, kernel, persona)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PERSONA MODE HANDLER
+# PERSONA MODE HANDLER (unchanged behavior)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _handle_persona_mode(
@@ -124,17 +122,28 @@ def _handle_persona_mode(
     Handle input when NovaOS is OFF (Persona mode).
     
     Only #boot is recognized. Everything else is pure persona chat.
+    This behavior is UNCHANGED.
     """
     
     # Check for #boot command
     if _is_boot_command(message):
         return _activate_novaos(state, kernel, persona)
     
-    # Pure persona chat — no kernel involvement
+    # Working Memory updates
+    direct_answer = wm_answer_reference(state.session_id, message)
+    wm_update(state.session_id, message)
+    wm_context_string = wm_get_context_string(state.session_id)
+    
+    # Persona chat (normal conversational fallback)
     response_text = persona.generate_response(
         text=message,
         session_id=state.session_id,
+        wm_context_string=wm_context_string,
+        direct_answer=direct_answer,
     )
+    
+    if response_text:
+        wm_record_response(state.session_id, response_text)
     
     return {
         "text": response_text,
@@ -144,49 +153,103 @@ def _handle_persona_mode(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# NOVAOS MODE HANDLER
+# NOVAOS MODE HANDLER - STRICT (no persona fallback)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _handle_novaos_mode(
+def _handle_novaos_mode_strict(
     message: str,
     state: NovaState,
     kernel: "NovaKernel",
     persona: "NovaPersona",
 ) -> Dict[str, Any]:
     """
-    Handle input when NovaOS is ON.
+    Handle input when NovaOS is ON (STRICT mode).
     
-    Routes through kernel first. If kernel doesn't handle it,
-    falls back to persona chat.
+    v0.9.1 STRICT MODE BEHAVIOR:
+    
+    ONLY TWO things are allowed:
+    1. Valid syscommands (e.g., #status, #help, #quest)
+    2. Natural language inputs successfully mapped to a syscommand via NL router
+    
+    If neither matches:
+    - NO persona fallback
+    - NO open conversation
+    - Returns fixed error message
+    
+    This is a COMMAND SHELL, not a chat mode.
     """
     
     # Check for #shutdown
     if _is_shutdown_command(message):
-        return _deactivate_novaos(state, persona)
+        return _deactivate_novaos(state, kernel, persona)
     
-    # Route through kernel
-    # Note: We use the existing handle_input for now
+    # ─────────────────────────────────────────────────────────────────────
+    # ROUTE THROUGH KERNEL
+    # ─────────────────────────────────────────────────────────────────────
+    
     kernel_result = kernel.handle_input(message, state.session_id)
     
-    # Check if kernel handled it
-    # Current kernel returns dict with "type" field
-    # "fallback" or "persona" means kernel didn't handle it
-    kernel_type = kernel_result.get("type", "")
+    # Normalize to dict
+    if hasattr(kernel_result, "to_dict"):
+        result_dict = kernel_result.to_dict()
+    elif hasattr(kernel_result, "__dict__"):
+        result_dict = kernel_result.__dict__
+    else:
+        result_dict = dict(kernel_result) if kernel_result else {}
     
-    if kernel_type in ("fallback", "persona", "error_fallback"):
-        # Kernel didn't handle — already fell back to persona
-        # Just return the result as-is
+    # ─────────────────────────────────────────────────────────────────────
+    # CHECK IF KERNEL HANDLED IT OR FELL BACK TO PERSONA
+    # ─────────────────────────────────────────────────────────────────────
+    
+    # The kernel returns these indicators when it falls back to persona:
+    # 1. "command": "persona" — the kernel's persona fallback path
+    # 2. "type": "fallback" or "persona" or "error_fallback" — explicit fallback types
+    # 3. meta.source == "persona_fallback" — from the kernel's fallback metadata
+    
+    kernel_command = result_dict.get("command", "")
+    kernel_type = result_dict.get("type", "")
+    meta_source = (result_dict.get("meta") or {}).get("source", "")
+    
+    # Detect persona fallback by ANY of these signals
+    is_persona_fallback = (
+        kernel_command == "persona" or
+        kernel_command == "natural_language" or
+        kernel_type in ("fallback", "persona", "error_fallback") or
+        meta_source == "persona_fallback"
+    )
+    
+    if is_persona_fallback:
+        # ─────────────────────────────────────────────────────────────────
+        # STRICT MODE: Return fixed error message, NO persona fallback
+        # ─────────────────────────────────────────────────────────────────
         return {
-            **kernel_result,
+            "text": STRICT_MODE_ERROR_MESSAGE,
             "mode": state.mode_name,
-            "handled_by": "persona",
+            "handled_by": "strict_mode_error",
+            "ok": False,
+            "error": "UNRECOGNIZED_INPUT",
         }
     
-    # Kernel handled it
+    # ─────────────────────────────────────────────────────────────────────
+    # KERNEL HANDLED IT - Return the result
+    # ─────────────────────────────────────────────────────────────────────
+    
+    text = (
+        result_dict.get("text") or
+        result_dict.get("summary") or
+        (result_dict.get("content", {}).get("summary") 
+         if isinstance(result_dict.get("content"), dict) else None) or
+        ""
+    )
+    
     return {
-        **kernel_result,
+        "text": text,
         "mode": state.mode_name,
         "handled_by": "kernel",
+        "ok": result_dict.get("ok", True),
+        "command": result_dict.get("command"),
+        "type": kernel_type,
+        "data": result_dict.get("data") or result_dict.get("extra") or result_dict.get("content"),
     }
 
 
@@ -199,27 +262,19 @@ def _activate_novaos(
     kernel: "NovaKernel",
     persona: "NovaPersona",
 ) -> Dict[str, Any]:
-    """
-    Activate NovaOS mode.
-    
-    Called when #boot is detected in Persona mode.
-    """
-    # Enable NovaOS
+    """Activate NovaOS mode (strict command shell)."""
     state.enable_novaos()
     
-    # Run kernel boot sequence (marks session as booted, loads modules, etc.)
     boot_result = kernel.handle_input("#boot", state.session_id)
     
-    # Generate persona-phrased acknowledgment
     boot_message = (
-        "NovaOS is now running. "
-        "Your commands and modules are ready. "
-        "Type #help to see what's available, or just talk to me normally."
+        "NovaOS is now running in strict mode. "
+        "Only syscommands and recognized command phrases are accepted. "
+        "Type #help to see available commands, or #shutdown to exit."
     )
     
-    # Let persona phrase it naturally
     response_text = persona.generate_response(
-        text="[SYSTEM: Acknowledge that NovaOS has booted successfully]",
+        text="[SYSTEM: Acknowledge that NovaOS has booted in strict mode]",
         session_id=state.session_id,
         direct_answer=boot_message,
     )
@@ -229,30 +284,25 @@ def _activate_novaos(
         "mode": state.mode_name,
         "handled_by": "mode_router",
         "event": "boot",
-        "boot_result": boot_result,
+        "ok": True,
     }
 
 
 def _deactivate_novaos(
     state: NovaState,
+    kernel: "NovaKernel",
     persona: "NovaPersona",
 ) -> Dict[str, Any]:
-    """
-    Deactivate NovaOS mode.
-    
-    Called when #shutdown is detected in NovaOS mode.
-    """
-    # Disable NovaOS
+    """Deactivate NovaOS mode (return to Persona mode)."""
+    kernel.handle_input("#shutdown", state.session_id)
     state.disable_novaos()
     
-    # Generate persona-phrased acknowledgment
     shutdown_message = (
         "NovaOS is now offline. "
-        "We're back to just us talking. "
-        "Say #boot whenever you want to bring up the OS again."
+        "We're back to normal conversation mode. "
+        "Say #boot whenever you want to enter command mode again."
     )
     
-    # Let persona phrase it naturally
     response_text = persona.generate_response(
         text="[SYSTEM: Acknowledge that NovaOS has shut down]",
         session_id=state.session_id,
@@ -264,6 +314,7 @@ def _deactivate_novaos(
         "mode": state.mode_name,
         "handled_by": "mode_router",
         "event": "shutdown",
+        "ok": True,
     }
 
 
@@ -271,17 +322,11 @@ def _deactivate_novaos(
 # STATE MANAGEMENT HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Session state storage (in-memory for now)
-# In production, you might want to persist this
 _session_states: Dict[str, NovaState] = {}
 
 
 def get_or_create_state(session_id: str) -> NovaState:
-    """
-    Get existing state for session or create a new one.
-    
-    This is a convenience function for the API layer.
-    """
+    """Get existing state for session or create a new one."""
     if session_id not in _session_states:
         _session_states[session_id] = NovaState(session_id=session_id)
     return _session_states[session_id]
