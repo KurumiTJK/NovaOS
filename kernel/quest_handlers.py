@@ -90,6 +90,58 @@ def _status_emoji(status: str) -> str:
     }.get(status, "⬜")
 
 
+def _format_step_display(quest_title: str, step, step_num: int, total_steps: int) -> list:
+    """
+    Format a step for display with title, prompt, and actions.
+    
+    Args:
+        quest_title: The quest title for the header
+        step: The step object (with type, title, prompt, actions, help_text)
+        step_num: Current step number (1-based)
+        total_steps: Total number of steps
+    
+    Returns:
+        List of lines to display
+    """
+    lines = [
+        f"╔══ {quest_title} ══╗",
+        f"Step {step_num}/{total_steps} • {step.type.upper()} • {_difficulty_stars(step.difficulty)}",
+        "",
+    ]
+    
+    if step.title:
+        lines.append(f"**{step.title}**")
+        lines.append("")
+    
+    lines.append(step.prompt)
+    
+    # Show actions if present
+    actions = getattr(step, 'actions', None) or []
+    if not actions and hasattr(step, 'to_dict'):
+        # Try getting from dict representation
+        step_dict = step.to_dict()
+        actions = step_dict.get('actions', [])
+    
+    if actions:
+        lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("**📋 Actions:**")
+        lines.append("")
+        for i, action in enumerate(actions, 1):
+            lines.append(f"   {i}. {action}")
+            lines.append("")
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    
+    if step.help_text:
+        lines.append("")
+        lines.append(f"💡 *{step.help_text}*")
+    
+    lines.append("")
+    lines.append("Type your answer and run **#next** to continue.")
+    
+    return lines
+
+
 # =============================================================================
 # QUEST BOARD / START
 # =============================================================================
@@ -153,28 +205,10 @@ def handle_quest(cmd_name, args, session_id, context, kernel, meta) -> CommandRe
         if not current_step:
             return _error_response(cmd_name, "Quest has no steps.", "NO_STEPS")
         
-        # Build step display
+        # Build step display using helper
         step_num = run.current_step_index + 1
         total_steps = len(quest.steps)
-        
-        lines = [
-            f"╔══ {quest.title} ══╗",
-            f"Step {step_num}/{total_steps} • {current_step.type.upper()} • {_difficulty_stars(current_step.difficulty)}",
-            "",
-        ]
-        
-        if current_step.title:
-            lines.append(f"**{current_step.title}**")
-            lines.append("")
-        
-        lines.append(current_step.prompt)
-        
-        if current_step.help_text:
-            lines.append("")
-            lines.append(f"💡 *{current_step.help_text}*")
-        
-        lines.append("")
-        lines.append("Type your answer and run **#next** to continue.")
+        lines = _format_step_display(quest.title, current_step, step_num, total_steps)
         
         return _base_response(cmd_name, "\n".join(lines), {
             "quest_id": quest.id,
@@ -333,22 +367,9 @@ def handle_next(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         step_num = run.current_step_index + 1
         total_steps = len(quest.steps)
         
-        lines.append(f"╔══ {quest.title} ══╗")
-        lines.append(f"Step {step_num}/{total_steps} • {next_step.type.upper()} • {_difficulty_stars(next_step.difficulty)}")
-        lines.append("")
-        
-        if next_step.title:
-            lines.append(f"**{next_step.title}**")
-            lines.append("")
-        
-        lines.append(next_step.prompt)
-        
-        if next_step.help_text:
-            lines.append("")
-            lines.append(f"💡 *{next_step.help_text}*")
-        
-        lines.append("")
-        lines.append("Type your answer and run **#next** to continue.")
+        # Use helper to format step display
+        step_lines = _format_step_display(quest.title, next_step, step_num, total_steps)
+        lines.extend(step_lines)
     
     return _base_response(cmd_name, "\n".join(lines), {
         "quest_id": quest.id,

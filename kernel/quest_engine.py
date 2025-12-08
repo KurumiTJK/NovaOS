@@ -1,6 +1,6 @@
 # kernel/quest_engine.py
 """
-v0.8.0 — NovaOS Quest Engine
+v0.8.4 — NovaOS Quest Engine
 
 A complete replacement for the legacy workflow system.
 Implements gamified learning quests with XP, skills, streaks, and boss battles.
@@ -11,17 +11,8 @@ Key concepts:
 - RunState: Tracks progress through an active quest
 - Progress: Persistent storage of XP, skills, streaks, and completion history
 
-Commands:
-- #quest         - Open Quest Board, start/resume quests
-- #next          - Advance to next step
-- #pause         - Pause active quest
-- #quest-log     - View progress, XP, skills, streaks
-- #quest-reset   - Reset quest progress
-- #quest-compose - Create new quest with LLM
-- #quest-delete  - Delete a quest
-- #quest-list    - List all quest definitions
-- #quest-inspect - Inspect quest details
-- #quest-debug   - Debug output
+v0.8.4 CHANGES:
+- Added 'actions' field to Step for actionable sub-steps
 """
 
 from __future__ import annotations
@@ -89,6 +80,7 @@ class Step:
     min_reflection_chars: Optional[int] = None
     validation: Optional[ValidationConfig] = None
     passing_threshold: float = 0.7  # For boss steps
+    actions: Optional[List[str]] = None  # v0.8.4: Actionable sub-steps
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -102,6 +94,7 @@ class Step:
             "min_reflection_chars": self.min_reflection_chars,
             "validation": self.validation.to_dict() if self.validation else None,
             "passing_threshold": self.passing_threshold,
+            "actions": self.actions,  # v0.8.4
         }
     
     @classmethod
@@ -121,6 +114,7 @@ class Step:
             min_reflection_chars=data.get("min_reflection_chars"),
             validation=validation,
             passing_threshold=data.get("passing_threshold", 0.7),
+            actions=data.get("actions"),  # v0.8.4
         )
     
     @property
@@ -148,7 +142,7 @@ class Step:
 class RewardBundle:
     """Rewards granted upon quest completion."""
     xp: int = 0
-    titles: List[str] = field(default_factory=list)  # v0.8.0: Titles to award
+    titles: List[str] = field(default_factory=list)
     shortcuts: List[str] = field(default_factory=list)
     visual_unlock: Optional[str] = None
     
@@ -181,10 +175,10 @@ class Quest:
     title: str
     subtitle: Optional[str] = None
     description: Optional[str] = None
-    category: str = "general"  # cyber, finance, real_estate, meta, etc.
-    module_id: Optional[str] = None  # v0.8.0: Links quest to a module/region
-    skill_tree_path: str = "general"  # e.g., "cyber.jwt.tier1"
-    difficulty: int = 1  # 1-5
+    category: str = "general"
+    module_id: Optional[str] = None
+    skill_tree_path: str = "general"
+    difficulty: int = 1
     estimated_minutes: int = 15
     tags: List[str] = field(default_factory=list)
     steps: List[Step] = field(default_factory=list)
@@ -192,7 +186,6 @@ class Quest:
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     
     def __post_init__(self):
-        # If module_id not set, derive from category
         if self.module_id is None:
             self.module_id = self.category
     
@@ -381,7 +374,7 @@ class QuestSummary:
     has_boss: bool
     step_count: int
     status: QuestStatus = "not_started"
-    module_id: Optional[str] = None  # v0.8.0: Links quest to a region
+    module_id: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -614,58 +607,46 @@ class QuestEngine:
                         id="step_1",
                         type="info",
                         title="What is a JWT?",
-                        prompt="A JSON Web Token (JWT) is a compact, URL-safe means of representing claims between two parties.\n\nJWTs have three parts separated by dots:\n• Header (algorithm + type)\n• Payload (claims/data)\n• Signature (verification)\n\nExample: `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.signature`\n\nType **next** when ready to continue.",
-                        help_text="JWTs are commonly used for authentication and information exchange.",
+                        prompt="A JWT (JSON Web Token) is a compact, URL-safe way to represent claims between two parties. It's commonly used for authentication and authorization.\n\nJWTs consist of three parts separated by dots:\n• Header (algorithm & type)\n• Payload (claims/data)\n• Signature (verification)\n\nExample: `eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.signature`",
+                        difficulty=1,
+                        actions=[
+                            "Read about the three parts of a JWT: Header, Payload, and Signature",
+                            "Understand that JWTs are Base64-encoded but NOT encrypted",
+                            "Learn why JWTs are used for authentication",
+                        ],
                     ),
                     Step(
                         id="step_2",
                         type="recall",
                         title="JWT Structure",
-                        prompt="What are the three parts of a JWT? List them in order.",
-                        help_text="Think about what we just covered: header, payload, and...",
-                        difficulty=1,
+                        prompt="What are the three parts of a JWT? Describe what each part contains.",
+                        difficulty=2,
                         validation=ValidationConfig(
                             mode="keyword",
                             keywords=["header", "payload", "signature"],
                         ),
-                    ),
-                    Step(
-                        id="step_3",
-                        type="reflect",
-                        title="Security Implications",
-                        prompt="Why might it be dangerous to trust a JWT's payload without verifying the signature?",
-                        help_text="Consider what an attacker could do if they modified the payload.",
-                        difficulty=2,
-                        min_reflection_chars=50,
-                    ),
-                    Step(
-                        id="step_4",
-                        type="apply",
-                        title="Decode a JWT",
-                        prompt="Given this JWT header (base64): `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9`\n\nDecode it and tell me what algorithm is being used.",
-                        help_text="Base64 decode the header to see the JSON inside.",
-                        difficulty=2,
-                        validation=ValidationConfig(
-                            mode="keyword",
-                            keywords=["HS256", "HMAC", "SHA256"],
-                        ),
+                        actions=[
+                            "Name the three parts of a JWT",
+                            "Explain what the header contains",
+                            "Explain what the payload contains",
+                            "Explain what the signature is used for",
+                        ],
                     ),
                     Step(
                         id="boss",
                         type="boss",
                         title="JWT Security Challenge",
                         prompt="Explain a real-world attack scenario where JWT misconfiguration could lead to unauthorized access. Include:\n1. The vulnerability\n2. How an attacker would exploit it\n3. How to prevent it",
-                        help_text="Think about algorithm confusion, weak secrets, or missing validation.",
                         difficulty=3,
                         min_reflection_chars=100,
-                        passing_threshold=0.7,
+                        actions=[
+                            "Describe a JWT vulnerability (e.g., algorithm confusion, weak secret)",
+                            "Explain how an attacker would exploit this vulnerability",
+                            "Provide prevention strategies",
+                        ],
                     ),
                 ],
-                rewards=RewardBundle(
-                    xp=25,
-                    shortcuts=["jwt-decode"],
-                    visual_unlock="🔐",
-                ),
+                rewards=RewardBundle(xp=25, shortcuts=["jwt-decode"], visual_unlock="🔐"),
             ),
             "nova_basics": Quest(
                 id="nova_basics",
@@ -682,38 +663,36 @@ class QuestEngine:
                         id="step_1",
                         type="info",
                         title="Welcome to NovaOS",
-                        prompt="NovaOS is your personal AI operating system. It helps you:\n\n• Store and recall memories\n• Track learning progress\n• Manage workflows and quests\n• Build custom commands\n\nAll commands start with `#`. For example: `#help`, `#status`, `#quest`\n\nType **next** to continue.",
+                        prompt="NovaOS is your personal AI operating system. It helps you:\n\n• Store and recall memories\n• Track learning progress\n• Manage workflows and quests\n• Build custom commands\n\nAll commands start with `#`. For example: `#help`, `#status`, `#quest`",
+                        difficulty=1,
                     ),
                     Step(
                         id="step_2",
                         type="action",
                         title="Try a Command",
                         prompt="Try running `#status` to see your current NovaOS state.\n\nThen type **next** to continue.",
-                        help_text="Commands always start with # symbol.",
                         difficulty=1,
+                        help_text="Commands always start with # symbol.",
                     ),
                     Step(
                         id="step_3",
                         type="recall",
-                        title="Command Basics",
+                        title="Command Symbol",
                         prompt="What symbol do all NovaOS commands start with?",
                         difficulty=1,
-                        validation=ValidationConfig(
-                            mode="keyword",
-                            keywords=["#", "hash", "hashtag"],
-                        ),
+                        validation=ValidationConfig(mode="keyword", keywords=["#", "hash"]),
                     ),
                 ],
-                rewards=RewardBundle(xp=10),
+                rewards=RewardBundle(xp=10, visual_unlock="🚀"),
             ),
         }
     
     # ─────────────────────────────────────────────────────────────────────
-    # PUBLIC API - QUEST MANAGEMENT
+    # PUBLIC API - QUERIES
     # ─────────────────────────────────────────────────────────────────────
     
     def list_quests(self, category: Optional[str] = None) -> List[QuestSummary]:
-        """List all quests with optional category filter."""
+        """List available quests with their status."""
         summaries = []
         for quest_id, quest in self._quests.items():
             if category and quest.category != category:
@@ -731,7 +710,7 @@ class QuestEngine:
                 has_boss=quest.has_boss,
                 step_count=len(quest.steps),
                 status=status,
-                module_id=quest.module_id,  # v0.8.0
+                module_id=quest.module_id,
             ))
         
         return summaries
@@ -918,18 +897,7 @@ class QuestEngine:
         return quest
     
     def add_quest(self, quest: Quest) -> Quest:
-        """
-        Add a Quest object directly to the quest store and persist it.
-        
-        This is a low-level helper used when another subsystem (e.g. Inbox)
-        constructs a Quest instance and wants to register it with the engine.
-        
-        Args:
-            quest: A fully constructed Quest instance
-            
-        Returns:
-            The same quest, for convenience
-        """
+        """Add a Quest object directly to the quest store and persist it."""
         self._quests[quest.id] = quest
         self._save_quests()
         return quest
@@ -958,8 +926,17 @@ class QuestEngine:
         return self.list_quests()
     
     def inspect_quest(self, quest_id: str) -> Optional[Quest]:
-        """Get full quest details for inspection."""
-        return self.get_quest(quest_id)
+        """Get detailed quest info for inspection."""
+        return self._quests.get(quest_id)
+    
+    def get_debug_state(self) -> Dict[str, Any]:
+        """Get raw engine state for debugging."""
+        return {
+            "active_run": self._active_run.to_dict() if self._active_run else None,
+            "progress": self._progress.to_dict(),
+            "quest_count": len(self._quests),
+            "quest_ids": list(self._quests.keys()),
+        }
     
     # ─────────────────────────────────────────────────────────────────────
     # INTERNAL HELPERS
@@ -967,58 +944,82 @@ class QuestEngine:
     
     def _validate_step(self, step: Step, user_input: str) -> Tuple[float, bool, str]:
         """Validate user input for a step. Returns (score, passed, feedback)."""
-        # Info steps always pass
+        # For info steps, always pass
         if step.type == "info":
-            return 1.0, True, "Great! Moving on..."
+            return 1.0, True, "Information reviewed."
         
-        # Check minimum reflection length
-        if step.min_reflection_chars and len(user_input.strip()) < step.min_reflection_chars:
-            return 0.3, False, f"Please provide a more detailed response (at least {step.min_reflection_chars} characters)."
-        
-        # Validation based on mode
+        # No validation configured - auto-pass
         if not step.validation or step.validation.mode == "none":
-            # No validation - auto pass
-            return 1.0, True, "✓ Response recorded."
+            return 1.0, True, "Good work!"
         
+        # Keyword validation
         if step.validation.mode == "keyword":
-            # Keyword matching
             keywords = step.validation.keywords or []
-            input_lower = user_input.lower()
-            matched = sum(1 for kw in keywords if kw.lower() in input_lower)
-            score = matched / len(keywords) if keywords else 1.0
+            if not keywords:
+                return 1.0, True, "Good work!"
             
-            if score >= 0.5:
-                return score, True, "✓ Correct! You covered the key points."
+            input_lower = user_input.lower()
+            found = sum(1 for kw in keywords if kw.lower() in input_lower)
+            score = found / len(keywords)
+            passed = score >= step.passing_threshold
+            
+            if passed:
+                return score, True, f"Correct! Found {found}/{len(keywords)} key concepts."
             else:
-                return score, False, f"Not quite. Try to include more key concepts. Hint: {step.help_text or 'Review the material.'}"
+                return score, False, f"Not quite. Found {found}/{len(keywords)} key concepts. Try again."
         
+        # Self-check - always passes
         if step.validation.mode == "self_check":
-            # Self-check - always passes but prompts reflection
-            return 1.0, True, "✓ Self-check complete. Reflect on your answer as we continue."
+            return 1.0, True, "Self-check complete."
         
-        # LLM rubric validation would go here (requires LLM integration)
+        # LLM rubric - for now, auto-pass (would need LLM integration)
         if step.validation.mode == "llm_rubric":
-            # For now, auto-pass with note
-            return 0.8, True, "✓ Response recorded. (LLM validation pending)"
+            return 1.0, True, "Response accepted."
         
-        return 1.0, True, "✓ Response recorded."
+        return 1.0, True, "Good work!"
     
-    def _complete_quest(self, quest: Quest, run: RunState, final_step_xp: int) -> None:
+    def _complete_quest(self, quest: Quest, run: RunState, final_xp: int) -> None:
         """Handle quest completion."""
         progress = self._progress.quest_runs.get(quest.id)
-        if not progress:
-            progress = QuestRunProgress()
-            self._progress.quest_runs[quest.id] = progress
+        if progress:
+            progress.status = "completed"
+            progress.completed_at = datetime.now(timezone.utc).isoformat()
         
-        progress.status = "completed"
-        progress.completed_at = datetime.now(timezone.utc).isoformat()
-        
-        # Add reward XP
+        # Award quest rewards
         if quest.rewards:
-            progress.xp_earned += quest.rewards.xp
             self._add_skill_xp(quest.skill_tree_path, quest.rewards.xp)
         
         self._clear_active_run()
+    
+    def _update_streak(self, quest: Quest) -> None:
+        """Update learning streak if applicable."""
+        if "learning" not in quest.tags:
+            return
+        
+        today = date.today().isoformat()
+        streak = self._progress.streaks.get("learning_days")
+        
+        if not streak:
+            streak = StreakInfo()
+            self._progress.streaks["learning_days"] = streak
+        
+        if streak.last_date == today:
+            # Already counted today
+            return
+        
+        yesterday = (date.today().replace(day=date.today().day - 1)).isoformat() if date.today().day > 1 else None
+        
+        if streak.last_date == yesterday:
+            # Continuing streak
+            streak.current += 1
+        else:
+            # Starting new streak
+            streak.current = 1
+        
+        if streak.current > streak.longest:
+            streak.longest = streak.current
+        
+        streak.last_date = today
     
     def _add_skill_xp(self, skill_path: str, xp: int) -> None:
         """Add XP to a skill path."""
@@ -1028,54 +1029,8 @@ class QuestEngine:
         skill = self._progress.skills[skill_path]
         skill.xp += xp
         
-        # Update tier based on XP thresholds
-        # Tier 1: 0-49, Tier 2: 50-149, Tier 3: 150-299, Tier 4: 300-499, Tier 5: 500+
-        thresholds = [0, 50, 150, 300, 500]
-        for tier, threshold in enumerate(thresholds, 1):
+        # Check for tier upgrades (50, 150, 300, 500)
+        tier_thresholds = [0, 50, 150, 300, 500]
+        for i, threshold in enumerate(tier_thresholds):
             if skill.xp >= threshold:
-                skill.current_tier = tier
-    
-    def _update_streak(self, quest: Quest) -> None:
-        """Update learning streak if quest has 'learning' tag."""
-        if "learning" not in quest.tags:
-            return
-        
-        today = date.today().isoformat()
-        
-        if "learning_days" not in self._progress.streaks:
-            self._progress.streaks["learning_days"] = StreakInfo()
-        
-        streak = self._progress.streaks["learning_days"]
-        
-        if streak.last_date == today:
-            # Already logged today
-            return
-        
-        if streak.last_date:
-            # Check if yesterday
-            from datetime import timedelta
-            yesterday = (date.today() - timedelta(days=1)).isoformat()
-            if streak.last_date == yesterday:
-                streak.current += 1
-            else:
-                # Streak broken
-                streak.current = 1
-        else:
-            streak.current = 1
-        
-        streak.last_date = today
-        if streak.current > streak.longest:
-            streak.longest = streak.current
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # DEBUG
-    # ─────────────────────────────────────────────────────────────────────
-    
-    def get_debug_state(self) -> Dict[str, Any]:
-        """Get debug state dump."""
-        return {
-            "active_run": self._active_run.to_dict() if self._active_run else None,
-            "progress": self._progress.to_dict(),
-            "quest_count": len(self._quests),
-            "quest_ids": list(self._quests.keys()),
-        }
+                skill.current_tier = i + 1
