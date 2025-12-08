@@ -106,32 +106,31 @@ def _base_response(
     cmd_name: str,
     summary: str,
     extra: Dict[str, Any] | None = None,
-) -> KernelResponse:
-    """Build a standard response dict."""
-    return {
-        "ok": True,
-        "type": "syscommand",
-        "command": cmd_name,
-        "summary": summary,
-        "text": summary,  # For UI compatibility
-        "extra": extra or {},
-    }
+) -> CommandResponse:
+    """Build a standard CommandResponse object."""
+    return CommandResponse(
+        ok=True,
+        command=cmd_name,
+        summary=summary,
+        data=extra or {},
+        type="syscommand",
+    )
 
 
 def _error_response(
     cmd_name: str,
     message: str,
     code: str = "ERROR",
-) -> KernelResponse:
-    """Build an error response dict."""
-    return {
-        "ok": False,
-        "type": "error",
-        "command": cmd_name,
-        "summary": message,
-        "text": message,
-        "error_code": code,
-    }
+) -> CommandResponse:
+    """Build an error CommandResponse object."""
+    return CommandResponse(
+        ok=False,
+        command=cmd_name,
+        summary=message,
+        error_code=code,
+        error_message=message,
+        type="error",
+    )
 
 
 # =============================================================================
@@ -163,7 +162,7 @@ def get_section_command_names(section_key: str) -> List[str]:
 # CORE HANDLERS
 # =============================================================================
 
-def handle_why(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_why(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """State NovaOS purpose, philosophy, and identity."""
     summary = (
         "NovaOS is your AI operating system: a stable, first-principles companion that "
@@ -172,14 +171,14 @@ def handle_why(cmd_name, args, session_id, context, kernel, meta) -> KernelRespo
     return _base_response(cmd_name, summary)
 
 
-def handle_boot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_boot(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Initialize NovaOS kernel and persona."""
     kernel.context_manager.mark_booted(session_id)
     summary = "NovaOS kernel booted. Persona loaded. Modules and memory initialized."
     return _base_response(cmd_name, summary)
 
 
-def handle_shutdown(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_shutdown(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
     Shutdown NovaOS and return to Persona mode.
     
@@ -205,7 +204,7 @@ def handle_shutdown(cmd_name, args, session_id, context, kernel, meta) -> Kernel
     return _base_response(cmd_name, summary, {"event": "shutdown"})
 
 
-def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Reset session context, working memory, and behavior layer."""
     # v0.7: Clear Working Memory on reset
     wm_clear(session_id)
@@ -216,7 +215,7 @@ def handle_reset(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     return _base_response(cmd_name, summary)
 
 
-def handle_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_status(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Display system state."""
     mem_health = kernel.memory_manager.get_health()
     modules = kernel.context_manager.get_module_summary()
@@ -246,7 +245,7 @@ def handle_status(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
 # HELP HANDLER
 # =============================================================================
 
-def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
     v0.9.0 — Section-based help command.
     
@@ -382,7 +381,7 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
 # MEMORY HANDLERS
 # =============================================================================
 
-def handle_store(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_store(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Store a memory item."""
     mm = kernel.memory_manager
     mem_type = "semantic"
@@ -416,7 +415,7 @@ def handle_store(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     return _base_response(cmd_name, summary, extra)
 
 
-def handle_recall(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_recall(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Recall memory items."""
     mm = kernel.memory_manager
     mem_type = None
@@ -463,7 +462,7 @@ def handle_recall(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
     return _base_response(cmd_name, summary, extra)
 
 
-def handle_forget(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_forget(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Delete memory items by id, tag, or type."""
     mm = kernel.memory_manager
     ids = None
@@ -505,7 +504,7 @@ def handle_forget(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
     return _base_response(cmd_name, summary, extra)
 
 
-def handle_trace(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_trace(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Inspect lineage of a memory item."""
     mm = kernel.memory_manager
     mem_id = None
@@ -533,7 +532,7 @@ def handle_trace(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
     return _base_response(cmd_name, summary, extra)
 
 
-def handle_bind(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_bind(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Bind multiple memory items into a cluster."""
     mm = kernel.memory_manager
     ids = None
@@ -558,7 +557,7 @@ def handle_bind(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
 # WORKING MEMORY DEBUG HANDLERS
 # =============================================================================
 
-def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Show current Working Memory state."""
     try:
         wm = get_wm(session_id)
@@ -593,13 +592,13 @@ def handle_wm_debug(cmd_name, args, session_id, context, kernel, meta) -> Kernel
         return _base_response(cmd_name, f"WM debug error: {e}", {"ok": False})
 
 
-def handle_wm_clear_cmd(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_clear_cmd(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Clear working memory for this session."""
     wm_clear(session_id)
     return _base_response(cmd_name, "Working memory cleared.", {"session_id": session_id})
 
 
-def handle_behavior_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_behavior_debug(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Show Behavior Layer state."""
     behavior = get_behavior(session_id)
     if behavior is None:
@@ -614,7 +613,7 @@ def handle_behavior_debug(cmd_name, args, session_id, context, kernel, meta) -> 
 # ENVIRONMENT / MODE HANDLERS
 # =============================================================================
 
-def handle_env(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_env(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Show current environment state."""
     env = getattr(kernel, "env_state", {})
     if not isinstance(env, dict):
@@ -632,7 +631,7 @@ def handle_env(cmd_name, args, session_id, context, kernel, meta) -> KernelRespo
     return _base_response(cmd_name, summary, {"env": env})
 
 
-def handle_setenv(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_setenv(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Set one or more environment keys."""
     if not isinstance(args, dict) or not args:
         return _base_response(cmd_name, "Usage: setenv key=value", {"ok": False})
@@ -658,7 +657,7 @@ def handle_setenv(cmd_name, args, session_id, context, kernel, meta) -> KernelRe
     return _base_response(cmd_name, summary, {"updated": updates})
 
 
-def handle_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_mode(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Set the current NovaOS mode."""
     allowed = {"normal", "deep_work", "reflection", "debug"}
     desired = None
@@ -704,7 +703,7 @@ def handle_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResp
 # SNAPSHOT / RESTORE HANDLERS
 # =============================================================================
 
-def handle_snapshot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_snapshot(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Create a snapshot of core OS state."""
     from datetime import datetime, timezone
 
@@ -736,7 +735,7 @@ def handle_snapshot(cmd_name, args, session_id, context, kernel, meta) -> Kernel
     return _base_response(cmd_name, summary, {"file": filename, "path": str(path)})
 
 
-def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Restore OS state from a snapshot file."""
     if not isinstance(args, dict) or "file" not in args:
         return _base_response(cmd_name, "restore requires file=<snapshot_filename>.", {"ok": False})
@@ -765,7 +764,7 @@ def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelR
 # REMINDER HANDLERS
 # =============================================================================
 
-def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Create a reminder."""
     title = None
     when = None
@@ -786,7 +785,7 @@ def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> Kern
     return _base_response(cmd_name, summary, data)
 
 
-def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """List reminders."""
     items = [r.to_dict() for r in kernel.reminders.list()]
 
@@ -801,7 +800,7 @@ def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> Ker
     return _base_response(cmd_name, summary, {"reminders": items})
 
 
-def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Update an existing reminder."""
     rid = None
     if isinstance(args, dict):
@@ -819,7 +818,7 @@ def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> K
     return _base_response(cmd_name, summary, data)
 
 
-def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Delete a reminder."""
     rid = None
     if isinstance(args, dict):
@@ -839,7 +838,7 @@ def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> K
 # CUSTOM COMMAND HANDLERS
 # =============================================================================
 
-def handle_prompt_command(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_prompt_command(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Execute a custom prompt command."""
     template = meta.get("prompt_template")
     if not template:
@@ -859,7 +858,7 @@ def handle_prompt_command(cmd_name, args, session_id, context, kernel, meta) -> 
     return _base_response(cmd_name, summary, {"result": output_text})
 
 
-def handle_command_add(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_command_add(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Add a new custom command."""
     if not isinstance(args, dict):
         return _base_response(cmd_name, "command-add requires structured arguments.", {"ok": False})
@@ -886,7 +885,7 @@ def handle_command_add(cmd_name, args, session_id, context, kernel, meta) -> Ker
     return _base_response(cmd_name, summary, {"name": name, "kind": kind})
 
 
-def handle_command_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_command_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """List all custom commands."""
     commands = kernel.custom_registry.list()
 
@@ -902,7 +901,7 @@ def handle_command_list(cmd_name, args, session_id, context, kernel, meta) -> Ke
     return _base_response(cmd_name, "\n".join(lines), {"commands": list(commands.keys())})
 
 
-def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Inspect a custom command's metadata."""
     name = None
     if isinstance(args, dict):
@@ -919,7 +918,7 @@ def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta) ->
     return _base_response(cmd_name, summary, {"command": entry})
 
 
-def handle_command_remove(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_command_remove(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Remove a custom command."""
     name = None
     if isinstance(args, dict):
@@ -935,7 +934,7 @@ def handle_command_remove(cmd_name, args, session_id, context, kernel, meta) -> 
     return _base_response(cmd_name, f"'{name}' removed.", {"ok": True})
 
 
-def handle_command_toggle(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_command_toggle(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Enable or disable a custom command."""
     name = None
     if isinstance(args, dict):
@@ -952,7 +951,7 @@ def handle_command_toggle(cmd_name, args, session_id, context, kernel, meta) -> 
     return _base_response(cmd_name, f"'{name}' → {status}", {"name": name, "status": status})
 
 
-def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Start the command creation wizard."""
     return _base_response(cmd_name, "Command wizard not yet implemented.", {"ok": False})
 
@@ -961,7 +960,7 @@ def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta) -> 
 # SELF-TEST / DIAGNOSTICS
 # =============================================================================
 
-def handle_self_test(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_self_test(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Run internal diagnostics."""
     results = []
     pass_count = 0
@@ -1020,7 +1019,7 @@ def handle_self_test(cmd_name, args, session_id, context, kernel, meta) -> Kerne
     })
 
 
-def handle_diagnostics(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_diagnostics(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Alias for self-test."""
     return handle_self_test("self-test", args, session_id, context, kernel, meta)
 
@@ -1029,7 +1028,7 @@ def handle_diagnostics(cmd_name, args, session_id, context, kernel, meta) -> Ker
 # SECTION MENU HANDLERS
 # =============================================================================
 
-def _handle_section_menu(section_key, cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def _handle_section_menu(section_key, cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """Generic section menu handler."""
     section = get_section(section_key)
     if not section:
@@ -1063,43 +1062,43 @@ def _handle_section_menu(section_key, cmd_name, args, session_id, context, kerne
     })
 
 
-def handle_section_core(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_core(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("core", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_memory(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_memory(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("memory", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_continuity(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_continuity(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("continuity", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_human_state(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_human_state(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("human_state", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_modules(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_modules(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("modules", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_identity(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_identity(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("identity", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_system(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_system(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("system", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_workflow(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_workflow(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("workflow", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_timerhythm(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_timerhythm(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("timerhythm", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_reminders(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_reminders(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("reminders", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("commands", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("debug", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_inbox(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_section_inbox(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("inbox", cmd_name, args, session_id, context, kernel, meta)
 
 
@@ -1107,133 +1106,133 @@ def handle_section_inbox(cmd_name, args, session_id, context, kernel, meta) -> K
 # PLACEHOLDER HANDLERS (for handlers referenced but not fully implemented)
 # =============================================================================
 
-def handle_wm_clear_topic(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_clear_topic(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM topic clearing not yet implemented.", {"ok": False})
 
-def handle_behavior_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_behavior_mode(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Behavior mode not yet implemented.", {"ok": False})
 
-def handle_wm_snapshot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_snapshot(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM snapshot not yet implemented.", {"ok": False})
 
-def handle_wm_topics(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_topics(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM topics not yet implemented.", {"ok": False})
 
-def handle_wm_switch(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_switch(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM switch not yet implemented.", {"ok": False})
 
-def handle_wm_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_restore(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM restore not yet implemented.", {"ok": False})
 
-def handle_wm_mode(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_mode(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM mode not yet implemented.", {"ok": False})
 
-def handle_wm_load(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_load(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM load not yet implemented.", {"ok": False})
 
-def handle_wm_bridge(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_bridge(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM bridge not yet implemented.", {"ok": False})
 
-def handle_wm_groups(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_groups(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM groups not yet implemented.", {"ok": False})
 
-def handle_wm_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_wm_status(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "WM status not yet implemented.", {"ok": False})
 
-def handle_episodic_list(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_episodic_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Episodic list not yet implemented.", {"ok": False})
 
-def handle_episodic_debug(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_episodic_debug(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Episodic debug not yet implemented.", {"ok": False})
 
-def handle_bind_module(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_bind_module(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Bind module not yet implemented.", {"ok": False})
 
-def handle_model_info(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_model_info(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Model info not yet implemented.", {"ok": False})
 
-def handle_memory_stats(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_stats(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory stats not yet implemented.", {"ok": False})
 
-def handle_memory_salience(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_salience(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory salience not yet implemented.", {"ok": False})
 
-def handle_memory_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_status(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory status not yet implemented.", {"ok": False})
 
-def handle_memory_high_salience(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_high_salience(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory high salience not yet implemented.", {"ok": False})
 
-def handle_identity_show(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_identity_show(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Identity show not yet implemented.", {"ok": False})
 
-def handle_identity_set(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_identity_set(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Identity set not yet implemented.", {"ok": False})
 
-def handle_identity_snapshot(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_identity_snapshot(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Identity snapshot not yet implemented.", {"ok": False})
 
-def handle_identity_history(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_identity_history(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Identity history not yet implemented.", {"ok": False})
 
-def handle_identity_restore(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_identity_restore(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Identity restore not yet implemented.", {"ok": False})
 
-def handle_identity_clear_history(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_identity_clear_history(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Identity clear history not yet implemented.", {"ok": False})
 
-def handle_memory_decay(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_decay(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory decay not yet implemented.", {"ok": False})
 
-def handle_memory_drift(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_drift(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory drift not yet implemented.", {"ok": False})
 
-def handle_memory_reconfirm(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_reconfirm(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory reconfirm not yet implemented.", {"ok": False})
 
-def handle_memory_stale(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_stale(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory stale not yet implemented.", {"ok": False})
 
-def handle_memory_archive_stale(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_archive_stale(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory archive stale not yet implemented.", {"ok": False})
 
-def handle_decay_preview(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_decay_preview(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Decay preview not yet implemented.", {"ok": False})
 
-def handle_memory_policy(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_policy(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory policy not yet implemented.", {"ok": False})
 
-def handle_memory_policy_test(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_policy_test(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory policy test not yet implemented.", {"ok": False})
 
-def handle_memory_mode_filter(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_memory_mode_filter(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory mode filter not yet implemented.", {"ok": False})
 
-def handle_preferences(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_preferences(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Preferences not yet implemented.", {"ok": False})
 
-def handle_projects(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_projects(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Projects not yet implemented.", {"ok": False})
 
-def handle_continuity_context(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_continuity_context(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Continuity context not yet implemented.", {"ok": False})
 
-def handle_reconfirm_prompts(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_reconfirm_prompts(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Reconfirm prompts not yet implemented.", {"ok": False})
 
-def handle_evolution_status(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_evolution_status(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Evolution status not yet implemented.", {"ok": False})
 
-def handle_log_state(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_log_state(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Log state not yet implemented.", {"ok": False})
 
-def handle_state_history(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_state_history(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "State history not yet implemented.", {"ok": False})
 
-def handle_capacity_check(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_capacity_check(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Capacity check not yet implemented.", {"ok": False})
 
-def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> KernelResponse:
+def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Macro not yet implemented.", {"ok": False})
 
 
@@ -1241,7 +1240,7 @@ def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> KernelRes
 # HANDLER REGISTRY
 # =============================================================================
 
-SYS_HANDLERS: Dict[str, Callable[..., KernelResponse]] = {
+SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     # Core
     "handle_why": handle_why,
     "handle_boot": handle_boot,
