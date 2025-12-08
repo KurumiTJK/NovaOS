@@ -140,7 +140,7 @@
   "quest-compose": {
     "handler": "handle_quest_compose",
     "category": "workflow",
-    "description": "Compose a new questline with LLM assistance."
+    "description": "Start an interactive wizard to design a new quest step-by-step, then save it after confirmation."
   },
   "quest-delete": {
     "handler": "handle_quest_delete",
@@ -161,5 +161,251 @@
     "handler": "handle_quest_debug",
     "category": "workflow",
     "description": "Show raw quest engine state for debugging."
+  },
+
+  "capture": {
+    "handler": "handle_capture",
+    "category": "inbox",
+    "description": "Quick-capture text to the inbox for later processing."
+  },
+  "in": {
+    "handler": "handle_capture",
+    "category": "inbox",
+    "description": "Alias for #capture - quick inbox capture."
+  },
+  "inbox": {
+    "handler": "handle_inbox",
+    "category": "inbox",
+    "description": "List inbox items with smart formatting."
+  },
+  "inbox-list": {
+    "handler": "handle_inbox_list",
+    "category": "inbox",
+    "description": "Simple list of inbox items."
+  },
+  "inbox-process": {
+    "handler": "handle_inbox_process",
+    "category": "inbox",
+    "description": "Process an inbox item (quest/reminder/archive)."
+  },
+  "inbox-to-quest": {
+    "handler": "handle_inbox_to_quest",
+    "category": "inbox",
+    "description": "Convert an inbox item to a quest."
+  },
+  "inbox-to-reminder": {
+    "handler": "handle_inbox_to_reminder",
+    "category": "inbox",
+    "description": "Convert an inbox item to a reminder."
+  },
+  "inbox-delete": {
+    "handler": "handle_inbox_delete",
+    "category": "inbox",
+    "description": "Delete an inbox item."
+  },
+  "inbox-clear": {
+    "handler": "handle_inbox_clear",
+    "category": "inbox",
+    "description": "Clear processed inbox items."
+  },
+
+  "remind-add": {
+    "handler": "handle_remind_add",
+    "category": "reminders",
+    "description": "Add a new reminder with a time."
+  },
+  "remind-list": {
+    "handler": "handle_remind_list",
+    "category": "reminders",
+    "description": "List all active reminders."
+  },
+  "remind-update": {
+    "handler": "handle_remind_update",
+    "category": "reminders",
+    "description": "Update an existing reminder."
+  },
+  "remind-delete": {
+    "handler": "handle_remind_delete",
+    "category": "reminders",
+    "description": "Delete a reminder by ID."
+  },
+
+  "identity-show": {
+    "handler": "handle_identity_show",
+    "category": "identity",
+    "description": "Show player profile (level, XP, titles, domains)."
+  },
+  "identity-set": {
+    "handler": "handle_identity_set",
+    "category": "identity",
+    "description": "Set an identity trait (e.g., title)."
+  },
+  "identity-clear": {
+    "handler": "handle_identity_clear",
+    "category": "identity",
+    "description": "Clear/reset player profile (requires confirmation)."
+  },
+
+  "modules": {
+    "handler": "handle_modules",
+    "category": "modules",
+    "description": "List all modules/regions."
+  },
+  "map": {
+    "handler": "handle_map",
+    "category": "modules",
+    "description": "Display the world map of modules."
+  },
+  "module-create": {
+    "handler": "handle_module_create",
+    "category": "modules",
+    "description": "Create a new module/region."
+  },
+  "module-delete": {
+    "handler": "handle_module_delete",
+    "category": "modules",
+    "description": "Delete a module/region."
+  },
+
+  "assistant-mode": {
+    "handler": "handle_assistant_mode",
+    "category": "system",
+    "description": "Set assistant mode (story/utility)."
+  },
+  "mode": {
+    "handler": "handle_mode",
+    "category": "system",
+    "description": "Set system mode (normal/deep_work/reflection)."
+  },
+  "env": {
+    "handler": "handle_env",
+    "category": "system",
+    "description": "Show environment variables."
+  },
+  "setenv": {
+    "handler": "handle_setenv",
+    "category": "system",
+    "description": "Set an environment variable."
+  },
+
+  "presence": {
+    "handler": "handle_presence",
+    "category": "timerhythm",
+    "description": "Show current time presence and context."
+  },
+  "pulse": {
+    "handler": "handle_pulse",
+    "category": "timerhythm",
+    "description": "Check the system pulse."
+  },
+  "align": {
+    "handler": "handle_align",
+    "category": "timerhythm",
+    "description": "Get alignment suggestions for what to focus on."
+  },
+
+  "command-add": {
+    "handler": "handle_command_add",
+    "category": "commands",
+    "description": "Add a new custom command (starts wizard if no args)."
+  },
+  "command-list": {
+    "handler": "handle_command_list",
+    "category": "commands",
+    "description": "List all commands (core + custom)."
+  },
+  "command-inspect": {
+    "handler": "handle_command_inspect",
+    "category": "commands",
+    "description": "Inspect a custom command's configuration."
+  },
+  "command-remove": {
+    "handler": "handle_command_remove",
+    "category": "commands",
+    "description": "Remove a custom command."
+  },
+  "command-toggle": {
+    "handler": "handle_command_toggle",
+    "category": "commands",
+    "description": "Enable or disable a custom command."
+  },
+
+  "trace": {
+    "handler": "handle_trace",
+    "category": "memory",
+    "description": "Show lineage/trace info for a memory item."
+  },
+  "bind": {
+    "handler": "handle_bind",
+    "category": "memory",
+    "description": "Bind multiple memory items into a cluster."
+  },
+
+  "wm-debug": {
+    "handler": "handle_wm_debug",
+    "category": "debug",
+    "description": "Show current Working Memory state (entities, pronouns, topics)."
+  },
+  "wm-clear": {
+    "handler": "handle_wm_clear_cmd",
+    "category": "debug",
+    "description": "Clear working memory for this session."
+  },
+  "behavior-debug": {
+    "handler": "handle_behavior_debug",
+    "category": "debug",
+    "description": "Show Behavior Layer state (open questions, goals, user state)."
+  },
+  "self-test": {
+    "handler": "handle_self_test",
+    "category": "debug",
+    "description": "Run internal WM/Behavior/Topic diagnostics."
+  },
+  "diagnostics": {
+    "handler": "handle_diagnostics",
+    "category": "debug",
+    "description": "Alias for #self-test."
+  },
+
+  "snapshot": {
+    "handler": "handle_snapshot",
+    "category": "continuity",
+    "description": "Create a state snapshot."
+  },
+  "restore": {
+    "handler": "handle_restore",
+    "category": "continuity",
+    "description": "Restore from a saved snapshot."
+  },
+  "preferences": {
+    "handler": "handle_preferences",
+    "category": "continuity",
+    "description": "Show or set user preferences."
+  },
+  "projects": {
+    "handler": "handle_projects",
+    "category": "continuity",
+    "description": "List active projects."
+  },
+  "context": {
+    "handler": "handle_continuity_context",
+    "category": "continuity",
+    "description": "Show current session context."
+  },
+
+  "log-state": {
+    "handler": "handle_log_state",
+    "category": "human_state",
+    "description": "Log current human state (energy, stress, momentum)."
+  },
+  "evolution-status": {
+    "handler": "handle_evolution_status",
+    "category": "human_state",
+    "description": "Show state evolution over time."
+  },
+  "capacity": {
+    "handler": "handle_capacity_check",
+    "category": "human_state",
+    "description": "Check current capacity."
   }
 }

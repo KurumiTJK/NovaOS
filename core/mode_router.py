@@ -1,6 +1,6 @@
 # core/mode_router.py
 """
-NovaOS v0.9.1 — Mode Router
+NovaOS v0.9.2 — Mode Router
 
 The single entrypoint for all user messages.
 Routes based on NovaState.novaos_enabled:
@@ -15,6 +15,11 @@ Routes based on NovaState.novaos_enabled:
     → NO persona fallback - command shell only
     → Unrecognized input returns fixed error message
     → #shutdown returns to Persona mode
+    
+v0.9.2 CHANGES:
+    → Added support for interactive wizard sessions (e.g., #quest-compose)
+    → When a wizard is active, raw text input is routed to the wizard handler
+      instead of returning the strict-mode error
 
 This file is the ONLY place that decides which mode handles input.
 """
@@ -69,6 +74,112 @@ def _is_shutdown_command(message: str) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# INTERACTIVE SESSION CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _check_interactive_session(session_id: str, kernel: "NovaKernel") -> Optional[str]:
+    """
+    Check if any interactive wizard session is active.
+    
+    Returns the wizard type name if active, None otherwise.
+    
+    This allows raw text to bypass strict mode when a wizard is waiting for input.
+    """
+    # Check quest-compose wizard
+    try:
+        from kernel.quest_compose_wizard import has_active_compose_session
+        if has_active_compose_session(session_id):
+            return "quest-compose"
+    except ImportError:
+        pass
+    
+    # Check command-add wizard
+    try:
+        from kernel.command_add_wizard import is_command_add_wizard_active
+        if is_command_add_wizard_active(session_id):
+            return "command-add"
+    except ImportError:
+        pass
+    
+    # Check generic wizard_mode wizards
+    try:
+        from kernel.wizard_mode import is_wizard_active
+        if is_wizard_active(session_id):
+            return "generic-wizard"
+    except ImportError:
+        pass
+    
+    return None
+
+
+def _route_to_interactive_session(
+    session_id: str,
+    wizard_type: str,
+    message: str,
+    kernel: "NovaKernel",
+) -> Optional[Dict[str, Any]]:
+    """
+    Route input to the active interactive wizard.
+    
+    Returns the wizard response dict, or None if routing failed.
+    """
+    if wizard_type == "quest-compose":
+        try:
+            from kernel.quest_compose_wizard import (
+                process_compose_wizard_input,
+                get_compose_session,
+            )
+            session = get_compose_session(session_id)
+            if session:
+                response = process_compose_wizard_input(session_id, message, kernel)
+                if response:
+                    return {
+                        "text": response.summary,
+                        "ok": response.ok,
+                        "command": "quest-compose",
+                        "data": response.data,
+                        "handled_by": "quest-compose-wizard",
+                    }
+        except Exception as e:
+            print(f"[ModeRouter] quest-compose wizard error: {e}", flush=True)
+            return None
+    
+    elif wizard_type == "command-add":
+        try:
+            from kernel.command_add_wizard import process_wizard_stage
+            response = process_wizard_stage(session_id, message, kernel)
+            if response:
+                return {
+                    "text": response.summary,
+                    "ok": response.ok,
+                    "command": "command-add",
+                    "data": response.data,
+                    "handled_by": "command-add-wizard",
+                }
+        except Exception as e:
+            print(f"[ModeRouter] command-add wizard error: {e}", flush=True)
+            return None
+    
+    elif wizard_type == "generic-wizard":
+        try:
+            from kernel.wizard_mode import process_wizard_input
+            result = process_wizard_input(session_id, message)
+            if result:
+                return {
+                    "text": result.get("summary", ""),
+                    "ok": result.get("ok", True),
+                    "command": result.get("command", "wizard"),
+                    "data": result.get("extra", {}),
+                    "handled_by": "generic-wizard",
+                }
+        except Exception as e:
+            print(f"[ModeRouter] generic wizard error: {e}", flush=True)
+            return None
+    
+    return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MAIN ENTRYPOINT
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -81,35 +192,27 @@ def handle_user_message(
     """
     Main entrypoint for all user messages.
     
-    Routes based on state.novaos_enabled:
-    - False: Persona mode (pure chat, except #boot)
-    - True: NovaOS mode (strict command shell, NO persona fallback)
+    Routing logic:
+    1. If NovaOS is OFF (Persona mode):
+       - Check for #boot → activate NovaOS
+       - Else → persona chat
+    
+    2. If NovaOS is ON (Strict mode):
+       - Check for #shutdown → deactivate NovaOS
+       - Check for active interactive wizard → route to wizard
+       - Route through kernel
+       - If kernel falls back to persona → return strict error
+       - Else → return kernel result
     """
-    message = message.strip()
     
-    if not message:
-        return {
-            "text": "",
-            "mode": state.mode_name,
-            "error": "EMPTY_INPUT",
-        }
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # PERSONA MODE (NovaOS OFF) - Normal conversational behavior
-    # ─────────────────────────────────────────────────────────────────────
-    
-    if not state.novaos_enabled:
+    if state.novaos_enabled:
+        return _handle_novaos_mode_strict(message, state, kernel, persona)
+    else:
         return _handle_persona_mode(message, state, kernel, persona)
-    
-    # ─────────────────────────────────────────────────────────────────────
-    # NOVAOS MODE (NovaOS ON) - STRICT command shell, NO persona fallback
-    # ─────────────────────────────────────────────────────────────────────
-    
-    return _handle_novaos_mode_strict(message, state, kernel, persona)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PERSONA MODE HANDLER (unchanged behavior)
+# PERSONA MODE HANDLER (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _handle_persona_mode(
@@ -153,7 +256,7 @@ def _handle_persona_mode(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# NOVAOS MODE HANDLER - STRICT (no persona fallback)
+# NOVAOS MODE HANDLER - STRICT (with interactive session support)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _handle_novaos_mode_strict(
@@ -165,13 +268,14 @@ def _handle_novaos_mode_strict(
     """
     Handle input when NovaOS is ON (STRICT mode).
     
-    v0.9.1 STRICT MODE BEHAVIOR:
+    v0.9.2 STRICT MODE BEHAVIOR:
     
-    ONLY TWO things are allowed:
+    THREE things are allowed:
     1. Valid syscommands (e.g., #status, #help, #quest)
     2. Natural language inputs successfully mapped to a syscommand via NL router
+    3. Raw text input when an interactive wizard is active (e.g., #quest-compose)
     
-    If neither matches:
+    If none of these match:
     - NO persona fallback
     - NO open conversation
     - Returns fixed error message
@@ -182,6 +286,25 @@ def _handle_novaos_mode_strict(
     # Check for #shutdown
     if _is_shutdown_command(message):
         return _deactivate_novaos(state, kernel, persona)
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # v0.9.2: CHECK FOR ACTIVE INTERACTIVE WIZARD
+    # ─────────────────────────────────────────────────────────────────────
+    # If a wizard is active and input doesn't start with #, route to wizard
+    
+    stripped = message.strip()
+    if not stripped.startswith("#"):
+        wizard_type = _check_interactive_session(state.session_id, kernel)
+        if wizard_type:
+            wizard_result = _route_to_interactive_session(
+                state.session_id,
+                wizard_type,
+                stripped,
+                kernel,
+            )
+            if wizard_result:
+                wizard_result["mode"] = state.mode_name
+                return wizard_result
     
     # ─────────────────────────────────────────────────────────────────────
     # ROUTE THROUGH KERNEL
