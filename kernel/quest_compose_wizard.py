@@ -1608,6 +1608,15 @@ def process_compose_wizard_input(
     if not session:
         return None
     
+    # Check for cancel at any time
+    if user_input.strip().lower() == "cancel":
+        clear_compose_session(session_id)
+        return _base_response(
+            "quest-compose",
+            "Quest composition cancelled.",
+            {"wizard_active": False}
+        )
+    
     return _process_wizard_input(
         "quest-compose",
         session,

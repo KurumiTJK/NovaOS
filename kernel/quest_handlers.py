@@ -1,6 +1,6 @@
 # kernel/quest_handlers.py
 """
-v0.8.3 — Quest Command Handlers
+v0.8.4 — Quest Command Handlers
 
 Handlers for all quest-related syscommands:
 - quest         - Open Quest Board, start/resume quests
@@ -9,7 +9,7 @@ Handlers for all quest-related syscommands:
 - quest-log     - View progress, XP, skills, streaks
 - quest-reset   - Reset quest progress
 - quest-compose - Create new quest with interactive wizard
-- quest-delete  - Delete a quest
+- quest-delete  - Delete quests with interactive wizard
 - quest-list    - List all quest definitions
 - quest-inspect - Inspect quest details
 - quest-debug   - Debug output
@@ -18,10 +18,10 @@ IMPORTANT: These commands are EXPLICIT only.
 The NL router should NEVER auto-execute these commands.
 It should only SUGGEST them.
 
-v0.8.3 CHANGES:
-- Refactored #quest-compose to use interactive multi-step wizard
-- Added support for pre-filling wizard from arguments
-- Added non-interactive mode for scripted usage
+v0.8.4 CHANGES:
+- Added interactive #quest-delete wizard
+- Added combined wizard routing helpers
+- Steps now display actions when present
 """
 
 from __future__ import annotations
@@ -38,6 +38,14 @@ from .quest_compose_wizard import (
     is_compose_wizard_active,
     process_compose_wizard_input,
     clear_compose_session,
+)
+
+# Import the quest delete wizard
+from .quest_delete_wizard import (
+    handle_quest_delete_wizard,
+    is_delete_wizard_active,
+    process_delete_wizard_input,
+    cancel_delete_wizard,
 )
 
 
@@ -582,45 +590,19 @@ def handle_quest_delete(cmd_name, args, session_id, context, kernel, meta) -> Co
     Delete a questline and its saved progress.
     
     Usage:
-        #quest-delete id=jwt_t1
+        #quest-delete                    → Start interactive delete wizard
+        #quest-delete id=jwt_intro       → Delete specific quest (with confirmation)
+        #quest-delete all=true           → Delete all quests (with confirmation)
+        #quest-delete id=<id> confirm=yes→ Direct delete without prompt
+    
+    The interactive wizard lets you:
+    - See all quests in a numbered list
+    - Delete by typing a number or quest ID
+    - Delete all with 'confirm all'
+    - Cancel anytime
     """
-    engine = kernel.quest_engine
-    
-    # Get quest ID
-    quest_id = None
-    if isinstance(args, dict):
-        quest_id = args.get("id") or args.get("name")
-        positional = args.get("_", [])
-        if positional and not quest_id:
-            quest_id = positional[0]
-    
-    if not quest_id:
-        return _error_response(cmd_name, "Usage: `#quest-delete id=<quest_id>`", "MISSING_ID")
-    
-    quest = engine.get_quest(quest_id)
-    if not quest:
-        return _error_response(cmd_name, f"Quest '{quest_id}' not found.", "NOT_FOUND")
-    
-    # Check for confirmation
-    confirm = None
-    if isinstance(args, dict):
-        confirm = args.get("confirm", "").lower()
-    
-    if confirm != "yes":
-        return _base_response(
-            cmd_name,
-            f"⚠️ Delete quest **{quest.title}** and all progress?\n\n"
-            f"Run `#quest-delete id={quest_id} confirm=yes` to confirm.",
-            {"quest_id": quest_id, "needs_confirmation": True}
-        )
-    
-    engine.delete_quest(quest_id)
-    
-    return _base_response(
-        cmd_name,
-        f"✓ Deleted quest **{quest.title}** and all progress.",
-        {"quest_id": quest_id, "deleted": True}
-    )
+    # Delegate to the wizard handler (handles both interactive and direct modes)
+    return handle_quest_delete_wizard(cmd_name, args, session_id, context, kernel, meta)
 
 
 # =============================================================================
@@ -826,3 +808,79 @@ def cancel_quest_compose_wizard(session_id: str) -> None:
     Called when user runs a different command or #reset.
     """
     clear_compose_session(session_id)
+
+
+# =============================================================================
+# QUEST DELETE WIZARD INTEGRATION
+# =============================================================================
+
+def check_quest_delete_wizard(session_id: str) -> bool:
+    """
+    Check if a quest-delete wizard is active for this session.
+    
+    Called by nova_kernel.py / mode_router.py to determine routing.
+    """
+    return is_delete_wizard_active(session_id)
+
+
+def route_to_quest_delete_wizard(session_id: str, user_input: str, kernel: Any) -> CommandResponse:
+    """
+    Route user input to the active quest-delete wizard.
+    
+    Called by nova_kernel.py / mode_router.py when wizard is active.
+    """
+    return process_delete_wizard_input(session_id, user_input, kernel)
+
+
+def cancel_quest_delete_wizard_session(session_id: str) -> None:
+    """
+    Cancel any active quest-delete wizard for a session.
+    
+    Called when user runs a different command or #reset.
+    """
+    cancel_delete_wizard(session_id)
+
+
+# =============================================================================
+# COMBINED WIZARD CHECK
+# =============================================================================
+
+def check_any_quest_wizard(session_id: str) -> Optional[str]:
+    """
+    Check if any quest wizard is active for this session.
+    
+    Returns:
+        "compose" if compose wizard is active
+        "delete" if delete wizard is active
+        None if no wizard active
+    """
+    if is_compose_wizard_active(session_id):
+        return "compose"
+    if is_delete_wizard_active(session_id):
+        return "delete"
+    return None
+
+
+def route_to_quest_wizard(session_id: str, user_input: str, kernel: Any) -> Optional[CommandResponse]:
+    """
+    Route user input to any active quest wizard.
+    
+    Returns:
+        CommandResponse if a wizard handled the input
+        None if no wizard is active
+    """
+    if is_compose_wizard_active(session_id):
+        return process_compose_wizard_input(session_id, user_input, kernel)
+    if is_delete_wizard_active(session_id):
+        return process_delete_wizard_input(session_id, user_input, kernel)
+    return None
+
+
+def cancel_all_quest_wizards(session_id: str) -> None:
+    """
+    Cancel all active quest wizards for a session.
+    
+    Called when user runs #reset or similar.
+    """
+    clear_compose_session(session_id)
+    cancel_delete_wizard(session_id)

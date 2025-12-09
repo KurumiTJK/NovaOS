@@ -32,6 +32,11 @@ from .wizard_mode import (
     cancel_wizard,
     build_command_args_from_wizard,
 )
+# v0.8.4: Quest Wizard routing (quest-compose, quest-delete)
+from .quest_handlers import (
+    route_to_quest_wizard,
+    cancel_all_quest_wizards,
+)
 # v0.7: Working Memory Engine (NovaWM)
 from .nova_wm import (
     get_wm,
@@ -228,7 +233,17 @@ class NovaKernel:
         stripped = text.strip()
 
         # -------------------------------------------------------------
-        # 1) Active Wizard Check
+        # 0) Quest Wizard Check (quest-compose, quest-delete)
+        # These wizards have their own session management
+        # -------------------------------------------------------------
+        quest_wizard_response = route_to_quest_wizard(session_id, stripped, self)
+        if quest_wizard_response:
+            response_dict = quest_wizard_response.to_dict()
+            self.logger.log_response(session_id, "quest-wizard", response_dict)
+            return response_dict
+
+        # -------------------------------------------------------------
+        # 1) Active Wizard Check (legacy wizard_mode.py)
         # -------------------------------------------------------------
         if is_wizard_active(session_id):
             result = process_wizard_input(session_id, stripped)
@@ -295,6 +310,8 @@ class NovaKernel:
         # Clear any stale section menu state if user types a # command
         if stripped.startswith("#"):
             clear_active_section(session_id)
+            # v0.8.4: Cancel any active quest wizards when running a different command
+            cancel_all_quest_wizards(session_id)
 
         # -------------------------------------------------------------
         # 3) Explicit Syscommand (# prefix)
