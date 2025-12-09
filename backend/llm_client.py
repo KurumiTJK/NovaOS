@@ -1,6 +1,10 @@
 # backend/llm_client.py
 """
-v0.6.6 — LLM Client with Logging
+v0.6.7 — LLM Client with Robust Environment Loading
+
+FIXED: Ensures .env is loaded from the correct location regardless of
+working directory. This fixes the "Incorrect API key" error on remote
+servers like Lightsail where the working directory may differ.
 
 Two channels:
 1. PERSONA: Nova talking to user → always gpt-5.1
@@ -20,16 +24,44 @@ from typing import Any, Dict, List, Optional
 
 
 # -----------------------------------------------------------------------------
-# Load .env file (no dotenv dependency required)
+# ROBUST .env Loading (v0.6.7 FIX)
 # -----------------------------------------------------------------------------
 
-def _load_env_file():
-    """Load environment variables from .env file if it exists."""
+def _get_project_root() -> Path:
+    """
+    Get the project root directory.
+    
+    This works regardless of the current working directory by finding
+    the directory containing this file and going up to the project root.
+    """
+    # This file is at: <project_root>/backend/llm_client.py
+    # So project root is the parent of the parent directory
+    this_file = Path(__file__).resolve()
+    backend_dir = this_file.parent
+    project_root = backend_dir.parent
+    return project_root
+
+
+def _load_env_file() -> bool:
+    """
+    Load environment variables from .env file.
+    
+    v0.6.7: Uses absolute paths based on project root to ensure
+    .env is found regardless of working directory.
+    
+    Returns True if .env was loaded, False otherwise.
+    """
+    project_root = _get_project_root()
+    
+    # Priority order for .env file locations
     possible_paths = [
-        Path(".env"),
-        Path(__file__).parent.parent / ".env",
-        Path(__file__).parent / ".env",
+        project_root / ".env",           # Primary: project root
+        Path.cwd() / ".env",             # Fallback: current working directory
+        Path.home() / ".env",            # Fallback: home directory
     ]
+    
+    loaded = False
+    loaded_from = None
     
     for env_path in possible_paths:
         if env_path.exists():
@@ -43,16 +75,31 @@ def _load_env_file():
                             key, _, value = line.partition("=")
                             key = key.strip()
                             value = value.strip()
+                            # Remove quotes if present
                             if value and value[0] in ('"', "'") and value[-1] == value[0]:
                                 value = value[1:-1]
+                            # Only set if not already in environment
                             if key and key not in os.environ:
                                 os.environ[key] = value
-                return True
-            except Exception:
-                pass
-    return False
+                loaded = True
+                loaded_from = env_path
+                break
+            except Exception as e:
+                print(f"[LLM] Warning: Could not read {env_path}: {e}", file=sys.stderr, flush=True)
+    
+    # Debug logging
+    api_key = os.getenv("OPENAI_API_KEY", "")
+    key_status = f"found ({len(api_key)} chars)" if api_key else "NOT FOUND"
+    
+    print(f"[LLM] Project root: {project_root}", flush=True)
+    print(f"[LLM] .env loaded: {loaded} (from: {loaded_from})", flush=True)
+    print(f"[LLM] OPENAI_API_KEY: {key_status}", flush=True)
+    
+    return loaded
 
-_load_env_file()
+
+# Load .env immediately on module import
+_env_loaded = _load_env_file()
 
 
 # -----------------------------------------------------------------------------
@@ -87,7 +134,7 @@ from .model_router import (
 
 class LLMClient:
     """
-    v0.6.6 LLM Client with comprehensive logging.
+    v0.6.7 LLM Client with comprehensive logging.
     
     Logs ALL LLM calls to terminal with channel and model.
     """
@@ -98,8 +145,21 @@ class LLMClient:
         
         api_key = os.getenv("OPENAI_API_KEY", "")
         if not api_key:
-            raise RuntimeError("OPENAI_API_KEY not set in environment or .env file.")
+            # More helpful error message
+            project_root = _get_project_root()
+            raise RuntimeError(
+                f"OPENAI_API_KEY not set.\n"
+                f"Checked locations:\n"
+                f"  1. {project_root / '.env'}\n"
+                f"  2. {Path.cwd() / '.env'}\n"
+                f"  3. Environment variable OPENAI_API_KEY\n"
+                f"Please create a .env file with: OPENAI_API_KEY=sk-..."
+            )
 
+        # Log key info (masked)
+        key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
+        print(f"[LLM] Initializing client with key: {key_preview}", flush=True)
+        
         self.client = OpenAI(api_key=api_key)
         self.router = router or get_router()
 
