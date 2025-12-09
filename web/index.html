@@ -14,10 +14,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="NovaOS">
-  <link rel="apple-touch-icon" href="nova-avatar.png">
+  <link rel="apple-touch-icon" href="nova.PNG">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="nova-avatar.png">
+  <link rel="icon" type="image/png" href="nova.PNG">
 
   <style>
     /* ═══════════════════════════════════════════════════════════════════════
@@ -113,7 +113,7 @@
       width: 40px;
       height: 40px;
       border-radius: 50%;
-      background-image: url("nova-avatar.png");
+      background-image: url("nova.PNG");
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
@@ -220,7 +220,7 @@
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background-image: url("nova-avatar.png");
+      background-image: url("nova.PNG");
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
@@ -751,7 +751,7 @@
 
     /**
      * Append a Nova message to the chat.
-     * Does NOT auto-scroll - user controls their scroll position.
+     * Auto-scrolls to bottom after appending.
      */
     function appendNovaMessage(text) {
       // Remove welcome message if present
@@ -763,14 +763,15 @@
       const messageEl = createMessageElement(text, false);
       chatMessages.appendChild(messageEl);
       
-      // NOTE: We do NOT auto-scroll when Nova replies.
-      // This lets users read long syscommand outputs without being yanked to the bottom.
+      // Auto-scroll to bottom when Nova replies
+      scrollToBottom();
     }
 
     function showTypingIndicator() {
       const indicator = createTypingIndicator();
       chatMessages.appendChild(indicator);
-      // Don't scroll here - we already scrolled when user sent their message
+      // Scroll to show typing indicator
+      scrollToBottom();
     }
 
     function hideTypingIndicator() {
@@ -909,7 +910,7 @@
       // Disable send while processing
       sendButton.disabled = true;
 
-      // Show typing indicator (no scroll here)
+      // Show typing indicator
       showTypingIndicator();
 
       try {
@@ -929,7 +930,7 @@
         // Hide typing indicator
         hideTypingIndicator();
 
-        // Extract and display Nova's response (no auto-scroll)
+        // Extract and display Nova's response
         const reply = extractNovaResponse(data);
         appendNovaMessage(reply);
 
@@ -937,7 +938,7 @@
         // Hide typing indicator
         hideTypingIndicator();
 
-        // Show error message (no auto-scroll)
+        // Show error message
         appendNovaMessage(`Connection error: ${error.message}. Please try again.`);
       } finally {
         // Re-enable send button
@@ -953,6 +954,8 @@
     function autoResizeInput() {
       inputField.style.height = 'auto';
       inputField.style.height = Math.min(inputField.scrollHeight, 120) + 'px';
+      // Ensure caret stays visible by scrolling textarea to bottom
+      inputField.scrollTop = inputField.scrollHeight;
     }
 
     // Handle send button click
@@ -968,7 +971,7 @@
       }
     });
 
-    // Auto-resize textarea as user types
+    // Auto-resize textarea as user types and keep caret visible
     inputField.addEventListener('input', autoResizeInput);
 
     // Focus input on load
