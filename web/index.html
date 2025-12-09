@@ -14,10 +14,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="NovaOS">
-  <link rel="apple-touch-icon" href="nova.png">
+  <link rel="apple-touch-icon" href="nova.png?v=2">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="nova.png">
+  <link rel="icon" type="image/png" href="nova.png?v=2">
 
   <style>
     /* ═══════════════════════════════════════════════════════════════════════
@@ -117,7 +117,7 @@
       width: 40px;
       height: 40px;
       border-radius: 50%;
-      background-image: url("nova.png");
+      background-image: url("nova.png?v=2");
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
@@ -164,8 +164,8 @@
       padding: 20px 16px;
       padding-left: calc(16px + var(--sal));
       padding-right: calc(16px + var(--sar));
-      /* Bottom padding: input bar height + safe area + extra space */
-      padding-bottom: calc(var(--input-bar-height) + var(--sab) + 20px);
+      /* Bottom padding set dynamically by JS based on actual input bar height */
+      padding-bottom: 100px; /* Fallback until JS runs */
       scroll-behavior: auto;
       /* Ensure this element can receive scroll events */
       touch-action: pan-y;
@@ -394,11 +394,11 @@
       bottom: 0;
       display: flex;
       align-items: flex-end;
-      gap: 12px;
-      padding: 12px 16px;
-      padding-left: calc(16px + var(--sal));
-      padding-right: calc(16px + var(--sar));
-      padding-bottom: calc(12px + var(--sab));
+      gap: 8px; /* CHANGED: Reduced from 12px to 8px for tighter spacing */
+      padding: 10px 12px; /* CHANGED: Reduced padding for more compact look */
+      padding-left: calc(12px + var(--sal));
+      padding-right: calc(12px + var(--sar));
+      padding-bottom: calc(10px + var(--sab));
       background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       z-index: 100;
@@ -415,12 +415,13 @@
 
     .input-wrapper {
       flex: 1;
+      min-width: 0; /* ADDED: Prevent flex item from overflowing */
       display: flex;
       align-items: flex-end;
       background: var(--bg-input);
       border: 1px solid var(--border-color);
       border-radius: 24px;
-      padding: 8px 16px;
+      padding: 8px 14px; /* CHANGED: Slightly reduced horizontal padding */
       transition: border-color 0.2s, box-shadow 0.2s;
     }
 
@@ -965,6 +966,8 @@
       inputField.style.height = Math.min(inputField.scrollHeight, 120) + 'px';
       // Ensure caret stays visible by scrolling textarea to bottom
       inputField.scrollTop = inputField.scrollHeight;
+      // Recalculate chat padding since input bar height may have changed
+      updateChatPadding();
     }
 
     // Handle send button click
@@ -985,6 +988,30 @@
 
     // Focus input on load
     inputField.focus();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // DYNAMIC INPUT BAR HEIGHT - Ensures messages never hide behind input bar
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Measures the actual input bar height and updates chat container padding.
+     * Called on load, resize, orientation change, and when input resizes.
+     */
+    function updateChatPadding() {
+      const barHeight = inputBar.offsetHeight;
+      const safeAreaBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sab')) || 0;
+      const totalPadding = barHeight + 16; // 16px extra breathing room
+      chatContainer.style.paddingBottom = `${totalPadding}px`;
+    }
+
+    // Update padding on load
+    document.addEventListener('DOMContentLoaded', updateChatPadding);
+    
+    // Update on resize and orientation change
+    window.addEventListener('resize', updateChatPadding);
+    window.addEventListener('orientationchange', () => {
+      setTimeout(updateChatPadding, 100); // Small delay for orientation to settle
+    });
 
     // ═══════════════════════════════════════════════════════════════════════
     // MOBILE KEYBOARD HANDLING - iOS FIX
@@ -1018,17 +1045,18 @@
       if (Math.abs(keyboardHeight - lastKeyboardHeight) < 10) return;
       lastKeyboardHeight = keyboardHeight;
       
+      // Get actual input bar height
+      const barHeight = inputBar.offsetHeight;
+      
       if (keyboardHeight > 50) {
         // Keyboard is open - position input bar above it
-        // Use bottom positioning instead of transform for more reliable behavior
         inputBar.style.bottom = `${keyboardHeight}px`;
         inputBar.style.transform = 'none';
         
-        // Adjust chat container padding so content isn't hidden
-        chatContainer.style.paddingBottom = `calc(var(--input-bar-height) + var(--sab) + 20px + ${keyboardHeight}px)`;
+        // Adjust chat container padding: bar height + keyboard height + breathing room
+        chatContainer.style.paddingBottom = `${barHeight + keyboardHeight + 16}px`;
         
         // Scroll to keep user's position relevant
-        // Only scroll if we were already near the bottom
         const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 150;
         if (isNearBottom) {
           scrollToBottom();
@@ -1037,7 +1065,8 @@
         // Keyboard is closed - reset position
         inputBar.style.bottom = '0';
         inputBar.style.transform = 'none';
-        chatContainer.style.paddingBottom = `calc(var(--input-bar-height) + var(--sab) + 20px)`;
+        // Use dynamic measurement for closed state too
+        chatContainer.style.paddingBottom = `${barHeight + 16}px`;
       }
     }
 
@@ -1105,6 +1134,9 @@
     // ═══════════════════════════════════════════════════════════════════════
     // INITIALIZATION
     // ═══════════════════════════════════════════════════════════════════════
+
+    // Set initial padding based on actual input bar height
+    updateChatPadding();
 
     console.log('NovaOS Web UI initialized');
     console.log('Session ID:', SESSION_ID);
