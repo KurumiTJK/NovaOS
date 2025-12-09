@@ -14,10 +14,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="NovaOS">
-  <link rel="apple-touch-icon" href="nova.PNG">
+  <link rel="apple-touch-icon" href="nova.png">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" href="nova.PNG">
+  <link rel="icon" type="image/png" href="nova.png">
 
   <style>
     /* ═══════════════════════════════════════════════════════════════════════
@@ -58,6 +58,8 @@
     html {
       height: 100%;
       background: var(--bg-primary);
+      /* Prevent overscroll on html */
+      overscroll-behavior: none;
     }
 
     body {
@@ -72,8 +74,10 @@
       overscroll-behavior: none;
       overflow: hidden;
       /* Allow body to size naturally on iOS */
-      position: relative;
+      position: fixed;
       width: 100%;
+      top: 0;
+      left: 0;
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
@@ -90,7 +94,7 @@
       margin: 0 auto;
       background: var(--bg-primary);
       position: relative;
-      /* On iOS, the input bar is fixed, so we don't need overflow hidden here */
+      overflow: hidden;
     }
 
     /* ═══════════════════════════════════════════════════════════════════════
@@ -113,7 +117,7 @@
       width: 40px;
       height: 40px;
       border-radius: 50%;
-      background-image: url("nova.PNG");
+      background-image: url("nova.png");
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
@@ -156,12 +160,15 @@
       overflow-y: auto;
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
       padding: 20px 16px;
       padding-left: calc(16px + var(--sal));
       padding-right: calc(16px + var(--sar));
       /* Bottom padding: input bar height + safe area + extra space */
       padding-bottom: calc(var(--input-bar-height) + var(--sab) + 20px);
       scroll-behavior: auto;
+      /* Ensure this element can receive scroll events */
+      touch-action: pan-y;
     }
 
     .chat-messages {
@@ -220,7 +227,7 @@
       width: 32px;
       height: 32px;
       border-radius: 50%;
-      background-image: url("nova.PNG");
+      background-image: url("nova-avatar.png");
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
@@ -400,8 +407,10 @@
       /* Center it if screen is wider than max-width */
       margin-left: auto;
       margin-right: auto;
-      /* Smooth transitions for keyboard */
-      transition: transform 0.1s ease-out;
+      /* Smooth transitions for keyboard - but not too slow */
+      transition: transform 0.15s ease-out, bottom 0.15s ease-out;
+      /* Prevent input bar from being part of scroll */
+      touch-action: none;
     }
 
     .input-wrapper {
@@ -978,12 +987,14 @@
     inputField.focus();
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MOBILE KEYBOARD HANDLING - GOAL 2 FIX
+    // MOBILE KEYBOARD HANDLING - iOS FIX
     // 
     // Uses visualViewport API to position the input bar directly above
     // the iOS keyboard. The input bar is position:fixed, and we adjust
     // its bottom position when the keyboard opens/closes.
     // ═══════════════════════════════════════════════════════════════════════
+
+    let lastKeyboardHeight = 0;
 
     /**
      * Position the input bar above the keyboard using visualViewport.
@@ -993,7 +1004,7 @@
      * - visualViewport.height shrinks to the visible area
      * - visualViewport.offsetTop gives us the scroll offset
      * 
-     * We use CSS transform to move the input bar up by the keyboard height.
+     * We adjust the input bar's bottom position to stay above the keyboard.
      */
     function updateInputBarPosition() {
       if (!window.visualViewport) return;
@@ -1001,28 +1012,31 @@
       const viewport = window.visualViewport;
       
       // Calculate how much the viewport has shrunk (keyboard height)
-      const keyboardHeight = window.innerHeight - viewport.height;
+      const keyboardHeight = window.innerHeight - viewport.height - viewport.offsetTop;
       
-      // On iOS, we also need to account for any viewport offset (scroll)
-      const offsetTop = viewport.offsetTop;
+      // Only update if there's a meaningful change (avoid jitter)
+      if (Math.abs(keyboardHeight - lastKeyboardHeight) < 10) return;
+      lastKeyboardHeight = keyboardHeight;
       
       if (keyboardHeight > 50) {
-        // Keyboard is open - move input bar up
-        // We use transform instead of bottom because it's smoother
-        inputBar.style.transform = `translateY(-${keyboardHeight}px)`;
+        // Keyboard is open - position input bar above it
+        // Use bottom positioning instead of transform for more reliable behavior
+        inputBar.style.bottom = `${keyboardHeight}px`;
+        inputBar.style.transform = 'none';
         
-        // Also adjust chat container padding so content isn't hidden
+        // Adjust chat container padding so content isn't hidden
         chatContainer.style.paddingBottom = `calc(var(--input-bar-height) + var(--sab) + 20px + ${keyboardHeight}px)`;
         
         // Scroll to keep user's position relevant
         // Only scroll if we were already near the bottom
-        const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 100;
+        const isNearBottom = chatContainer.scrollHeight - chatContainer.scrollTop - chatContainer.clientHeight < 150;
         if (isNearBottom) {
           scrollToBottom();
         }
       } else {
         // Keyboard is closed - reset position
-        inputBar.style.transform = 'translateY(0)';
+        inputBar.style.bottom = '0';
+        inputBar.style.transform = 'none';
         chatContainer.style.paddingBottom = `calc(var(--input-bar-height) + var(--sab) + 20px)`;
       }
     }
@@ -1041,10 +1055,32 @@
       console.log('NovaOS: visualViewport not available, using fallback');
     }
 
-    // Prevent body scroll / bounce on iOS
+    // ═══════════════════════════════════════════════════════════════════════
+    // SCROLL BEHAVIOR FIX - Allow natural scrolling in chat container
+    // 
+    // Only prevent default on body/html, NOT on the chat container.
+    // This allows native smooth scrolling on the message list.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Prevent body scroll / bounce on iOS - but ONLY on elements that shouldn't scroll
     document.body.addEventListener('touchmove', (e) => {
-      // Only prevent if touching the body itself, not scrollable containers
-      if (e.target === document.body) {
+      // Check if the touch is inside the chat container
+      const isInsideChatContainer = chatContainer.contains(e.target);
+      
+      // Allow scrolling inside chat container, prevent elsewhere
+      if (!isInsideChatContainer) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Also prevent on the header and input bar specifically
+    document.querySelector('.header').addEventListener('touchmove', (e) => {
+      e.preventDefault();
+    }, { passive: false });
+
+    inputBar.addEventListener('touchmove', (e) => {
+      // Allow scrolling inside the textarea
+      if (!inputField.contains(e.target)) {
         e.preventDefault();
       }
     }, { passive: false });
@@ -1056,6 +1092,13 @@
         updateInputBarPosition();
         // Scroll to bottom when focusing input
         scrollToBottom();
+      }, 100);
+    });
+
+    // Also update on blur to reset position
+    inputField.addEventListener('blur', () => {
+      setTimeout(() => {
+        updateInputBarPosition();
       }, 100);
     });
 
