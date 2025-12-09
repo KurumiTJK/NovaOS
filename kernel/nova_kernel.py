@@ -1,4 +1,12 @@
 # kernel/nova_kernel.py
+"""
+v0.9.0 — NovaKernel with Deterministic Model Routing
+
+🔥 v0.9.0 CHANGES:
+- Updated get_model() with enhanced logging
+- Updated get_model_info() to show heavy/light command sets
+- All model routing now deterministic with NO FALLBACK
+"""
 from typing import Dict, Any
 
 from backend.llm_client import LLMClient
@@ -560,7 +568,7 @@ class NovaKernel:
                 session_id=session_id,
                 extra={
                     "source": source,
-                    "kernel_version": self.env_state.get("kernel_version", "0.8.2"),
+                    "kernel_version": self.env_state.get("kernel_version", "0.9.0"),
                 },
             )
         except Exception:
@@ -749,7 +757,7 @@ class NovaKernel:
         return value
 
     # ------------------------------------------------------------------
-    # v0.5.3 — Model Routing Helpers
+    # v0.9.0 — Model Routing Helpers (DETERMINISTIC, NO FALLBACK)
     # ------------------------------------------------------------------
     def get_model(
         self,
@@ -761,31 +769,73 @@ class NovaKernel:
         """
         Get the appropriate model for a given context using ModelRouter.
         
+        v0.9.0: DETERMINISTIC routing, NO FALLBACK
+        
         Args:
-            command: The syscommand name (e.g., "derive", "interpret")
-            input_text: The user input (used for length-based routing)
-            think: Whether to force thinking tier
+            command: The syscommand name (e.g., "derive", "interpret", "quest-compose")
+            input_text: The user input (used for length-based routing - DEPRECATED)
+            think: Whether to force thinking tier (gpt-5.1)
             explicit_model: User-specified model override
             
         Returns:
-            Model ID string (e.g., "gpt-4.1-mini")
+            Model ID string (e.g., "gpt-4.1-mini" or "gpt-5.1")
+        
+        Rules:
+            - Heavy commands (quest-compose, flow, etc.) → gpt-5.1
+            - Light commands (help, status, etc.) → gpt-4.1-mini
+            - think=True → gpt-5.1
+            - explicit_model → use that model exactly
         """
-        return self.model_router.route_for_command(
-            command=command or "default",
+        # v0.9.0: Import heavy/light checks for logging
+        try:
+            from backend.model_router import is_heavy_command, is_light_command
+            has_checks = True
+        except ImportError:
+            has_checks = False
+        
+        cmd_str = command or "default"
+        
+        # Log the routing request
+        print(f"[Kernel.get_model] command={cmd_str} think={think} explicit={explicit_model}", flush=True)
+        
+        model = self.model_router.route_for_command(
+            command=cmd_str,
             input_text=input_text,
             mode=self.env_state.get("mode", "normal"),
             think=think,
             explicit_model=explicit_model,
         )
+        
+        # Log the result with command type
+        if has_checks:
+            cmd_type = "heavy" if is_heavy_command(cmd_str) else ("light" if is_light_command(cmd_str) else "unknown")
+        else:
+            cmd_type = "unknown"
+        print(f"[Kernel.get_model] result: command={cmd_str} type={cmd_type} model={model}", flush=True)
+        
+        return model
 
     def get_model_info(self) -> dict:
         """
         Return information about available model tiers.
         Useful for status/debug commands.
+        
+        v0.9.0: Includes heavy/light command sets for transparency.
         """
+        # v0.9.0: Include heavy command list for debugging
+        try:
+            from backend.model_router import HEAVY_LLM_COMMANDS, LIGHT_SYSCOMMANDS
+            heavy_commands = sorted(list(HEAVY_LLM_COMMANDS))
+            light_count = len(LIGHT_SYSCOMMANDS)
+        except ImportError:
+            heavy_commands = []
+            light_count = 0
+        
         return {
             "tiers": self.model_router.list_tiers(),
             "current_mode": self.env_state.get("mode", "normal"),
+            "heavy_commands": heavy_commands,
+            "light_commands_count": light_count,
         }
 
     # ------------------------------------------------------------------

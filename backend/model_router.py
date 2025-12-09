@@ -1,10 +1,16 @@
 # backend/model_router.py
 """
-v0.8.1 — Model Routing Engine
+v0.9.0 — Model Routing Engine (DETERMINISTIC, NO FALLBACK)
 
 Model Tiers (TWO tiers only):
-- MINI:     gpt-4.1-mini  — default for non-intensive syscommands
-- THINKING: gpt-5.1       — deep reasoning, LLM-intensive commands, persona
+- MINI:     gpt-4.1-mini  — lightweight syscommands
+- THINKING: gpt-5.1       — heavy LLM-intensive commands, persona
+
+🔥 v0.9.0 CHANGES:
+- DETERMINISTIC routing: heavy commands → gpt-5.1, light → gpt-4.1-mini
+- NO FALLBACK: if model unavailable, raise hard error
+- Expanded HEAVY_LLM_COMMANDS set with all intensive syscommands
+- Enhanced logging: every route() call logs command + model + reason
 
 Logging:
     Every route() call prints to terminal:
@@ -13,6 +19,7 @@ Logging:
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Set
 
@@ -23,7 +30,7 @@ from typing import Any, Dict, Optional, Set
 
 MODEL_MINI = "gpt-4.1-mini"
 MODEL_THINKING = "gpt-5.1"
-PERSONA_MODEL = MODEL_THINKING  # Persona always uses thinking tier
+PERSONA_MODEL = MODEL_THINKING  # Persona ALWAYS uses thinking tier
 
 
 # -----------------------------------------------------------------------------
@@ -43,7 +50,7 @@ TIER_MINI = ModelTier(
     name="mini",
     model_id=MODEL_MINI,
     max_input_chars=8000,
-    description="Fast syscommand processing, default tier",
+    description="Fast syscommand processing, lightweight commands",
 )
 
 TIER_THINKING = ModelTier(
@@ -55,14 +62,132 @@ TIER_THINKING = ModelTier(
 
 
 # -----------------------------------------------------------------------------
-# LLM-Intensive Commands (use thinking tier)
+# HEAVY LLM-INTENSIVE COMMANDS (use gpt-5.1, NO EXCEPTIONS)
 # -----------------------------------------------------------------------------
 
-LLM_INTENSIVE_COMMANDS: Set[str] = {
+HEAVY_LLM_COMMANDS: Set[str] = {
+    # Quest/Workflow commands (multi-step reasoning)
+    "quest-compose",
+    "quest-delete",
+    "flow",
     "compose",
+    "advance",
+    
+    # Custom command execution (may need deep reasoning)
     "prompt_command",
     "prompt-command",
     "command-wizard",
+    
+    # Any kernel planner or long structured output
+    "interpret",
+    "derive",
+    "analyze",
+}
+
+
+# -----------------------------------------------------------------------------
+# LIGHT SYSCOMMANDS (use gpt-4.1-mini)
+# These are fast, simple commands that don't need deep reasoning
+# -----------------------------------------------------------------------------
+
+LIGHT_SYSCOMMANDS: Set[str] = {
+    # Basic utility commands
+    "help",
+    "status",
+    "boot",
+    "shutdown",
+    "ping",
+    
+    # Memory commands (simple CRUD)
+    "memory",
+    "memory-recall",
+    "memory-add",
+    "memory-list",
+    "memory-search",
+    "memory-clear",
+    "memory-decay",
+    "memory-drift",
+    "memory-reconfirm",
+    "memory-stale",
+    "memory-archive-stale",
+    "memory-policy",
+    "memory-policy-test",
+    "memory-mode-filter",
+    "memory-high-salience",
+    
+    # Identity commands
+    "identity-show",
+    "identity-set",
+    "identity-snapshot",
+    "identity-history",
+    "identity-restore",
+    "identity-clear-history",
+    
+    # Inspection commands
+    "inspect",
+    "presence",
+    "env",
+    "env-set",
+    "env-reset",
+    
+    # Quest simple commands (not composition)
+    "quest",
+    "quest-list",
+    "quest-inspect",
+    "quest-log",
+    "quest-reset",
+    "quest-debug",
+    "next",
+    "pause",
+    
+    # Reminder commands
+    "remind-add",
+    "remind-list",
+    "remind-update",
+    "remind-delete",
+    
+    # Custom command management (not execution)
+    "command-add",
+    "command-list",
+    "command-inspect",
+    "command-enable",
+    "command-disable",
+    "command-delete",
+    
+    # Module commands
+    "bind-module",
+    "module-list",
+    "module-inspect",
+    
+    # Snapshot/restore
+    "snapshot",
+    "restore",
+    
+    # Section navigation
+    "section",
+    "back",
+    
+    # Continuity
+    "preferences",
+    "projects",
+    "continuity-context",
+    "reconfirm-prompts",
+    
+    # Human state
+    "evolution-status",
+    "log-state",
+    "state-history",
+    "capacity-check",
+    
+    # Time rhythm
+    "time-rhythm-add",
+    "time-rhythm-list",
+    "time-rhythm-delete",
+    "time-rhythm-trigger",
+    
+    # Debug
+    "debug",
+    "decay-preview",
 }
 
 
@@ -81,12 +206,33 @@ class RoutingContext:
 
 
 # -----------------------------------------------------------------------------
-# Model Router
+# Custom Exceptions
+# -----------------------------------------------------------------------------
+
+class ModelRoutingError(Exception):
+    """Raised when model routing fails with no fallback."""
+    pass
+
+
+class ModelUnavailableError(Exception):
+    """Raised when a required model is unavailable."""
+    pass
+
+
+# -----------------------------------------------------------------------------
+# Model Router (DETERMINISTIC, NO FALLBACK)
 # -----------------------------------------------------------------------------
 
 class ModelRouter:
     """
-    v0.8.1 Model Routing Engine
+    v0.9.0 Model Routing Engine — DETERMINISTIC, NO FALLBACK
+    
+    Routing Rules:
+    1. explicit_model override → use that model exactly (error if invalid)
+    2. think_mode=True → gpt-5.1 (NO FALLBACK)
+    3. command in HEAVY_LLM_COMMANDS → gpt-5.1 (NO FALLBACK)
+    4. command in LIGHT_SYSCOMMANDS → gpt-4.1-mini (NO FALLBACK)
+    5. Unknown command → gpt-4.1-mini (default for safety)
     
     Logs EVERY routing decision to terminal via print().
     """
@@ -95,11 +241,13 @@ class ModelRouter:
         self,
         mini: Optional[ModelTier] = None,
         thinking: Optional[ModelTier] = None,
-        llm_intensive_commands: Optional[Set[str]] = None,
+        heavy_commands: Optional[Set[str]] = None,
+        light_commands: Optional[Set[str]] = None,
     ):
         self.mini = mini or TIER_MINI
         self.thinking = thinking or TIER_THINKING
-        self.llm_intensive_commands = llm_intensive_commands or LLM_INTENSIVE_COMMANDS
+        self.heavy_commands = heavy_commands or HEAVY_LLM_COMMANDS
+        self.light_commands = light_commands or LIGHT_SYSCOMMANDS
 
         self._tiers = {
             "mini": self.mini,
@@ -114,22 +262,24 @@ class ModelRouter:
         """
         Determine the appropriate model ID based on context.
         
-        Priority:
-        1. explicit_model override
-        2. think_mode flag → thinking
-        3. LLM_INTENSIVE_COMMANDS → thinking
-        4. Input length > threshold → thinking
-        5. Default → mini
+        DETERMINISTIC PRIORITY (NO FALLBACK):
+        1. explicit_model override → use exact model (error if invalid)
+        2. think_mode=True → gpt-5.1
+        3. command in HEAVY_LLM_COMMANDS → gpt-5.1
+        4. command in LIGHT_SYSCOMMANDS → gpt-4.1-mini
+        5. Unknown command → gpt-4.1-mini (default)
         
         ALWAYS prints logging to terminal.
+        NO fallback behavior — fails hard if model invalid.
         """
         if ctx is None:
             ctx = RoutingContext()
 
         model_id: str
         reason: str
+        cmd_lower = (ctx.command or "").lower().strip()
 
-        # 1. Explicit model override
+        # 1. Explicit model override (NO FALLBACK)
         if ctx.explicit_model:
             if ctx.explicit_model in self._model_ids:
                 model_id = ctx.explicit_model
@@ -138,28 +288,36 @@ class ModelRouter:
                 model_id = self._tiers[ctx.explicit_model].model_id
                 reason = "explicit_tier"
             else:
-                model_id = ctx.explicit_model
-                reason = "explicit_unknown"
+                # HARD ERROR: Invalid explicit model
+                error_msg = f"Invalid explicit_model '{ctx.explicit_model}'. Valid: {list(self._model_ids.keys())}"
+                print(f"[ModelRouter] ERROR: {error_msg}", file=sys.stderr, flush=True)
+                raise ModelRoutingError(error_msg)
 
-        # 2. Think mode flag
+        # 2. Think mode flag → gpt-5.1 (NO FALLBACK)
         elif ctx.think_mode:
             model_id = self.thinking.model_id
             reason = "think_mode"
 
-        # 3. LLM-intensive commands
-        elif ctx.command and ctx.command.lower() in self.llm_intensive_commands:
+        # 3. HEAVY commands → gpt-5.1 (NO FALLBACK)
+        elif cmd_lower in self.heavy_commands:
             model_id = self.thinking.model_id
-            reason = "llm_intensive"
+            reason = "heavy_command"
 
-        # 4. Input length
-        elif ctx.input_length > self.mini.max_input_chars:
-            model_id = self.thinking.model_id
-            reason = "input_length"
+        # 4. LIGHT commands → gpt-4.1-mini
+        elif cmd_lower in self.light_commands:
+            model_id = self.mini.model_id
+            reason = "light_command"
 
-        # 5. Default → mini
+        # 5. Unknown command → default to mini (with warning)
         else:
             model_id = self.mini.model_id
-            reason = "default"
+            reason = "unknown_default"
+            if cmd_lower:
+                print(
+                    f"[ModelRouter] WARNING: Unknown command '{cmd_lower}' not in heavy or light sets, defaulting to {model_id}",
+                    file=sys.stderr,
+                    flush=True,
+                )
 
         # ALWAYS LOG
         cmd_str = ctx.command or "unknown"
@@ -184,6 +342,14 @@ class ModelRouter:
         )
         return self.route(ctx)
 
+    def is_heavy_command(self, command: str) -> bool:
+        """Check if command is in heavy (gpt-5.1) set."""
+        return command.lower().strip() in self.heavy_commands
+
+    def is_light_command(self, command: str) -> bool:
+        """Check if command is in light (gpt-4.1-mini) set."""
+        return command.lower().strip() in self.light_commands
+
     def get_tier_for_model(self, model_id: str) -> str:
         tier = self._model_ids.get(model_id)
         return tier.name if tier else "unknown"
@@ -201,8 +367,13 @@ class ModelRouter:
             for name, tier in self._tiers.items()
         }
 
-    def is_llm_intensive(self, command: str) -> bool:
-        return command.lower() in self.llm_intensive_commands
+    def list_heavy_commands(self) -> Set[str]:
+        """Return set of heavy commands (gpt-5.1)."""
+        return self.heavy_commands.copy()
+
+    def list_light_commands(self) -> Set[str]:
+        """Return set of light commands (gpt-4.1-mini)."""
+        return self.light_commands.copy()
 
 
 # -----------------------------------------------------------------------------
@@ -240,3 +411,13 @@ def route_for_command(
         explicit_model=explicit_model,
         mode=mode,
     )
+
+
+def is_heavy_command(command: str) -> bool:
+    """Check if command requires gpt-5.1."""
+    return get_router().is_heavy_command(command)
+
+
+def is_light_command(command: str) -> bool:
+    """Check if command uses gpt-4.1-mini."""
+    return get_router().is_light_command(command)

@@ -1,18 +1,20 @@
 # backend/llm_client.py
 """
-v0.6.7 — LLM Client with Robust Environment Loading
+v0.9.0 — LLM Client with Deterministic Model Selection
 
-FIXED: Ensures .env is loaded from the correct location regardless of
-working directory. This fixes the "Incorrect API key" error on remote
-servers like Lightsail where the working directory may differ.
+🔥 v0.9.0 CHANGES:
+- PERSONA MODE: Always gpt-5.1, NO FALLBACK, hard error on failure
+- STRICT MODE: Uses ModelRouter with deterministic routing
+- Enhanced logging: logs model + command for every call
+- Removed all fallback behavior
 
 Two channels:
-1. PERSONA: Nova talking to user → always gpt-5.1
-2. SYSTEM: syscommand tasks → routed by ModelRouter
+1. PERSONA: Nova talking to user → ALWAYS gpt-5.1 (hard error if fails)
+2. SYSTEM: syscommand tasks → routed by ModelRouter (no fallback)
 
 Logging:
     Every LLM call prints to terminal:
-    [LLM] channel=<channel> model=<model>
+    [LLM] channel=<channel> command=<cmd> model=<model>
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 
 # -----------------------------------------------------------------------------
-# ROBUST .env Loading (v0.6.7 FIX)
+# ROBUST .env Loading
 # -----------------------------------------------------------------------------
 
 def _get_project_root() -> Path:
@@ -34,8 +36,6 @@ def _get_project_root() -> Path:
     This works regardless of the current working directory by finding
     the directory containing this file and going up to the project root.
     """
-    # This file is at: <project_root>/backend/llm_client.py
-    # So project root is the parent of the parent directory
     this_file = Path(__file__).resolve()
     backend_dir = this_file.parent
     project_root = backend_dir.parent
@@ -46,60 +46,37 @@ def _load_env_file() -> bool:
     """
     Load environment variables from .env file.
     
-    v0.6.7: Uses absolute paths based on project root to ensure
+    Uses absolute paths based on project root to ensure
     .env is found regardless of working directory.
     
     Returns True if .env was loaded, False otherwise.
     """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        print("[LLM] WARNING: python-dotenv not installed", file=sys.stderr, flush=True)
+        return False
+
     project_root = _get_project_root()
+    env_path = project_root / ".env"
     
-    # Priority order for .env file locations
-    possible_paths = [
-        project_root / ".env",           # Primary: project root
-        Path.cwd() / ".env",             # Fallback: current working directory
-        Path.home() / ".env",            # Fallback: home directory
-    ]
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+        print(f"[LLM] Loaded .env from {env_path}", flush=True)
+        return True
     
-    loaded = False
-    loaded_from = None
+    cwd_env = Path.cwd() / ".env"
+    if cwd_env.exists():
+        load_dotenv(cwd_env, override=True)
+        print(f"[LLM] Loaded .env from {cwd_env}", flush=True)
+        return True
     
-    for env_path in possible_paths:
-        if env_path.exists():
-            try:
-                with open(env_path, "r") as f:
-                    for line in f:
-                        line = line.strip()
-                        if not line or line.startswith("#"):
-                            continue
-                        if "=" in line:
-                            key, _, value = line.partition("=")
-                            key = key.strip()
-                            value = value.strip()
-                            # Remove quotes if present
-                            if value and value[0] in ('"', "'") and value[-1] == value[0]:
-                                value = value[1:-1]
-                            # Only set if not already in environment
-                            if key and key not in os.environ:
-                                os.environ[key] = value
-                loaded = True
-                loaded_from = env_path
-                break
-            except Exception as e:
-                print(f"[LLM] Warning: Could not read {env_path}: {e}", file=sys.stderr, flush=True)
-    
-    # Debug logging
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    key_status = f"found ({len(api_key)} chars)" if api_key else "NOT FOUND"
-    
-    print(f"[LLM] Project root: {project_root}", flush=True)
-    print(f"[LLM] .env loaded: {loaded} (from: {loaded_from})", flush=True)
-    print(f"[LLM] OPENAI_API_KEY: {key_status}", flush=True)
-    
-    return loaded
+    print(f"[LLM] WARNING: No .env file found", file=sys.stderr, flush=True)
+    return False
 
 
-# Load .env immediately on module import
-_env_loaded = _load_env_file()
+# Load env on import
+_load_env_file()
 
 
 # -----------------------------------------------------------------------------
@@ -111,7 +88,7 @@ try:
     _HAS_OPENAI = True
 except ImportError:
     _HAS_OPENAI = False
-    OpenAI = None  # type: ignore
+    OpenAI = None
 
 
 # -----------------------------------------------------------------------------
@@ -119,13 +96,34 @@ except ImportError:
 # -----------------------------------------------------------------------------
 
 from .model_router import (
-    MODEL_MINI,
-    MODEL_THINKING,
-    PERSONA_MODEL,
     ModelRouter,
     RoutingContext,
     get_router,
+    PERSONA_MODEL,
+    MODEL_MINI,
+    MODEL_THINKING,
+    HEAVY_LLM_COMMANDS,
+    ModelRoutingError,
 )
+
+
+# -----------------------------------------------------------------------------
+# Custom Exceptions
+# -----------------------------------------------------------------------------
+
+class LLMError(Exception):
+    """Base exception for LLM errors."""
+    pass
+
+
+class PersonaModeError(LLMError):
+    """Raised when persona mode LLM call fails (NO FALLBACK)."""
+    pass
+
+
+class StrictModeError(LLMError):
+    """Raised when strict mode LLM call fails (NO FALLBACK)."""
+    pass
 
 
 # -----------------------------------------------------------------------------
@@ -134,9 +132,13 @@ from .model_router import (
 
 class LLMClient:
     """
-    v0.6.7 LLM Client with comprehensive logging.
+    v0.9.0 LLM Client — Deterministic Model Selection, NO FALLBACK
     
-    Logs ALL LLM calls to terminal with channel and model.
+    Channels:
+    - PERSONA: Always gpt-5.1, hard error on failure
+    - SYSTEM: Routed by ModelRouter (heavy→gpt-5.1, light→gpt-4.1-mini)
+    
+    Logs ALL LLM calls to terminal with channel, command, and model.
     """
 
     def __init__(self, router: Optional[ModelRouter] = None):
@@ -145,7 +147,6 @@ class LLMClient:
         
         api_key = os.getenv("OPENAI_API_KEY", "")
         if not api_key:
-            # More helpful error message
             project_root = _get_project_root()
             raise RuntimeError(
                 f"OPENAI_API_KEY not set.\n"
@@ -168,9 +169,43 @@ class LLMClient:
         model: str,
         system_prompt: str,
         messages: List[Dict[str, str]],
+        channel: str = "unknown",
+        command: str = "unknown",
         **kwargs,
     ) -> str:
-        """Make the actual OpenAI API call."""
+        """
+        Make the actual OpenAI API call.
+        
+        v0.9.0: Filters out incompatible kwargs before calling the API.
+        Only passes standard Chat Completions parameters.
+        """
+        # Filter out any incompatible kwargs that might cause API errors
+        # Standard Chat Completions params only
+        allowed_params = {
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "n",
+            "stream",
+            "logprobs",
+            "top_logprobs",
+            "response_format",
+            "seed",
+            "tools",
+            "tool_choice",
+            "user",
+        }
+        
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
+        
+        # Log any filtered params for debugging
+        removed = set(kwargs.keys()) - set(filtered_kwargs.keys())
+        if removed:
+            print(f"[LLM] WARNING: Filtered incompatible kwargs: {removed}", file=sys.stderr, flush=True)
+        
         try:
             resp = self.client.chat.completions.create(
                 model=model,
@@ -178,11 +213,15 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     *messages,
                 ],
-                **kwargs,
+                **filtered_kwargs,
             )
             return resp.choices[0].message.content or ""
         except Exception as e:
-            print(f"[LLM] ERROR model={model} error={e}", file=sys.stderr, flush=True)
+            print(
+                f"[LLM] ERROR channel={channel} command={command} model={model} error={e}",
+                file=sys.stderr,
+                flush=True,
+            )
             raise
 
     # -------------------------------------------------------------------------
@@ -200,13 +239,15 @@ class LLMClient:
         Main entry point used by _llm_with_policy in syscommands.py
         
         The model is pre-selected by kernel.get_model() and passed via kwargs["model"].
+        If no model is passed, defaults to PERSONA_MODEL (gpt-5.1).
+        
         This method ALWAYS logs the call.
         """
-        # Extract model (set by kernel.get_model() via _llm_with_policy)
         model = kwargs.pop("model", None) or PERSONA_MODEL
+        command = kwargs.pop("command", None) or "unknown"
         
         # LOG - this fires for EVERY LLM call
-        print(f"[LLM] model={model}", flush=True)
+        print(f"[LLM] channel=complete command={command} model={model}", flush=True)
         
         messages = [{"role": "user", "content": user}]
 
@@ -214,13 +255,16 @@ class LLMClient:
             model=model,
             system_prompt=system,
             messages=messages,
-            **{k: v for k, v in kwargs.items()},
+            channel="complete",
+            command=command,
+            **kwargs,
         )
 
         return {
             "text": text,
             "session_id": session_id,
             "model": model,
+            "channel": "complete",
         }
 
     # -------------------------------------------------------------------------
@@ -235,19 +279,22 @@ class LLMClient:
     ) -> str:
         """Low-level chat completion (backward compatible)."""
         model = kwargs.pop("model", PERSONA_MODEL)
+        command = kwargs.pop("command", None) or "unknown"
         
         # LOG
-        print(f"[LLM] chat model={model}", flush=True)
+        print(f"[LLM] channel=chat command={command} model={model}", flush=True)
         
         return self._call_api(
             model=model,
             system_prompt=system_prompt,
             messages=messages,
+            channel="chat",
+            command=command,
             **kwargs,
         )
 
     # -------------------------------------------------------------------------
-    # Persona Channel (optional, for future use)
+    # PERSONA CHANNEL — ALWAYS gpt-5.1, NO FALLBACK
     # -------------------------------------------------------------------------
 
     def complete_persona(
@@ -259,20 +306,34 @@ class LLMClient:
         model_override: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        """Persona channel - always uses gpt-5.1 by default."""
+        """
+        Persona channel — ALWAYS uses gpt-5.1 by default.
+        
+        v0.9.0: NO FALLBACK. If the call fails, raises PersonaModeError.
+        """
+        # Persona mode: ALWAYS gpt-5.1 unless explicitly overridden
         model = model_override or PERSONA_MODEL
         
-        print(f"[LLM] persona model={model}", flush=True)
+        print(f"[LLM] channel=persona command=persona_chat model={model}", flush=True)
         
         msg_list = messages or []
         msg_list = [*msg_list, {"role": "user", "content": user}]
 
-        text = self._call_api(
-            model=model,
-            system_prompt=system,
-            messages=msg_list,
-            **kwargs,
-        )
+        try:
+            text = self._call_api(
+                model=model,
+                system_prompt=system,
+                messages=msg_list,
+                channel="persona",
+                command="persona_chat",
+                **kwargs,
+            )
+        except Exception as e:
+            # NO FALLBACK — raise hard error
+            raise PersonaModeError(
+                f"Persona mode LLM call failed with model={model}. "
+                f"Error: {e}. NO FALLBACK available."
+            ) from e
 
         return {
             "text": text,
@@ -282,7 +343,7 @@ class LLMClient:
         }
 
     # -------------------------------------------------------------------------
-    # System Channel (optional, for future use)
+    # SYSTEM CHANNEL — Routed by ModelRouter, NO FALLBACK
     # -------------------------------------------------------------------------
 
     def complete_system(
@@ -296,31 +357,78 @@ class LLMClient:
         explicit_model: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        """System channel - uses ModelRouter for model selection."""
+        """
+        System channel — uses ModelRouter for model selection.
+        
+        v0.9.0: DETERMINISTIC routing, NO FALLBACK.
+        - Heavy commands (quest-compose, flow, etc.) → gpt-5.1
+        - Light commands (help, status, etc.) → gpt-4.1-mini
+        - think_mode=True → gpt-5.1
+        
+        Raises StrictModeError if LLM call fails.
+        """
+        # Use ModelRouter for deterministic routing
         ctx = RoutingContext(
             command=command,
             input_length=len(user),
             explicit_model=explicit_model,
             think_mode=think_mode,
         )
-        model = self.router.route(ctx)
+        
+        try:
+            model = self.router.route(ctx)
+        except ModelRoutingError as e:
+            raise StrictModeError(f"Model routing failed: {e}") from e
 
         cmd_str = command or "unknown"
-        print(f"[LLM] system command={cmd_str} model={model}", flush=True)
+        print(f"[LLM] channel=system command={cmd_str} model={model}", flush=True)
 
         msg_list = messages or []
         msg_list = [*msg_list, {"role": "user", "content": user}]
 
-        text = self._call_api(
-            model=model,
-            system_prompt=system,
-            messages=msg_list,
-            **kwargs,
-        )
+        try:
+            text = self._call_api(
+                model=model,
+                system_prompt=system,
+                messages=msg_list,
+                channel="system",
+                command=cmd_str,
+                **kwargs,
+            )
+        except Exception as e:
+            # NO FALLBACK — raise hard error
+            raise StrictModeError(
+                f"Strict mode LLM call failed for command='{cmd_str}' with model={model}. "
+                f"Error: {e}. NO FALLBACK available."
+            ) from e
 
         return {
             "text": text,
             "session_id": session_id,
             "model": model,
             "channel": "system",
+            "command": cmd_str,
         }
+
+    # -------------------------------------------------------------------------
+    # Utility Methods
+    # -------------------------------------------------------------------------
+
+    def get_model_for_command(self, command: str, think_mode: bool = False) -> str:
+        """
+        Get the model that would be used for a given command.
+        Useful for debugging/inspection.
+        """
+        ctx = RoutingContext(
+            command=command,
+            think_mode=think_mode,
+        )
+        return self.router.route(ctx)
+
+    def is_heavy_command(self, command: str) -> bool:
+        """Check if command uses gpt-5.1."""
+        return self.router.is_heavy_command(command)
+
+    def is_light_command(self, command: str) -> bool:
+        """Check if command uses gpt-4.1-mini."""
+        return self.router.is_light_command(command)

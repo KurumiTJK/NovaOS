@@ -1907,8 +1907,15 @@ You are Nova. Stay Nova.
 
 
 class NovaPersona:
-    """Legacy adapter class wrapping PersonaEngine for backwards compatibility."""
-    VERSION = "3.0.2-hotfix"
+    """
+    Legacy adapter class wrapping PersonaEngine for backwards compatibility.
+    
+    v0.9.0: Updated generate_response() with:
+    - Explicit model logging
+    - Always uses PERSONA_MODEL (gpt-5.1)
+    - NO FALLBACK behavior
+    """
+    VERSION = "3.0.3"  # Bumped for v0.9.0 model routing fix
     
     def __init__(self, llm_client, config_path=None):
         self.llm_client = llm_client
@@ -1947,16 +1954,56 @@ class NovaPersona:
         return self.engine.build_system_prompt(s)
     
     def generate_response(self, text, session_id, wm_context=None, wm_context_string=None, direct_answer=None, assistant_mode=None):
+        """
+        Generate a response using the LLM.
+        
+        v0.9.0: 
+        - ALWAYS uses gpt-5.1 (PERSONA_MODEL) — NO FALLBACK
+        - Logs model usage explicitly
+        - Passes explicit model parameter to complete()
+        """
+        # Handle direct answers (no LLM needed)
         if direct_answer:
             cleaned, _ = self._tone_enforcer.check(direct_answer)
+            print(f"[Persona] response_type=direct_answer (no LLM call)", flush=True)
             return cleaned
+        
+        # Build system prompt
         system = self.build_system_prompt(assistant_mode=assistant_mode, user_text=text)
-        if wm_context_string: system = system + "\n\n" + wm_context_string
-        result = self.llm_client.complete(system=system, user=text, session_id=session_id)
+        if wm_context_string:
+            system = system + "\n\n" + wm_context_string
+        
+        # v0.9.0: Import PERSONA_MODEL and log model usage
+        try:
+            from backend.model_router import PERSONA_MODEL
+        except ImportError:
+            PERSONA_MODEL = "gpt-5.1"  # Fallback constant if import fails
+        
+        print(f"[Persona] calling LLM model={PERSONA_MODEL} session={session_id}", flush=True)
+        
+        # Call LLM with EXPLICIT model — always gpt-5.1 for persona
+        result = self.llm_client.complete(
+            system=system,
+            user=text,
+            session_id=session_id,
+            model=PERSONA_MODEL,  # v0.9.0: Explicit model, always gpt-5.1
+            command="persona_chat",  # v0.9.0: For logging
+        )
+        
+        # Log the actual model used
+        actual_model = result.get("model", "unknown")
+        print(f"[Persona] response received model={actual_model}", flush=True)
+        
         raw = result.get("text")
-        if raw is None: return f"(persona-fallback) I heard: {text}"
+        if raw is None:
+            print(f"[Persona] WARNING: LLM returned None", flush=True)
+            return f"(persona-fallback) I heard: {text}"
+        
         reply = str(raw).strip()
-        if not reply: return f"(persona-empty) I heard: {text}"
+        if not reply:
+            print(f"[Persona] WARNING: LLM returned empty string", flush=True)
+            return f"(persona-empty) I heard: {text}"
+        
         cleaned, _ = self._tone_enforcer.check(reply)
         return cleaned
     

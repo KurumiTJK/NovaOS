@@ -1,9 +1,12 @@
 # kernel/syscommand_router.py
 """
-v0.8.1 — Syscommand Router (Zero-Latency)
+v0.9.0 — Syscommand Router (DETERMINISTIC, NO FALLBACK)
 
-Simple syscommands execute instantly with NO LLM API calls.
-Routing decisions are logged locally without network requests.
+🔥 v0.9.0 CHANGES:
+- Enhanced logging: logs command + model for every syscommand
+- Deterministic routing via ModelRouter
+- NO FALLBACK behavior
+- Explicit model logging in route() method
 
 Architecture:
 - Simple commands (#help, #status, etc.): Pure Python, ~0ms latency
@@ -16,12 +19,13 @@ Flow for simple commands:
 
 Flow for LLM-intensive commands:
 1. Python handler calls _llm_with_policy internally
-2. LLM API call made with gpt-5.1
+2. LLM API call made with appropriate model
 3. Return LLM-generated response
 """
 
 from __future__ import annotations
 
+import sys
 from typing import Any, Dict, Callable
 
 from .command_types import CommandRequest, CommandResponse
@@ -29,22 +33,31 @@ from . import syscommands
 
 HandlerFn = Callable[..., CommandResponse]
 
+
 # Commands that should skip LLM post-processing (already use LLM internally)
 # These commands call _llm_with_policy or llm_client directly
 SKIP_LLM_POSTPROCESS = {
+    # Heavy LLM commands
     "compose",
     "prompt_command",
     "prompt-command",
     "command-wizard",
+    "quest-compose",
+    "quest-delete",
+    "flow",
+    "advance",
+    "interpret",
+    "derive",
+    "analyze",
 }
 
 
 class SyscommandRouter:
     """
-    v0.8.1: Zero-latency syscommand routing.
+    v0.9.0: Deterministic syscommand routing with enhanced logging.
     
     - Simple commands: Pure Python, routing logged locally, NO API call
-    - LLM-intensive commands: Use gpt-5.1 via internal _llm_with_policy
+    - LLM-intensive commands: Use appropriate model via internal _llm_with_policy
     """
 
     def __init__(self, commands: Any):
@@ -87,7 +100,7 @@ class SyscommandRouter:
         cmd_name: str,
     ) -> None:
         """
-        v0.7.15: Log routing decision WITHOUT making an LLM call.
+        v0.9.0: Log routing decision WITHOUT making an LLM call.
         
         This triggers:
         1. ModelRouter.route() → model selection + logging
@@ -95,24 +108,29 @@ class SyscommandRouter:
         NO API call is made. Zero latency. Zero tokens.
         """
         try:
-            # Just call the router to get routing decision + logging
-            # This does NOT make an API call
-            from backend.model_router import RoutingContext
+            from backend.model_router import RoutingContext, is_heavy_command, is_light_command
+            
             ctx = RoutingContext(
                 command=cmd_name,
                 input_length=0,
                 think_mode=False,
             )
-            kernel.model_router.route(ctx)
-            # That's it - routing logged, no API call
+            
+            # This logs the routing decision via ModelRouter
+            model = kernel.model_router.route(ctx)
+            
+            # Additional logging for clarity
+            cmd_type = "heavy" if is_heavy_command(cmd_name) else "light"
+            print(f"[SyscommandRouter] routed command={cmd_name} type={cmd_type} model={model}", flush=True)
+            
         except Exception as e:
-            print(f"[SyscommandRouter] routing log failed: {e}", flush=True)
+            print(f"[SyscommandRouter] routing log failed: {e}", file=sys.stderr, flush=True)
 
     def route(self, request: CommandRequest, kernel: Any) -> CommandResponse:
         """
         Route a syscommand request to its handler.
         
-        v0.7.12: ALL commands now trigger LLM logging via post-processing.
+        v0.9.0: Enhanced logging, deterministic routing.
         """
         # Look up meta from normalized dict
         meta = self.commands.get(request.cmd_name)
@@ -168,6 +186,9 @@ class SyscommandRouter:
 
         context = kernel.context_manager.get_context(request.session_id)
 
+        # v0.9.0: Log which command is being executed BEFORE execution
+        print(f"[SyscommandRouter] executing command={request.cmd_name} handler={handler_name}", flush=True)
+
         try:
             # Execute the handler
             response = handler(
@@ -179,7 +200,7 @@ class SyscommandRouter:
                 meta=meta,
             )
             
-            # v0.7.15: Log routing decision (NO API call, zero latency)
+            # v0.9.0: Log routing decision (NO API call, zero latency)
             # Skip if command already uses LLM internally (they do their own logging)
             if request.cmd_name.lower() not in SKIP_LLM_POSTPROCESS:
                 self._log_routing_decision(
@@ -187,10 +208,14 @@ class SyscommandRouter:
                     cmd_name=request.cmd_name,
                 )
             
+            # v0.9.0: Log completion
+            print(f"[SyscommandRouter] completed command={request.cmd_name} ok={response.ok}", flush=True)
+            
             # Return original Python handler response (instant)
             return response
             
         except Exception as e:
+            print(f"[SyscommandRouter] EXCEPTION command={request.cmd_name} error={e}", file=sys.stderr, flush=True)
             kernel.logger.log_exception(request.session_id, request.cmd_name, e)
             return CommandResponse(
                 ok=False,
