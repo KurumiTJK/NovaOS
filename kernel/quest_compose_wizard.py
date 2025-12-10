@@ -2732,7 +2732,7 @@ def _enforce_boss_per_domain(
                 steps_by_domain[domain] = []
             steps_by_domain[domain].append(step)
     
-    # 3) For each domain, enforce single BOSS
+    # 3) For each domain, enforce single BOSS with quality checks
     for domain in domain_names:
         domain_steps = steps_by_domain.get(domain, [])
         if not domain_steps:
@@ -2741,27 +2741,59 @@ def _enforce_boss_per_domain(
         
         # Find all BOSS steps for this domain
         boss_indices = [i for i, s in enumerate(domain_steps) if s.get("step_type") == "BOSS"]
+        domain_subtopics = domain_subtopic_map.get(domain, [])
         
         if not boss_indices:
-            # No BOSS yet → promote last step
+            # No BOSS yet → need to promote, but check if candidate is worthy
             last_step = domain_steps[-1]
+            last_subtopics = last_step.get("subtopics", [])
+            
+            # TIE-BREAK RULE: If last step is weak (INFO-only with <2 subtopics),
+            # merge content from second-to-last step to create a stronger BOSS
+            is_weak_candidate = (
+                last_step.get("step_type") == "INFO" and 
+                len(last_subtopics) < 2 and 
+                len(domain_steps) >= 2
+            )
+            
+            if is_weak_candidate:
+                # Merge last two steps into a mega-BOSS
+                second_last = domain_steps[-2]
+                second_last_subtopics = second_last.get("subtopics", [])
+                
+                # Combine subtopics from both steps
+                merged_subtopics = list(last_subtopics)
+                for st in second_last_subtopics:
+                    if st not in merged_subtopics:
+                        merged_subtopics.append(st)
+                
+                # Update last step with merged content
+                last_step["subtopics"] = merged_subtopics
+                
+                # Merge topic/title if helpful
+                if second_last.get("topic"):
+                    original_topic = last_step.get("topic", "")
+                    last_step["topic"] = f"{domain} Capstone: {original_topic}"
+                
+                print(f"[QuestCompose:Boss] Weak BOSS candidate for '{domain}', merging subtopics from penultimate step.", flush=True)
+            
+            # Promote to BOSS
             last_step["step_type"] = "BOSS"
+            last_step["type"] = "boss"  # Legacy field
             
-            # Enhance BOSS with multiple subtopics if available
-            domain_subtopics = domain_subtopic_map.get(domain, [])
-            if domain_subtopics and len(domain_subtopics) > 1:
-                # Include multiple subtopics for the capstone
-                current_subtopics = last_step.get("subtopics", [])
-                if len(current_subtopics) < 3:
-                    # Add more subtopics (up to 4 total)
-                    for st in domain_subtopics:
-                        if st not in current_subtopics:
-                            current_subtopics.append(st)
-                            if len(current_subtopics) >= 4:
-                                break
-                    last_step["subtopics"] = current_subtopics
+            # Ensure BOSS has multiple subtopics (add more if needed)
+            current_subtopics = last_step.get("subtopics", [])
+            if domain_subtopics and len(current_subtopics) < 2:
+                # Add more subtopics (up to 4 total)
+                for st in domain_subtopics:
+                    if st not in current_subtopics:
+                        current_subtopics.append(st)
+                        if len(current_subtopics) >= 4:
+                            break
+                last_step["subtopics"] = current_subtopics
+                print(f"[QuestCompose:Boss] Enhanced BOSS with {len(current_subtopics)} subtopics.", flush=True)
             
-            print(f"[QuestCompose:Boss] No boss for domain '{domain}', promoting last step to BOSS.", flush=True)
+            print(f"[QuestCompose:Boss] Promoted last step to BOSS for domain '{domain}'.", flush=True)
             
         elif len(boss_indices) > 1:
             # Too many BOSS steps → keep only the last one
@@ -2770,12 +2802,26 @@ def _enforce_boss_per_domain(
             # Demote all earlier BOSS steps to APPLY
             for i in boss_indices[:-1]:
                 domain_steps[i]["step_type"] = "APPLY"
+                domain_steps[i]["type"] = "apply"  # Legacy field
                 print(f"[QuestCompose:Boss] Demoting extra boss step for domain '{domain}' to APPLY.", flush=True)
             
             print(f"[QuestCompose:Boss] Keeping step as final boss for domain '{domain}'.", flush=True)
         else:
-            # Exactly one BOSS - perfect!
-            print(f"[QuestCompose:Boss] Domain '{domain}' has exactly one BOSS step. ✓", flush=True)
+            # Exactly one BOSS - verify it has multiple subtopics
+            boss_step = domain_steps[boss_indices[0]]
+            boss_subtopics = boss_step.get("subtopics", [])
+            
+            if len(boss_subtopics) < 2 and domain_subtopics:
+                # Enhance weak BOSS with more subtopics
+                for st in domain_subtopics:
+                    if st not in boss_subtopics:
+                        boss_subtopics.append(st)
+                        if len(boss_subtopics) >= 4:
+                            break
+                boss_step["subtopics"] = boss_subtopics
+                print(f"[QuestCompose:Boss] Enhanced existing BOSS for '{domain}' with {len(boss_subtopics)} subtopics.", flush=True)
+            else:
+                print(f"[QuestCompose:Boss] Domain '{domain}' has exactly one BOSS step. ✓", flush=True)
     
     # 4) Log final boss distribution
     boss_count_by_domain = {}
@@ -2799,6 +2845,61 @@ def _log_step_type_distribution(steps: List[Dict[str, Any]]) -> None:
             type_counts[step_type] += 1
     
     print(f"[QuestCompose:Boss] Step type distribution: {type_counts}", flush=True)
+
+
+def _ensure_early_apply_step(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Ensure at least one APPLY step appears in the first 5 days.
+    
+    This prevents INFO-heavy starts that can bore learners.
+    If no APPLY in first 5, promote the most lab-appropriate INFO step.
+    
+    Args:
+        steps: List of outline steps (modified in place)
+        
+    Returns:
+        The modified steps list
+    """
+    if len(steps) < 5:
+        return steps
+    
+    # Check first 5 steps for APPLY
+    first_five = steps[:5]
+    has_early_apply = any(s.get("step_type") == "APPLY" for s in first_five)
+    
+    if has_early_apply:
+        print(f"[QuestCompose:Distribution] Early APPLY check passed. ✓", flush=True)
+        return steps
+    
+    # No APPLY in first 5 - find best candidate to promote
+    # Prefer steps with "hands-on" keywords in topic/title
+    apply_keywords = ["lab", "practice", "hands-on", "configure", "build", "deploy", "exercise", "walkthrough"]
+    
+    best_candidate_idx = None
+    best_score = -1
+    
+    for i, step in enumerate(first_five):
+        if step.get("step_type") == "BOSS":
+            continue  # Don't demote a BOSS
+        
+        topic = (step.get("topic") or step.get("title") or "").lower()
+        score = sum(1 for kw in apply_keywords if kw in topic)
+        
+        # Prefer steps 2-4 over step 1 (don't make day 1 a lab)
+        if i > 0 and score >= best_score:
+            best_score = score
+            best_candidate_idx = i
+    
+    # If no keyword match, just promote step 2 (second day)
+    if best_candidate_idx is None and len(first_five) >= 2:
+        best_candidate_idx = 1
+    
+    if best_candidate_idx is not None:
+        steps[best_candidate_idx]["step_type"] = "APPLY"
+        steps[best_candidate_idx]["type"] = "apply"  # Legacy field
+        print(f"[QuestCompose:Distribution] No early APPLY found, promoting step {best_candidate_idx + 1} to APPLY.", flush=True)
+    
+    return steps
 
 
 def _generate_programmatic_outline(domains: List[Dict[str, Any]], target_steps: int) -> List[Dict[str, Any]]:
@@ -3042,6 +3143,15 @@ Each step MUST have a "step_type" field with ONE of these values:
 - "BOSS"   — Full-chain capstone lab/scenario that integrates multiple subtopics
 
 ═══════════════════════════════════════════════════════════════════════════════
+STEP TYPE DISTRIBUTION RULES
+═══════════════════════════════════════════════════════════════════════════════
+
+- In the FIRST 5 DAYS, include at least ONE "APPLY" step (avoid all-INFO starts)
+- Alternate INFO → APPLY patterns to keep engagement high
+- Don't cluster too many INFO days in a row (max 2 consecutive INFO)
+- Place RECALL steps after 3-4 learning days (not at the start)
+
+═══════════════════════════════════════════════════════════════════════════════
 BOSS STEP RULES - CRITICAL
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -3056,6 +3166,7 @@ VALIDATION BEFORE RESPONDING:
 - Count steps per domain (must be >= 3)
 - Check that EVERY domain has exactly ONE BOSS step as its last step
 - Check that EVERY listed subtopic appears in at least one step's "subtopics" array
+- Check that at least ONE APPLY step appears in days 1-5
 - Ensure JSON is valid with no trailing commas"""
 
         outline_user = f"""Create a balanced {target_steps}-step outline for "{title}".
@@ -3235,6 +3346,9 @@ JSON output only:"""
         
         # Enforce one BOSS per domain (normalizes step_type and fixes violations)
         outline_steps = _enforce_boss_per_domain(outline_steps, domains, domain_subtopic_map)
+        
+        # Ensure at least one APPLY in first 5 days (prevents INFO-heavy starts)
+        outline_steps = _ensure_early_apply_step(outline_steps)
         
         # Log step type distribution
         _log_step_type_distribution(outline_steps)
@@ -3486,7 +3600,21 @@ JSON array only:"""
         final_domain_count = {}
         final_subtopic_count = 0
         final_boss_count = {}
+        
+        # Validate and count all steps
         for step in all_steps:
+            # ENSURE ALL REQUIRED FIELDS ARE PRESENT (Bug fix #2)
+            if "domain" not in step or not step["domain"]:
+                step["domain"] = "Unknown"
+                print(f"[QuestCompose] WARNING: Step '{step.get('title', '?')}' missing domain, set to 'Unknown'", flush=True)
+            
+            if "subtopics" not in step:
+                step["subtopics"] = []
+            
+            if "step_type" not in step:
+                step["step_type"] = _normalize_step_type(step)
+            
+            # Count for stats
             d = step.get("domain", "Unknown")
             final_domain_count[d] = final_domain_count.get(d, 0) + 1
             final_subtopic_count += len(step.get("subtopics", []))
