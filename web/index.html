@@ -1299,28 +1299,34 @@
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let currentEvent = null;  // Moved outside while loop to persist across chunks
         
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
             console.log('[NovaOS] SSE stream complete');
+            // Process any remaining buffer content
+            if (buffer.trim()) {
+              console.log('[NovaOS] Processing remaining buffer:', buffer);
+            }
             break;
           }
           
           buffer += decoder.decode(value, { stream: true });
           
           const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-          
-          let currentEvent = null;
+          buffer = lines.pop() || '';  // Keep incomplete line in buffer
           
           for (const line of lines) {
             if (line.startsWith('event: ')) {
               currentEvent = line.slice(7).trim();
+              console.log('[NovaOS] SSE event type:', currentEvent);
             } else if (line.startsWith('data: ')) {
               const data = line.slice(6);
               try {
                 const parsed = JSON.parse(data);
+                
+                console.log('[NovaOS] SSE data for event:', currentEvent, '- keys:', Object.keys(parsed));
                 
                 switch (currentEvent) {
                   case 'wizard_log':
@@ -1331,7 +1337,8 @@
                     onUpdate?.(parsed.content);
                     break;
                   case 'wizard_complete':
-                    console.log('[NovaOS] wizard_complete:', parsed.result);
+                    console.log('[NovaOS] wizard_complete received:', parsed);
+                    console.log('[NovaOS] wizard_complete result:', parsed.result);
                     onComplete?.(parsed.result);
                     break;
                   case 'wizard_error':
@@ -1347,11 +1354,14 @@
                   case 'error':
                     onError?.(parsed.error || parsed.message || 'Unknown error');
                     break;
+                  default:
+                    console.log('[NovaOS] Unknown SSE event type:', currentEvent);
                 }
               } catch (e) {
+                console.log('[NovaOS] Non-JSON SSE data:', data);
                 onLog?.(data);
               }
-              currentEvent = null;
+              currentEvent = null;  // Reset after processing data
             }
           }
         }

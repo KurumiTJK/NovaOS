@@ -528,37 +528,50 @@ def _stream_quest_compose_wizard(text: str, session_id: str, state):
             return
         
         if generated_steps:
+            print(f"[NovaAPI] QuestCompose streaming: Got {len(generated_steps)} steps, building response...", flush=True)
+            
             # Success! Update the session
             session.draft["steps"] = generated_steps
             session.substage = "confirm_generated"
             set_compose_session(session_id, session)
             
             # Format steps for display
-            step_list = _format_steps_with_actions(generated_steps, verbose=True)
+            try:
+                step_list = _format_steps_with_actions(generated_steps, verbose=True)
+            except Exception as fmt_err:
+                print(f"[NovaAPI] Error formatting steps: {fmt_err}", file=sys.stderr, flush=True)
+                # Fallback to simple format
+                step_list = "\n".join([f"  {i+1}. [{s.get('type', 'info')}] {s.get('title', s.get('prompt', '')[:50])}" for i, s in enumerate(generated_steps)])
             
             # Build the response
             response_text = (
-                f"**Generated {len(generated_steps)} steps:**\n\n{step_list}\n"
+                f"**Generated {len(generated_steps)} steps:**\n\n{step_list}\n\n"
                 f"Type **accept** to use these, **regenerate** to try again, or **manual** to define your own:"
             )
             
-            result = _base_response(
-                cmd_name,
-                response_text,
-                {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
-            )
+            # Build result dict directly (avoid CommandResponse serialization issues)
+            result_data = {
+                "wizard_active": True,
+                "stage": "steps",
+                "substage": "confirm_generated",
+                "steps_count": len(generated_steps),
+            }
+            
+            print(f"[NovaAPI] QuestCompose streaming: Emitting wizard_complete for session={session_id}", flush=True)
             
             yield _sse_event("progress", {"message": "Complete!", "percent": 100})
             yield _sse_event("wizard_complete", {
                 "session_id": session_id,
                 "result": {
-                    "ok": result.ok,
-                    "text": result.summary,
-                    "summary": result.summary,
-                    "data": result.data if hasattr(result, 'data') else {},
+                    "ok": True,
+                    "text": response_text,
+                    "summary": response_text,
+                    "data": result_data,
                     "steps_count": len(generated_steps),
                 }
             })
+            
+            print(f"[NovaAPI] QuestCompose streaming: wizard_complete sent successfully", flush=True)
         else:
             # Generation returned no steps
             error_msg = "Could not generate steps. Please try again or use manual mode."
