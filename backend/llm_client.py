@@ -1,8 +1,13 @@
 # backend/llm_client.py
 """
-v0.9.0 — LLM Client with Deterministic Model Selection
+v0.10.1 — LLM Client with Streaming Support
 
-🔥 v0.9.0 CHANGES:
+🔥 v0.10.1 CHANGES:
+- Added streaming support for long-running operations
+- New stream_complete_system() method returns a generator
+- Keeps connections alive during quest-compose generation
+
+v0.9.0 CHANGES:
 - PERSONA MODE: Always gpt-5.1, NO FALLBACK, hard error on failure
 - STRICT MODE: Uses ModelRouter with deterministic routing
 - Enhanced logging: logs model + command for every call
@@ -22,7 +27,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 
 # -----------------------------------------------------------------------------
@@ -132,7 +137,7 @@ class StrictModeError(LLMError):
 
 class LLMClient:
     """
-    v0.9.0 LLM Client — Deterministic Model Selection, NO FALLBACK
+    v0.10.1 LLM Client — Deterministic Model Selection + Streaming
     
     Channels:
     - PERSONA: Always gpt-5.1, hard error on failure
@@ -224,6 +229,62 @@ class LLMClient:
             )
             raise
 
+    def _call_api_streaming(
+        self,
+        model: str,
+        system_prompt: str,
+        messages: List[Dict[str, str]],
+        channel: str = "unknown",
+        command: str = "unknown",
+        **kwargs,
+    ) -> Generator[str, None, None]:
+        """
+        Make a streaming OpenAI API call.
+        
+        v0.10.1: Returns a generator that yields text chunks.
+        """
+        allowed_params = {
+            "temperature",
+            "max_tokens",
+            "top_p",
+            "frequency_penalty",
+            "presence_penalty",
+            "stop",
+            "n",
+            "logprobs",
+            "top_logprobs",
+            "response_format",
+            "seed",
+            "tools",
+            "tool_choice",
+            "user",
+        }
+        
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
+        
+        try:
+            stream = self.client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    *messages,
+                ],
+                stream=True,
+                **filtered_kwargs,
+            )
+            
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+                    
+        except Exception as e:
+            print(
+                f"[LLM] ERROR channel={channel} command={command} model={model} error={e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise
+
     # -------------------------------------------------------------------------
     # MAIN ENTRY POINT - used by _llm_with_policy in syscommands.py
     # -------------------------------------------------------------------------
@@ -273,18 +334,27 @@ class LLMClient:
 
     def chat(
         self,
-        system_prompt: str,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, str]] = None,
+        system_prompt: str = "",
+        model: str = None,
         **kwargs,
-    ) -> str:
-        """Low-level chat completion (backward compatible)."""
-        model = kwargs.pop("model", PERSONA_MODEL)
+    ) -> Dict[str, Any]:
+        """
+        Low-level chat completion (backward compatible).
+        
+        v0.10.1: Updated to handle both old and new call patterns.
+        """
+        # Handle various call patterns
+        if messages is None:
+            messages = []
+        
+        model = model or kwargs.pop("model", PERSONA_MODEL)
         command = kwargs.pop("command", None) or "unknown"
         
         # LOG
         print(f"[LLM] channel=chat command={command} model={model}", flush=True)
         
-        return self._call_api(
+        text = self._call_api(
             model=model,
             system_prompt=system_prompt,
             messages=messages,
@@ -292,6 +362,12 @@ class LLMClient:
             command=command,
             **kwargs,
         )
+        
+        return {
+            "content": text,
+            "text": text,
+            "model": model,
+        }
 
     # -------------------------------------------------------------------------
     # PERSONA CHANNEL — ALWAYS gpt-5.1, NO FALLBACK
@@ -409,6 +485,63 @@ class LLMClient:
             "channel": "system",
             "command": cmd_str,
         }
+
+    # -------------------------------------------------------------------------
+    # STREAMING SYSTEM CHANNEL — For long-running operations
+    # -------------------------------------------------------------------------
+
+    def stream_complete_system(
+        self,
+        system: str,
+        user: str,
+        command: Optional[str] = None,
+        messages: Optional[List[Dict[str, str]]] = None,
+        think_mode: bool = False,
+        explicit_model: Optional[str] = None,
+        **kwargs,
+    ) -> Generator[str, None, None]:
+        """
+        Streaming system channel — returns a generator of text chunks.
+        
+        v0.10.1: For long-running operations like quest-compose.
+        Keeps the connection alive by yielding chunks as they arrive.
+        
+        Usage:
+            for chunk in llm_client.stream_complete_system(...):
+                yield f"data: {chunk}\n\n"  # SSE format
+        """
+        ctx = RoutingContext(
+            command=command,
+            input_length=len(user),
+            explicit_model=explicit_model,
+            think_mode=think_mode,
+        )
+        
+        try:
+            model = self.router.route(ctx)
+        except ModelRoutingError as e:
+            raise StrictModeError(f"Model routing failed: {e}") from e
+
+        cmd_str = command or "unknown"
+        print(f"[LLM] channel=stream_system command={cmd_str} model={model}", flush=True)
+
+        msg_list = messages or []
+        msg_list = [*msg_list, {"role": "user", "content": user}]
+
+        try:
+            yield from self._call_api_streaming(
+                model=model,
+                system_prompt=system,
+                messages=msg_list,
+                channel="stream_system",
+                command=cmd_str,
+                **kwargs,
+            )
+        except Exception as e:
+            raise StrictModeError(
+                f"Streaming LLM call failed for command='{cmd_str}' with model={model}. "
+                f"Error: {e}."
+            ) from e
 
     # -------------------------------------------------------------------------
     # Utility Methods

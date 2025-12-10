@@ -43,6 +43,7 @@ class QuestComposeSession:
     Stages:
     - metadata: Collecting title, category, difficulty, skill_tree_path
     - objectives: Collecting learning objectives
+    - domain_review: Reviewing extracted domains (NEW - human-in-the-loop)
     - steps: Collecting step definitions
     - validation: Collecting completion criteria
     - tags: Collecting tags
@@ -66,10 +67,18 @@ class QuestComposeSession:
         "estimated_minutes": 15,
         "description": None,
         "subtitle": None,
+        # NEW: Domain-related fields
+        "domains": [],  # Confirmed domains for generation
+        "raw_text": None,  # Original pasted text
     })
     
     # For edit mode
     edit_field: Optional[str] = None
+    
+    # NEW: Domain review state
+    candidate_domains: List[Dict[str, Any]] = field(default_factory=list)
+    domains_confirmed: bool = False
+    awaiting_manual_domains: bool = False  # True when user typed "manual"
     
     def is_metadata_complete(self) -> bool:
         """Check if all required metadata is collected."""
@@ -595,6 +604,34 @@ STAGE_PROMPTS = {
         "\n"
         "_Type **skip** to use default tags_"
     ),
+    # NEW: Domain Review prompts
+    "domain_review": (
+        "**NovaOS Quest Composer — Domain Review**\n"
+        "\n"
+        "I parsed the following domains from your content:\n"
+        "\n"
+        "{domain_list}\n"
+        "\n"
+        "Type:\n"
+        "• **accept** — Use these as your canonical domains\n"
+        "• **regen** — Re-extract domains from the same text\n"
+        "• **manual** — Type your own domain list"
+    ),
+    "domain_manual_input": (
+        "**Manual Domain Entry**\n"
+        "\n"
+        "Type your domains, one per line.\n"
+        "For subtopics, use parentheses: `Topic (sub1, sub2, sub3)`\n"
+        "\n"
+        "Example:\n"
+        "```\n"
+        "Networking (routing, VLANs, DNS, segmentation)\n"
+        "Active Directory architecture (trusts, delegation, GPOs)\n"
+        "Identity basics (OAuth2/OIDC, SAML, MFA flows)\n"
+        "```\n"
+        "\n"
+        "Type your domains, then type **done**:"
+    ),
     "confirm": (
         "{preview}\n"
         "\n"
@@ -802,6 +839,20 @@ def _get_current_prompt(cmd_name: str, session: QuestComposeSession, kernel: Any
             "wizard_active": True,
             "stage": "edit",
         })
+    # NEW: Domain review stage
+    elif stage == "domain_review":
+        # Check if waiting for manual input
+        if session.awaiting_manual_domains:
+            prompt = STAGE_PROMPTS["domain_manual_input"]
+        else:
+            # Format the domain list for display
+            domain_list = _format_domain_list_for_review(session.candidate_domains)
+            prompt = STAGE_PROMPTS["domain_review"].format(domain_list=domain_list)
+        return _base_response(cmd_name, prompt, {
+            "wizard_active": True,
+            "stage": "domain_review",
+            "candidate_domains": [d.get("name") for d in session.candidate_domains],
+        })
     else:
         prompt_key = stage
     
@@ -895,9 +946,13 @@ def _process_wizard_input(
     if stage == "metadata":
         return _handle_metadata_stage(cmd_name, session, user_input, session_id, kernel)
     
-    # Handle objectives stage
+    # Handle objectives stage (needs kernel for domain extraction)
     if stage == "objectives":
-        return _handle_objectives_stage(cmd_name, session, user_input, session_id)
+        return _handle_objectives_stage(cmd_name, session, user_input, session_id, kernel)
+    
+    # NEW: Handle domain review stage
+    if stage == "domain_review":
+        return _handle_domain_review_stage(cmd_name, session, user_input, session_id, kernel)
     
     # Handle steps stage (needs kernel for LLM access)
     if stage == "steps":
@@ -973,6 +1028,7 @@ def _handle_objectives_stage(
     session: QuestComposeSession,
     user_input: str,
     session_id: str,
+    kernel: Any = None,
 ) -> CommandResponse:
     """Handle objectives collection."""
     if not user_input:
@@ -991,10 +1047,266 @@ def _handle_objectives_stage(
         )
     
     session.draft["objectives"] = objectives[:5]  # Limit to 5
-    session.stage = "steps"
+    
+    # Store raw text for domain extraction
+    session.draft["raw_text"] = user_input
+    
+    # NEW: Go to domain review instead of directly to steps
+    # Extract domains and show for user confirmation
+    session.stage = "domain_review"
     session.substage = ""
     set_compose_session(session_id, session)
-    return _get_current_prompt(cmd_name, session)
+    
+    # Trigger domain extraction and show review prompt
+    return _trigger_domain_extraction(cmd_name, session, session_id, kernel)
+
+
+def _trigger_domain_extraction(
+    cmd_name: str,
+    session: QuestComposeSession,
+    session_id: str,
+    kernel: Any,
+) -> CommandResponse:
+    """
+    Extract domains from objectives using LLM and show for review.
+    
+    This is Phase 1A - the ONLY domain extraction call.
+    User will confirm before generation proceeds.
+    """
+    print(f"[QuestCompose] Phase 1: Extracting candidate domains...", flush=True)
+    
+    # Get LLM client from kernel
+    llm_client = getattr(kernel, 'llm_client', None)
+    if not llm_client:
+        print(f"[QuestCompose] No LLM client, using fallback extraction", flush=True)
+        # Fall back to structural extraction
+        raw_text = session.draft.get("raw_text", "") or "\n".join(session.draft.get("objectives", []))
+        session.candidate_domains = _structural_extract_domains(raw_text)
+    else:
+        # Use LLM semantic extraction (single call)
+        raw_text = session.draft.get("raw_text", "") or "\n".join(session.draft.get("objectives", []))
+        session.candidate_domains = _extract_domains_for_review(raw_text, llm_client)
+    
+    print(f"[QuestCompose] LLM domains: {[d.get('name', '?') for d in session.candidate_domains]}", flush=True)
+    print(f"[QuestCompose] Domain review pending user confirmation...", flush=True)
+    
+    set_compose_session(session_id, session)
+    return _get_current_prompt(cmd_name, session, kernel)
+
+
+def _extract_domains_for_review(raw_text: str, llm_client: Any) -> List[Dict[str, Any]]:
+    """
+    Extract domains using a single LLM call for human review.
+    
+    This is the ONLY domain extraction - user will confirm/edit before generation.
+    No complex heuristics needed - human review catches issues.
+    """
+    extract_system = """You are a curriculum architect.
+The user will provide a phase description for a learning plan (cyber, cloud, etc.).
+
+Your job is to extract a clean list of domains with optional subtopics.
+
+Rules:
+- Treat items like "Networking (routing, VLANs, DNS, segmentation)" as:
+  "name": "Networking"
+  "subtopics": ["routing", "VLANs", "DNS", "segmentation"]
+- Do NOT split subtopics into separate domains.
+- Ignore meta text like "Phase A1 — Fundamentals Repair", "Your goal: …", "Outputs: …", "Focus Areas".
+- Include only meaningful technical or learning domains.
+
+Output STRICT JSON:
+{
+  "domains": [
+    {
+      "name": "string",
+      "subtopics": ["optional", "subtopics"]
+    }
+  ]
+}
+
+No comments, no extra fields, no markdown fences."""
+
+    extract_user = f"""Extract learning domains from this phase description:
+
+{raw_text}
+
+JSON only:"""
+
+    try:
+        result = llm_client.complete_system(
+            system=extract_system,
+            user=extract_user,
+            command="quest-compose-domain-review",
+            think_mode=False,  # Fast extraction
+        )
+        
+        result_text = result.get("text", "").strip()
+        domains_raw = _parse_json_resilient(result_text, "domains")
+        
+        if not domains_raw:
+            return []
+        
+        # Normalize to standard format
+        domains = []
+        for d in domains_raw:
+            domains.append({
+                "name": d.get("name", ""),
+                "subtopics": d.get("subtopics", []),
+            })
+        
+        return domains
+        
+    except Exception as e:
+        print(f"[QuestCompose] Domain extraction LLM error: {e}", flush=True)
+        # Fall back to structural extraction
+        return _structural_extract_domains(raw_text)
+
+
+def _format_domain_list_for_review(domains: List[Dict[str, Any]]) -> str:
+    """Format domains for display in the review prompt."""
+    if not domains:
+        return "_(No domains extracted)_"
+    
+    lines = []
+    for i, d in enumerate(domains, 1):
+        name = d.get("name", "Unknown")
+        subtopics = d.get("subtopics", [])
+        
+        if subtopics:
+            subtopics_str = ", ".join(subtopics)
+            lines.append(f"**{i}. {name}** — subtopics: {subtopics_str}")
+        else:
+            lines.append(f"**{i}. {name}**")
+    
+    return "\n".join(lines)
+
+
+def _handle_domain_review_stage(
+    cmd_name: str,
+    session: QuestComposeSession,
+    user_input: str,
+    session_id: str,
+    kernel: Any = None,
+) -> CommandResponse:
+    """
+    Handle domain review stage - user confirms/edits extracted domains.
+    
+    Options:
+    - accept: Use these domains
+    - regen: Re-extract from same text
+    - manual: User types their own list
+    """
+    user_input_lower = user_input.lower().strip()
+    
+    # Check if we're waiting for manual domain input
+    if session.awaiting_manual_domains:
+        return _handle_manual_domain_input(cmd_name, session, user_input, session_id, kernel)
+    
+    # Handle accept
+    if user_input_lower in ("accept", "yes", "y", "ok", "confirm"):
+        # Confirm domains and proceed to steps
+        session.draft["domains"] = session.candidate_domains
+        session.domains_confirmed = True
+        
+        print(f"[QuestCompose] Domains accepted: {[d.get('name', '?') for d in session.candidate_domains]}", flush=True)
+        
+        # Move to steps stage
+        session.stage = "steps"
+        session.substage = ""
+        set_compose_session(session_id, session)
+        return _get_current_prompt(cmd_name, session)
+    
+    # Handle regen
+    elif user_input_lower in ("regen", "regenerate", "retry", "again"):
+        print(f"[QuestCompose] Re-extracting domains...", flush=True)
+        
+        # Re-extract domains
+        return _trigger_domain_extraction(cmd_name, session, session_id, kernel)
+    
+    # Handle manual
+    elif user_input_lower in ("manual", "m", "custom", "edit"):
+        session.awaiting_manual_domains = True
+        set_compose_session(session_id, session)
+        return _get_current_prompt(cmd_name, session, kernel)
+    
+    # Unknown input - show options again
+    else:
+        return _base_response(
+            cmd_name,
+            "Please type **accept**, **regen**, or **manual**:",
+            {"wizard_active": True, "stage": "domain_review"}
+        )
+
+
+def _handle_manual_domain_input(
+    cmd_name: str,
+    session: QuestComposeSession,
+    user_input: str,
+    session_id: str,
+    kernel: Any = None,
+) -> CommandResponse:
+    """
+    Handle manual domain input from user.
+    
+    Expects one domain per line, with optional parenthetical subtopics:
+    Networking (routing, VLANs, DNS)
+    Active Directory (trusts, GPOs)
+    """
+    # Check for "done" to finish input
+    if user_input.lower().strip() == "done":
+        if not session.candidate_domains:
+            return _base_response(
+                cmd_name,
+                "No domains entered yet. Please enter at least one domain:",
+                {"wizard_active": True, "stage": "domain_review"}
+            )
+        
+        # Show the parsed domains for confirmation
+        session.awaiting_manual_domains = False
+        set_compose_session(session_id, session)
+        
+        domain_list = _format_domain_list_for_review(session.candidate_domains)
+        return _base_response(
+            cmd_name,
+            f"**Your domains:**\n\n{domain_list}\n\n"
+            "Type **accept** to confirm or **manual** to re-enter:",
+            {"wizard_active": True, "stage": "domain_review"}
+        )
+    
+    # Parse domain lines
+    domains = []
+    lines = user_input.strip().split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or line.lower() == "done":
+            continue
+        
+        # Use existing parser for "Topic (a, b, c)" format
+        parsed = _parse_domain_with_subtopics(line)
+        if parsed and parsed.get("name"):
+            domains.append({
+                "name": parsed["name"],
+                "subtopics": parsed.get("subtopics", []),
+            })
+    
+    if domains:
+        session.candidate_domains = domains
+        set_compose_session(session_id, session)
+        
+        return _base_response(
+            cmd_name,
+            f"Added {len(domains)} domain(s). Enter more or type **done**:",
+            {"wizard_active": True, "stage": "domain_review"}
+        )
+    else:
+        return _base_response(
+            cmd_name,
+            "Could not parse any domains. Please use format:\n"
+            "`Domain Name (subtopic1, subtopic2)`\n\n"
+            "Enter domains or type **done**:",
+            {"wizard_active": True, "stage": "domain_review"}
+        )
 
 
 def _handle_steps_stage(
@@ -1021,7 +1333,19 @@ def _handle_steps_stage(
                 )
             
             # Generate steps based on objectives
-            generated_steps = _generate_steps_with_llm(session.draft, kernel)
+            generation_error = None
+            generated_steps = []
+            
+            try:
+                print(f"[QuestCompose] Starting generation for: {session.draft.get('title', 'Untitled')}", flush=True)
+                print(f"[QuestCompose] Objectives count: {len(session.draft.get('objectives', []))}", flush=True)
+                generated_steps = _generate_steps_with_llm(session.draft, kernel)
+                print(f"[QuestCompose] Generation returned {len(generated_steps) if generated_steps else 0} steps", flush=True)
+            except Exception as e:
+                generation_error = str(e)
+                print(f"[QuestCompose] Generation EXCEPTION: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
             
             if generated_steps:
                 session.draft["steps"] = generated_steps
@@ -1039,9 +1363,15 @@ def _handle_steps_stage(
                     {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
                 )
             else:
+                # Show error details if available
+                error_msg = "Could not generate steps."
+                if generation_error:
+                    error_msg += f"\n\n⚠️ Error: {generation_error}"
+                error_msg += "\n\nPlease define them manually.\n\n" + STAGE_PROMPTS["steps_manual"]
+                
                 return _base_response(
                     cmd_name,
-                    "Could not generate steps. Please define them manually.\n\n" + STAGE_PROMPTS["steps_manual"],
+                    error_msg,
                     {"wizard_active": True, "stage": "steps", "substage": "manual"}
                 )
         
@@ -1169,48 +1499,1481 @@ def _handle_steps_stage(
     )
 
 
-def _generate_steps_with_llm(draft: Dict[str, Any], kernel: Any) -> List[Dict[str, Any]]:
+# ═══════════════════════════════════════════════════════════════════════════════
+# JSON PARSING HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _parse_json_resilient(text: str, list_key: str = None) -> Any:
     """
-    Generate quest steps using the LLM based on quest metadata and objectives.
+    Parse JSON from LLM response with multiple fallback strategies.
+    
+    Handles common LLM issues:
+    - Markdown code fences
+    - Leading/trailing text
+    - Minor syntax errors
+    
+    Args:
+        text: Raw LLM response
+        list_key: If provided, extract this key from the parsed object
+        
+    Returns:
+        Parsed JSON (or the value at list_key if provided)
+    """
+    import re
+    
+    if not text:
+        raise ValueError("Empty response")
+    
+    # Strategy 1: Try direct parse
+    try:
+        data = json.loads(text)
+        return data.get(list_key, data) if list_key else data
+    except json.JSONDecodeError:
+        pass
+    
+    # Strategy 2: Remove markdown fences
+    cleaned = text
+    cleaned = re.sub(r'^```json\s*', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'^```\s*', '', cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r'```\s*$', '', cleaned, flags=re.MULTILINE)
+    cleaned = cleaned.strip()
+    
+    try:
+        data = json.loads(cleaned)
+        return data.get(list_key, data) if list_key else data
+    except json.JSONDecodeError:
+        pass
+    
+    # Strategy 3: Find JSON object/array in text
+    # Look for outermost { } or [ ]
+    obj_start = cleaned.find('{')
+    obj_end = cleaned.rfind('}')
+    arr_start = cleaned.find('[')
+    arr_end = cleaned.rfind(']')
+    
+    # Try object first
+    if obj_start != -1 and obj_end > obj_start:
+        try:
+            json_str = cleaned[obj_start:obj_end + 1]
+            data = json.loads(json_str)
+            return data.get(list_key, data) if list_key else data
+        except json.JSONDecodeError:
+            pass
+    # Try array
+    if arr_start != -1 and arr_end > arr_start:
+        try:
+            json_str = cleaned[arr_start:arr_end + 1]
+            data = json.loads(json_str)
+            return data
+        except json.JSONDecodeError:
+            pass
+    
+    # Strategy 4: Try to fix common issues
+    # Remove trailing commas before } or ]
+    fixed = re.sub(r',\s*([}\]])', r'\1', cleaned)
+    
+    try:
+        data = json.loads(fixed)
+        return data.get(list_key, data) if list_key else data
+    except json.JSONDecodeError:
+        pass
+    
+    # Give up
+    raise ValueError(f"Could not parse JSON from response: {text[:200]}...")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DOMAIN NOISE FILTERING HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _normalize_domain_name(name: str) -> str:
+    """
+    Normalize a domain name for comparison and scoring.
+    
+    - Lowercase
+    - Strip whitespace
+    - Replace multiple spaces with single space
+    - Remove common edge punctuation
+    """
+    import re
+    
+    if not name:
+        return ""
+    
+    # Lowercase
+    normalized = name.lower()
+    
+    # Strip surrounding whitespace
+    normalized = normalized.strip()
+    
+    # Replace multiple spaces with single space
+    normalized = re.sub(r'\s+', ' ', normalized)
+    
+    # Remove common edge punctuation (but keep internal ones)
+    normalized = re.sub(r'^[-—:;.,•*]+\s*', '', normalized)
+    normalized = re.sub(r'\s*[-—:;.,•*]+$', '', normalized)
+    
+    return normalized
+
+
+def _score_domain_candidate(domain_obj: Dict[str, Any]) -> float:
+    """
+    Score a domain candidate to determine if it's a real topical domain.
+    
+    Higher score = more likely to be a real topic
+    Lower score = more likely to be meta/noise (phase names, goals, outputs)
+    
+    Scoring formula:
+        score = base (0.5) + source_adj + meta_penalty + topic_boost + genericness_penalty + subtopic_boost
+        
+    Where:
+        - source_adj: +0.15 (bullet) or -0.05 (heading)
+        - meta_penalty: -0.2 per match, capped at -0.5 total
+        - topic_boost: +0.2 per match, capped at +0.4 total
+        - genericness_penalty: -0.15 to -0.4 for abstract phrases without topic hints
+        - subtopic_boost: +0.15 if has real subtopics
+    
+    Returns a float score clamped to [0.0, 1.0]
+    """
+    import re
+    
+    name = domain_obj.get("name", "")
+    subtopics = domain_obj.get("subtopics", [])
+    source = domain_obj.get("source", "").lower()
+    
+    name_norm = _normalize_domain_name(name)
+    words = name_norm.split()
+    word_count = len(words)
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 1: BASE SCORE
+    # ─────────────────────────────────────────────────────────────────────────
+    base_score = 0.5
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 2: SOURCE-BASED ADJUSTMENT
+    # ─────────────────────────────────────────────────────────────────────────
+    bullet_like = ("bullet", "bullet_list", "list_item", "numbered_list", "focus_area")
+    heading_like = ("heading", "paragraph", "section")
+    
+    source_adj = 0.0
+    if source in bullet_like:
+        source_adj = +0.15
+    elif source in heading_like:
+        source_adj = -0.05
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 3: META-KEYWORD PENALTIES (-0.2 each, capped at -0.5 total)
+    # ─────────────────────────────────────────────────────────────────────────
+    meta_patterns = [
+        r'\bphase\b',
+        r'\bweek\s*\d',
+        r'\bmonth\b',
+        r'\d+[-–—]\d+\s*months?',  # "0-6 months", "6-12 months"
+        r'\btimeline\b',
+        r'\bplan\b',
+        r'\byour\s+goal',
+        r'\bgoals?\b',
+        r'\bobjectives?\b',
+        r'\boutputs?\b',
+        r'\bsummary\b',
+        r'\bintroduction\b',
+        r'\boverview\b',
+        r'\bprerequisites?\b',
+        r'\brequirements?\b',
+        r'\bwhat\s+you\s+will\b',
+        r'\blearning\s+outcomes?\b',
+        r'\brepair\b',  # "Fundamentals Repair" → meta
+        r'\boffensive\s+base\b',  # "Offensive Base" → meta
+    ]
+    
+    meta_penalty = 0.0
+    for pattern in meta_patterns:
+        if re.search(pattern, name_norm):
+            meta_penalty -= 0.2
+    
+    # Cap at -0.5
+    meta_penalty = max(meta_penalty, -0.5)
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 4: TOPIC-KEYWORD BOOSTS (+0.2 each, capped at +0.4 total)
+    # 
+    # NOTE: "fundamentals" and "basics" are NOT here - they're too generic
+    # and would rescue junk like "Fundamentals Repair". They only help
+    # when combined with real topic words (handled by the domain itself).
+    # ─────────────────────────────────────────────────────────────────────────
+    topic_hints = [
+        # Core technical domains
+        r'\bnetwork(?:ing)?\b',
+        r'\brouting\b',
+        r'\bactive\s*directory\b',
+        r'\bidentity\b',
+        r'\baws\b',
+        r'\bazure\b',
+        r'\bgcp\b',
+        r'\bcloud\b',
+        r'\blogging\b',
+        r'\bsiem\b',
+        r'\bthreat\s+model',  # "threat modeling" specifically
+        r'\bsecurity\b',
+        # Auth/Identity
+        r'\bauth(?:entication|orization)?\b',
+        r'\boauth\b',
+        r'\bsaml\b',
+        r'\boidc\b',
+        r'\biam\b',
+        r'\brbac\b',
+        r'\bmfa\b',
+        r'\bjwt\b',
+        # Infrastructure
+        r'\bvlan\b',
+        r'\bdns\b',
+        r'\bgpo\b',
+        r'\btrust(?:s)?\b',
+        r'\bdelegation\b',
+        r'\bkubernetes\b',
+        r'\bdocker\b',
+        r'\bcontainer(?:s)?\b',
+        r'\bfirewall\b',
+        r'\bvpn\b',
+        r'\bmonitoring\b',
+        r'\bsentinel\b',
+        r'\bcloudtrail\b',
+        r'\bdefender\b',
+        # Programming
+        r'\bpython\b',
+        r'\bprogramming\b',
+        r'\bapi\b',
+        r'\bdatabase\b',
+        r'\bsql\b',
+        # OS/Platform
+        r'\blinux\b',
+        r'\bwindows\b',
+        r'\bserver(?:s)?\b',
+        r'\binfrastructure\b',
+        r'\barchitecture\b',
+        # Security specific
+        r'\bprotocol(?:s)?\b',
+        r'\bencryption\b',
+        r'\bcrypto(?:graphy)?\b',
+        r'\bpki\b',
+        r'\bcertificate(?:s)?\b',
+        r'\bstride\b',
+        r'\battack\s+surface',
+    ]
+    
+    topic_boost = 0.0
+    topic_hint_count = 0
+    for pattern in topic_hints:
+        if re.search(pattern, name_norm):
+            topic_boost += 0.2
+            topic_hint_count += 1
+    
+    # Cap at +0.4
+    topic_boost = min(topic_boost, 0.4)
+    
+    has_topic_hint = topic_hint_count > 0
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 5: GENERICNESS PENALTY
+    # Abstract phrases without topic hints get penalized
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    genericness_penalty = 0.0
+    
+    if not has_topic_hint:
+        # No concrete topic hint found - might be generic/abstract
+        
+        # Single generic words get strong penalty
+        generic_single_words = {
+            "overview", "summary", "goals", "goal", "outputs", "output",
+            "phase", "intro", "introduction", "objectives", "objective",
+            "plan", "plans", "timeline", "schedule", "week", "month",
+            "section", "part", "chapter", "module", "unit", "repair",
+            "base", "core", "main", "primary", "secondary", "fundamentals",
+            "basics", "essentials", "foundations"
+        }
+        
+        if word_count == 1 and name_norm in generic_single_words:
+            genericness_penalty = -0.4
+        
+        # Abstract 2-word phrases from headings/paragraphs
+        # "Fundamentals Repair", "Offensive Base" → likely meta
+        elif word_count == 2 and source in heading_like:
+            genericness_penalty = -0.15
+        
+        # Very short names are suspicious
+        elif len(name_norm) < 3:
+            genericness_penalty = -0.3
+    
+    # Very long names (> 8 words) are often phase descriptions
+    length_penalty = 0.0
+    if word_count > 12:
+        length_penalty = -0.35
+    elif word_count > 8:
+        length_penalty = -0.15
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # STEP 6: SUBTOPIC BOOST
+    # Only applies when domain has actual subtopics (from parenthetical parsing)
+    # e.g., "Networking (routing, VLANs, DNS)" → subtopics = ["routing", "VLANs", "DNS"]
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    subtopic_boost = 0.0
+    if isinstance(subtopics, list) and len(subtopics) >= 2:
+        subtopic_boost = +0.15
+    elif isinstance(subtopics, list) and len(subtopics) == 1:
+        subtopic_boost = +0.10
+    
+    # ─────────────────────────────────────────────────────────────────────────
+    # FINAL CALCULATION
+    # ─────────────────────────────────────────────────────────────────────────
+    
+    score = base_score + source_adj + meta_penalty + topic_boost + genericness_penalty + length_penalty + subtopic_boost
+    
+    # Clamp to [0.0, 1.0]
+    return max(0.0, min(1.0, score))
+
+
+def _filter_noise_domains(domains: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Filter out meta/noise domains, keeping only real topical domains.
+    
+    Uses heuristic scoring to identify and remove:
+    - Phase names ("Phase A1 — Fundamentals Repair")
+    - Goal statements ("Your goal: eliminate weak points")
+    - Section headers ("Outputs", "Summary")
+    - Abstract labels ("Fundamentals Repair", "Offensive Base")
+    
+    Always preserves at least 1-2 domains to prevent empty results.
+    """
+    # Explicit threshold constant
+    SCORE_THRESHOLD = 0.40
+    MINIMUM_KEEP_THRESHOLD = 0.25  # For fallback keeping
+    
+    if not domains:
+        return []
+    
+    # Score all candidates
+    scored = []
+    for d in domains:
+        score = _score_domain_candidate(d)
+        scored.append((score, d))
+        print(f"[QuestCompose:Filter] Domain '{d.get('name', '?')[:50]}' score: {score:.2f}", flush=True)
+    
+    # Sort by score (highest first)
+    scored.sort(key=lambda x: x[0], reverse=True)
+    
+    # Filter by threshold
+    filtered = [d for score, d in scored if score >= SCORE_THRESHOLD]
+    
+    print(f"[QuestCompose:Filter] Threshold {SCORE_THRESHOLD}: {len(filtered)}/{len(scored)} domains passed", flush=True)
+    
+    # Ensure we keep at least 1-2 domains
+    if len(filtered) == 0:
+        # Keep top 2 by score (if they meet minimum threshold)
+        fallback = [d for score, d in scored[:2] if score >= MINIMUM_KEEP_THRESHOLD]
+        if fallback:
+            filtered = fallback
+            print(f"[QuestCompose:Filter] All below threshold, keeping top {len(filtered)} above {MINIMUM_KEEP_THRESHOLD}", flush=True)
+        else:
+            # Absolute fallback - keep top 1 regardless of score
+            filtered = [scored[0][1]] if scored else []
+            print(f"[QuestCompose:Filter] Emergency fallback: keeping top 1 domain", flush=True)
+    
+    print(f"[QuestCompose:Filter] Final: {len(filtered)} domains kept", flush=True)
+    return filtered
+
+
+def _refine_domains_with_llm(
+    domains: List[Dict[str, Any]], 
+    original_text: str,
+    llm_client: Any
+) -> List[Dict[str, Any]]:
+    """
+    Use LLM to classify domains as 'topic' vs 'meta'.
+    
+    This is a refinement pass after heuristic filtering.
+    Falls back to input domains if LLM call fails.
+    """
+    if not domains:
+        return domains
+    
+    # Only use LLM refinement if we have enough candidates to make it worthwhile
+    if len(domains) <= 3:
+        return domains
+    
+    # Build classification prompt
+    domain_list = [
+        {"name": d.get("name", ""), "source": d.get("source", "unknown")}
+        for d in domains
+    ]
+    
+    classify_system = """You are a curriculum classifier. Classify each domain name as either:
+- "topic": A concrete subject area to learn (e.g., Networking, Identity basics, AWS fundamentals)
+- "meta": A phase name, goal statement, output label, or organizational heading
+
+Output ONLY valid JSON. No markdown fences."""
+
+    classify_user = f"""Classify these domain candidates extracted from a learning roadmap.
+
+Candidates:
+{json.dumps(domain_list, indent=2)}
+
+For each, determine if it's a real learning topic or a meta/organizational label.
+
+Output JSON:
+{{
+  "classifications": [
+    {{"name": "...", "type": "topic"}},
+    {{"name": "...", "type": "meta"}}
+  ]
+}}
+
+JSON only:"""
+
+    try:
+        result = llm_client.complete_system(
+            system=classify_system,
+            user=classify_user,
+            command="quest-compose-classify",
+            think_mode=False,
+        )
+        
+        result_text = result.get("text", "").strip()
+        classifications = _parse_json_resilient(result_text, "classifications")
+        
+        if not classifications:
+            print(f"[QuestCompose:Filter] LLM classification returned no results", flush=True)
+            return domains
+        
+        # Build lookup of classifications
+        type_lookup = {}
+        for c in classifications:
+            name_norm = _normalize_domain_name(c.get("name", ""))
+            type_lookup[name_norm] = c.get("type", "topic")
+        
+        # Filter to keep only "topic" types
+        refined = []
+        for d in domains:
+            name_norm = _normalize_domain_name(d.get("name", ""))
+            dtype = type_lookup.get(name_norm, "topic")  # Default to topic if not found
+            
+            if dtype == "topic":
+                refined.append(d)
+            else:
+                print(f"[QuestCompose:Filter] LLM classified as meta: '{d.get('name', '?')[:50]}'", flush=True)
+        
+        # Ensure we keep at least 1 domain
+        if len(refined) == 0 and len(domains) > 0:
+            refined = domains[:2]
+            print(f"[QuestCompose:Filter] LLM filtered all, keeping top 2", flush=True)
+        
+        print(f"[QuestCompose:Filter] LLM refinement: {len(domains)} → {len(refined)} domains", flush=True)
+        return refined
+        
+    except Exception as e:
+        print(f"[QuestCompose:Filter] LLM classification failed: {e}, keeping heuristic results", flush=True)
+        return domains
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1A: LLM SEMANTIC EXTRACTION (Format-Agnostic)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _llm_extract_domains(raw_text: str, llm_client: Any) -> List[Dict[str, Any]]:
+    """
+    Phase 1A: Use LLM to extract domains semantically, regardless of format.
+    
+    This works for ANY input format:
+    - Bullet lists
+    - Paragraphs like "I want to learn networking, IAM, AWS, and Azure"
+    - Mixed formats
+    - No specific headings required
+    
+    Returns list of DomainCandidate dicts:
+    {
+        "name": str,
+        "subtopics": List[str],
+        "source": "llm_semantic",
+        "confidence_llm": float (0.0-1.0)
+    }
+    """
+    if not llm_client or not raw_text:
+        return []
+    
+    extract_system = """You are a learning domain extractor. Your job is to identify ALL distinct learning domains/skill areas from text, regardless of how they're expressed.
+
+RULES:
+1. Extract domains from ANY format:
+   - Bullet lists
+   - Paragraphs ("I want to learn X, Y, and Z")
+   - Inline lists ("Topics: A, B, C")
+   - Sentences ("Focus on networking, identity, and cloud")
+   - Mixed formats
+   
+2. DO NOT assume any specific headings exist. Work with whatever text is given.
+
+3. DOMAIN = Major skill/topic area needing multi-day learning
+   Examples: "Networking", "Active Directory", "AWS", "Identity", "Logging", "Threat modeling"
+   
+4. SUBTOPIC = Specific concept within a domain
+   Examples: "routing", "VLANs", "GPOs", "IAM policies"
+   
+5. Keep domains SEPARATE - don't merge "Networking" and "AWS" into one domain.
+
+6. confidence = how certain you are this is a real learning domain (0.0-1.0)
+   - 0.9-1.0: Clearly stated learning topic
+   - 0.7-0.8: Likely a topic but somewhat ambiguous
+   - 0.5-0.6: Might be a topic or might be meta/organizational
+   - Below 0.5: Probably not a real learning domain
+
+OUTPUT: Pure JSON only. No markdown fences. No comments. No text before/after."""
+
+    extract_user = f"""Extract ALL learning domains from this text:
+
+{raw_text}
+
+Return JSON:
+{{
+  "domains": [
+    {{
+      "name": "Domain Name",
+      "subtopics": ["subtopic1", "subtopic2"],
+      "confidence": 0.85
+    }}
+  ]
+}}
+
+Extract every domain you can find, even from loose sentences. JSON only:"""
+
+    try:
+        result = llm_client.complete_system(
+            system=extract_system,
+            user=extract_user,
+            command="quest-compose-domains-semantic",
+            think_mode=True,
+        )
+        
+        result_text = result.get("text", "").strip()
+        domains_raw = _parse_json_resilient(result_text, "domains")
+        
+        if not domains_raw:
+            return []
+        
+        # Normalize to our standard format
+        domains = []
+        for d in domains_raw:
+            domains.append({
+                "name": d.get("name", ""),
+                "subtopics": d.get("subtopics", []),
+                "source": "llm_semantic",
+                "confidence_llm": d.get("confidence", 0.7),
+            })
+        
+        return domains
+        
+    except Exception as e:
+        print(f"[QuestCompose] LLM semantic extraction failed: {e}", flush=True)
+        return []
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1B: STRUCTURAL EXTRACTION (Format-Aware but Generic)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _structural_extract_domains(text: str) -> List[Dict[str, Any]]:
+    """
+    Phase 1B: Extract domains using structural patterns (no hardcoded headings).
+    
+    Detects:
+    - Markdown headings (#, ##, ###)
+    - Bullet points (-, *, +, •)
+    - Numbered lists (1., 2), a., etc.)
+    - Inline lists after colons ("Topics: X, Y, Z")
+    - Parenthetical subtopics ("Networking (routing, VLANs)")
+    
+    Does NOT look for specific headings like "Focus Areas" or "Objectives".
+    Uses pure structural cues only.
+    
+    Returns list of DomainCandidate dicts.
+    """
+    import re
+    
+    domains = []
+    seen_names = set()
+    
+    lines = text.split('\n')
+    
+    for line in lines:
+        line_stripped = line.strip()
+        if not line_stripped:
+            continue
+        
+        source = None
+        content = None
+        
+        # Markdown headings (# ## ###)
+        heading_match = re.match(r'^(#{1,6})\s+(.+)$', line_stripped)
+        if heading_match:
+            source = "heading"
+            content = heading_match.group(2).strip()
+        
+        # Bullet points (-, *, +, •)
+        elif re.match(r'^[-*+•]\s+', line_stripped):
+            source = "bullet"
+            content = re.sub(r'^[-*+•]\s+', '', line_stripped)
+        
+        # Numbered lists (1., 1), a., a))
+        elif re.match(r'^(\d+[.)]|[a-z][.)])\s+', line_stripped, re.IGNORECASE):
+            source = "numbered"
+            content = re.sub(r'^(\d+[.)]|[a-z][.)])\s+', '', line_stripped, flags=re.IGNORECASE)
+        
+        # Inline lists after colons (e.g., "Topics: X, Y, Z" or "Focus: A, B, C")
+        elif ':' in line_stripped:
+            colon_match = re.match(r'^([^:]+):\s*(.+)$', line_stripped)
+            if colon_match:
+                after_colon = colon_match.group(2).strip()
+                # Check if it looks like a list (has commas or "and")
+                if ',' in after_colon or ' and ' in after_colon.lower():
+                    source = "inline_list"
+                    # Extract each item from the list
+                    items = re.split(r',\s*|\s+and\s+', after_colon, flags=re.IGNORECASE)
+                    for item in items:
+                        item = item.strip()
+                        if item and len(item) > 2:
+                            parsed = _parse_domain_with_subtopics(item)
+                            name_lower = parsed["name"].lower()
+                            if name_lower not in seen_names:
+                                seen_names.add(name_lower)
+                                parsed["source"] = "inline_list"
+                                parsed["confidence_llm"] = None
+                                domains.append(parsed)
+                    continue  # Already processed inline list items
+        
+        # Process the content if we found a structural element
+        if source and content:
+            parsed = _parse_domain_with_subtopics(content)
+            name_lower = parsed["name"].lower()
+            
+            if name_lower not in seen_names and len(parsed["name"]) > 2:
+                seen_names.add(name_lower)
+                parsed["source"] = source
+                parsed["confidence_llm"] = None
+                domains.append(parsed)
+    
+    # Also scan for paragraph-embedded topics
+    # Look for patterns like "learn X, Y, and Z" or "focus on A, B, C"
+    paragraph_domains = _extract_from_paragraphs(text, seen_names)
+    domains.extend(paragraph_domains)
+    
+    return domains
+
+
+def _extract_from_paragraphs(text: str, seen_names: set) -> List[Dict[str, Any]]:
+    """
+    Extract domains from paragraph text (not structured as lists).
+    
+    Looks for patterns like:
+    - "learn X, Y, and Z"
+    - "focus on A, B, C"
+    - "covering topics like X, Y, Z"
+    - "including X, Y, and Z"
+    """
+    import re
+    
+    domains = []
+    
+    # Patterns that precede topic lists in prose
+    trigger_patterns = [
+        r'(?:learn|study|master|cover|focus\s+on|including|such\s+as|like|topics?:?)\s+([^.]+)',
+        r'(?:fundamentals?\s+(?:of|in))\s+([^.]+)',
+        r'(?:skills?\s+(?:in|like|such\s+as))\s+([^.]+)',
+    ]
+    
+    for pattern in trigger_patterns:
+        matches = re.finditer(pattern, text, re.IGNORECASE)
+        for match in matches:
+            topic_text = match.group(1).strip()
+            
+            # Check if it looks like a list
+            if ',' in topic_text or ' and ' in topic_text.lower():
+                items = re.split(r',\s*|\s+and\s+', topic_text, flags=re.IGNORECASE)
+                
+                for item in items:
+                    item = item.strip()
+                    # Clean up common trailing words
+                    item = re.sub(r'\s+(etc|basics?|fundamentals?)\s*\.?$', '', item, flags=re.IGNORECASE)
+                    item = re.sub(r'[.,:;]+$', '', item)
+                    
+                    if item and len(item) > 2 and len(item.split()) <= 5:
+                        name_lower = item.lower()
+                        if name_lower not in seen_names:
+                            seen_names.add(name_lower)
+                            domains.append({
+                                "name": item,
+                                "subtopics": [],
+                                "source": "paragraph",
+                                "confidence_llm": None,
+                            })
+    
+    return domains
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PHASE 1C: MERGE + NOISE FILTERING (Dynamic, Format-Agnostic)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _merge_domain_candidates(
+    llm_domains: List[Dict[str, Any]], 
+    structural_domains: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """
+    Merge LLM and structural domain candidates.
+    
+    If two candidates have similar names, merge their subtopics and keep
+    the best source/confidence info.
+    """
+    merged = {}
+    
+    def _name_key(name: str) -> str:
+        """Normalize name for comparison."""
+        return _normalize_domain_name(name)
+    
+    # Add LLM domains first (usually higher quality names)
+    for d in llm_domains:
+        key = _name_key(d.get("name", ""))
+        if not key:
+            continue
+        
+        if key not in merged:
+            merged[key] = {
+                "name": d.get("name", ""),
+                "subtopics": list(d.get("subtopics", [])),
+                "sources": [d.get("source", "llm_semantic")],
+                "confidence_llm": d.get("confidence_llm"),
+            }
+        else:
+            # Merge subtopics
+            existing = merged[key]
+            for st in d.get("subtopics", []):
+                if st not in existing["subtopics"]:
+                    existing["subtopics"].append(st)
+            existing["sources"].append(d.get("source", "llm_semantic"))
+            # Keep highest confidence
+            if d.get("confidence_llm") and (not existing["confidence_llm"] or d["confidence_llm"] > existing["confidence_llm"]):
+                existing["confidence_llm"] = d["confidence_llm"]
+    
+    # Add structural domains
+    for d in structural_domains:
+        key = _name_key(d.get("name", ""))
+        if not key:
+            continue
+        
+        if key not in merged:
+            merged[key] = {
+                "name": d.get("name", ""),
+                "subtopics": list(d.get("subtopics", [])),
+                "sources": [d.get("source", "structural")],
+                "confidence_llm": d.get("confidence_llm"),
+            }
+        else:
+            # Merge subtopics
+            existing = merged[key]
+            for st in d.get("subtopics", []):
+                if st not in existing["subtopics"]:
+                    existing["subtopics"].append(st)
+            existing["sources"].append(d.get("source", "structural"))
+    
+    # Convert back to list with best source
+    result = []
+    for key, data in merged.items():
+        # Pick best source (prefer bullet > numbered > inline_list > heading > paragraph > llm_semantic)
+        source_priority = {"bullet": 1, "numbered": 2, "inline_list": 3, "heading": 4, "paragraph": 5, "llm_semantic": 6}
+        best_source = min(data["sources"], key=lambda s: source_priority.get(s, 10))
+        
+        result.append({
+            "name": data["name"],
+            "subtopics": data["subtopics"],
+            "source": best_source,
+            "confidence_llm": data["confidence_llm"],
+        })
+    
+    return result
+
+
+def _count_structural_items(text: str) -> int:
+    """
+    Count distinct structural items in text (bullets, numbered items).
+    
+    This provides a baseline for how many domains we should expect.
+    Focuses on TOP-LEVEL items, not parenthetical subtopics.
+    """
+    import re
+    
+    count = 0
+    lines = text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        
+        # Bullet points (-, *, •) at line start
+        if re.match(r'^[-*•]\s+\S', line):
+            count += 1
+            continue
+        
+        # Numbered items (1., 1), a., a))
+        if re.match(r'^(\d+[.)]|[a-z][.)])\s+\S', line, re.IGNORECASE):
+            count += 1
+            continue
+    
+    return max(count, 1)
+
+
+def _extract_domains_structurally(text: str) -> List[Dict[str, Any]]:
+    """
+    Extract domains using pure structural analysis (no LLM).
+    
+    Handles parenthetical subtopics correctly:
+    - "Networking (routing, VLANs, DNS)" → domain "Networking" with subtopics
+    
+    This is a backup when LLM extraction fails.
+    """
+    import re
+    
+    domains = []
+    seen_names = set()
+    
+    lines = text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Extract from bullet points
+        bullet_match = re.match(r'^[-*•]\s+(.+)$', line)
+        if bullet_match:
+            item_text = bullet_match.group(1).strip()
+            domain = _parse_domain_with_subtopics(item_text)
+            
+            name_lower = domain["name"].lower()
+            if name_lower not in seen_names and len(domain["name"]) > 2:
+                seen_names.add(name_lower)
+                domain["source"] = "bullet_list"
+                domains.append(domain)
+            continue
+        
+        # Extract from numbered items
+        num_match = re.match(r'^(\d+[.)]|[a-z][.)])\s+(.+)$', line, re.IGNORECASE)
+        if num_match:
+            item_text = num_match.group(2).strip()
+            domain = _parse_domain_with_subtopics(item_text)
+            
+            name_lower = domain["name"].lower()
+            if name_lower not in seen_names and len(domain["name"]) > 2:
+                seen_names.add(name_lower)
+                domain["source"] = "numbered_list"
+                domains.append(domain)
+            continue
+    
+    return domains
+
+
+def _parse_domain_with_subtopics(text: str) -> Dict[str, Any]:
+    """
+    Parse a domain string that may contain parenthetical subtopics.
+    
+    Examples:
+    - "Networking (routing, VLANs, DNS)" → name="Networking", subtopics=["routing", "VLANs", "DNS"]
+    - "Active Directory architecture" → name="Active Directory architecture", subtopics=[]
+    """
+    import re
+    
+    # Check for parenthetical subtopics
+    paren_match = re.match(r'^([^(]+)\s*\(([^)]+)\)\s*$', text)
+    
+    if paren_match:
+        name = paren_match.group(1).strip()
+        subtopics_str = paren_match.group(2).strip()
+        
+        # Split subtopics by comma, semicolon, or "and"
+        subtopics = re.split(r'[,;]|\s+and\s+', subtopics_str)
+        subtopics = [s.strip() for s in subtopics if s.strip()]
+        
+        return {
+            "name": name,
+            "subtopics": subtopics,
+            "priority": "high"
+        }
+    else:
+        # No parentheses - just clean up the name
+        name = re.sub(r'[.,:;!?]+$', '', text.strip())
+        if len(name) > 60:
+            name = name[:60].rsplit(' ', 1)[0]
+        
+        return {
+            "name": name,
+            "subtopics": [],
+            "priority": "high"
+        }
+
+
+def _generate_programmatic_outline(domains: List[Dict[str, Any]], target_steps: int) -> List[Dict[str, Any]]:
+    """
+    Generate a balanced outline programmatically when LLM fails.
+    
+    This is a fallback that ensures all domains are covered with
+    a reasonable distribution of steps.
+    """
+    outline = []
+    num_domains = len(domains)
+    
+    if num_domains == 0:
+        return []
+    
+    # Calculate steps per domain (at least 3 each)
+    steps_per_domain = max(3, target_steps // num_domains)
+    
+    # Step type rotation
+    step_types = ["info", "info", "apply", "apply", "recall", "reflect", "boss"]
+    
+    day = 1
+    for domain in domains:
+        domain_name = domain.get("name", "Unknown")
+        subtopics = domain.get("subtopics", [])
+        
+        # Generate steps for this domain
+        for i in range(steps_per_domain):
+            # Use subtopic if available, otherwise generic
+            if subtopics and i < len(subtopics):
+                topic = f"{subtopics[i]} fundamentals" if i == 0 else subtopics[i]
+            else:
+                topic = f"{domain_name} - Part {i + 1}"
+            
+            step_type = step_types[i % len(step_types)]
+            
+            # Last step of domain is boss type
+            if i == steps_per_domain - 1:
+                step_type = "boss"
+                topic = f"{domain_name} mini-project"
+            
+            outline.append({
+                "day": day,
+                "domain": domain_name,
+                "topic": topic,
+                "type": step_type,
+            })
+            day += 1
+    
+    return outline
+
+
+def _generate_steps_with_llm(
+    draft: Dict[str, Any], 
+    kernel: Any,
+    progress_callback: Optional[callable] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Generate quest steps using domain-balanced 3-phase architecture.
+    
+    v0.10.2: NEW ARCHITECTURE - Domain-first balanced generation
+    
+    PHASE 1: Domain Extraction
+        - Parse ALL domains/topics from input (any format)
+        - Ensure nothing is missed
+        
+    PHASE 2: Domain-Balanced Outline
+        - Allocate 3-7 steps per domain
+        - Ensure proportional coverage
+        - Self-validate: all domains represented
+        
+    PHASE 3: Content Generation (per domain)
+        - Generate steps for ONE domain at a time
+        - Enforce micro-step constraints
+        - Continue until ALL domains complete
+    
+    Args:
+        draft: Quest draft dictionary with title, objectives, etc.
+        kernel: NovaKernel instance
+        progress_callback: Optional callback(message, percent) for progress updates
     
     Returns a list of step dicts, or empty list on failure.
     """
+    def _progress(msg: str, pct: int):
+        if progress_callback:
+            try:
+                progress_callback(msg, pct)
+            except:
+                pass
+        print(f"[QuestCompose] {msg} ({pct}%)", flush=True)
+    
     try:
-        print(f"[QuestCompose] Starting step generation...", flush=True)
-        print(f"[QuestCompose] Kernel type: {type(kernel)}", flush=True)
+        _progress("Starting domain-balanced generation...", 5)
         
         # Get LLM client from kernel
         llm_client = getattr(kernel, 'llm_client', None)
         if not llm_client:
-            print("[QuestCompose] No LLM client available for step generation", flush=True)
-            print(f"[QuestCompose] Kernel attributes: {dir(kernel)}", flush=True)
+            print("[QuestCompose] No LLM client available", flush=True)
             return []
         
-        print(f"[QuestCompose] LLM client found: {type(llm_client)}", flush=True)
-        
-        # Build prompt for step generation
         title = draft.get("title", "Untitled Quest")
         category = draft.get("category", "general")
         objectives = draft.get("objectives", [])
         
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 1: USE CONFIRMED DOMAINS (from Domain Review wizard step)
+        # ═══════════════════════════════════════════════════════════════════════
+        # 
+        # The domain extraction now happens BEFORE this function is called,
+        # during the Domain Review wizard step. The user has already confirmed
+        # the domains, so we just use them directly.
+        #
+        # This is the key change from Option A: NO RE-EXTRACTION at generation time.
+        
+        _progress("Phase 1: Loading confirmed domains...", 10)
+        
+        # Get confirmed domains from draft
+        domains = draft.get("domains", [])
+        
+        if domains:
+            print(f"[QuestCompose] Using {len(domains)} confirmed domains from Domain Review", flush=True)
+            print(f"[QuestCompose] Domains: {[d.get('name', '?') for d in domains]}", flush=True)
+        else:
+            # FALLBACK: If no confirmed domains, this phase wasn't run through Domain Review
+            # This shouldn't happen in normal flow, but handle it gracefully
+            print(f"[QuestCompose] WARNING: No confirmed domains in draft", flush=True)
+            print(f"[QuestCompose] This phase should have gone through Domain Review first", flush=True)
+            
+            # Fall back to old extraction as safety net
+            raw_text = "\n".join(objectives) if isinstance(objectives, list) else str(objectives)
+            domains = _structural_extract_domains(raw_text)
+            
+            if not domains:
+                print(f"[QuestCompose] No domains found, falling back to single-shot", flush=True)
+                return _generate_steps_single_shot(draft, kernel, progress_callback)
+        
+        _progress(f"Using {len(domains)} domains", 15)
+        
+        # Log final domains
+        print(f"[QuestCompose] Domains for generation:", flush=True)
+        for d in domains:
+            print(f"[QuestCompose]   - {d.get('name', '?')}", flush=True)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 2: DOMAIN-BALANCED OUTLINE
+        # ═══════════════════════════════════════════════════════════════════════
+        # Allocate steps per domain, ensuring balanced coverage
+        
+        _progress("Phase 2: Creating balanced outline...", 20)
+        
+        # Build domain list for prompt
+        domain_names = [d.get("name", f"Domain {i+1}") for i, d in enumerate(domains)]
+        domain_list_text = "\n".join([
+            f"{i+1}. {d.get('name', '?')}" + (f" (subtopics: {', '.join(d.get('subtopics', []))})" if d.get('subtopics') else "")
+            for i, d in enumerate(domains)
+        ])
+        
+        # Calculate target steps
+        num_domains = len(domains)
+        target_steps = max(num_domains * 4, 12)  # At least 4 steps per domain, minimum 12 total
+        
+        outline_system = """You are a curriculum architect. Create a day-by-day learning outline.
+
+═══════════════════════════════════════════════════════════════════════════════
+JSON OUTPUT REQUIREMENTS - CRITICAL
+═══════════════════════════════════════════════════════════════════════════════
+
+You MUST output ONLY a valid JSON object. Nothing else.
+
+DO NOT:
+- Wrap in markdown code fences (no ```json)
+- Add comments
+- Add trailing commas
+- Add any text before or after the JSON
+- Use single quotes (use double quotes only)
+
+DO:
+- Output raw JSON starting with { and ending with }
+- Use double quotes for all strings
+- Ensure all arrays and objects are properly closed
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTLINE REQUIREMENTS
+═══════════════════════════════════════════════════════════════════════════════
+
+1. EVERY domain MUST have 3-7 steps (no domain gets 0, 1, or 2)
+2. Each step = 60-90 minutes (working adult, not student)  
+3. One step = ONE focused micro-topic
+4. Distribute steps EVENLY across domains
+5. If domain has subtopics, use them to create specific step topics
+
+Step types:
+- info: Learn concepts (reading, watching, studying)
+- apply: Hands-on practice (labs, exercises)
+- recall: Review and quiz
+- reflect: Think and journal
+- boss: Mini-project or assessment"""
+
+        outline_user = f"""Create a balanced {target_steps}-step outline for "{title}".
+
+DOMAINS TO COVER (each needs 3-7 steps):
+{domain_list_text}
+
+OUTPUT THIS EXACT JSON STRUCTURE:
+{{
+  "total_steps": {target_steps},
+  "outline": [
+    {{"day": 1, "domain": "First Domain Name", "topic": "Specific topic", "type": "info"}},
+    {{"day": 2, "domain": "First Domain Name", "topic": "Another topic", "type": "apply"}},
+    {{"day": 3, "domain": "Second Domain Name", "topic": "Its first topic", "type": "info"}}
+  ]
+}}
+
+VALIDATION BEFORE RESPONDING:
+1. Count: Does each domain have >= 3 steps?
+2. Missing: Is any domain from my list absent? If yes, add steps for it.
+3. JSON: Is this valid JSON with no trailing commas or comments?
+
+Output the JSON object only:"""
+
+        print(f"[QuestCompose] Calling LLM for outline (target: {target_steps} steps)...", flush=True)
+        
+        outline_steps = []
+        outline_parse_attempts = 0
+        max_attempts = 2
+        
+        while outline_parse_attempts < max_attempts and not outline_steps:
+            outline_parse_attempts += 1
+            
+            try:
+                outline_result = llm_client.complete_system(
+                    system=outline_system,
+                    user=outline_user,
+                    command="quest-compose-outline",
+                    think_mode=True,
+                )
+            except Exception as e:
+                print(f"[QuestCompose] Outline LLM error (attempt {outline_parse_attempts}): {e}", flush=True)
+                if outline_parse_attempts >= max_attempts:
+                    _progress(f"Outline failed: {e}", 25)
+                    return _generate_steps_single_shot(draft, kernel, progress_callback)
+                continue
+            
+            outline_text = outline_result.get("text", "").strip()
+            print(f"[QuestCompose] Outline response length: {len(outline_text)}", flush=True)
+            
+            # Parse outline with resilient parser
+            try:
+                outline_data = _parse_json_resilient(outline_text)
+                
+                if isinstance(outline_data, dict):
+                    outline_steps = outline_data.get("outline", [])
+                elif isinstance(outline_data, list):
+                    outline_steps = outline_data
+                
+                if not outline_steps:
+                    raise ValueError("No outline steps in response")
+                
+                print(f"[QuestCompose] Parsed {len(outline_steps)} outline steps", flush=True)
+                
+            except (json.JSONDecodeError, ValueError) as e:
+                print(f"[QuestCompose] Outline parse error (attempt {outline_parse_attempts}): {e}", flush=True)
+                print(f"[QuestCompose] Raw outline: {outline_text[:500]}...", flush=True)
+                
+                if outline_parse_attempts >= max_attempts:
+                    # Last resort: generate outline programmatically
+                    print(f"[QuestCompose] Generating programmatic outline as fallback", flush=True)
+                    outline_steps = _generate_programmatic_outline(domains, target_steps)
+        
+        if not outline_steps:
+            print(f"[QuestCompose] No outline after {max_attempts} attempts, using single-shot", flush=True)
+            return _generate_steps_single_shot(draft, kernel, progress_callback)
+        
+        _progress(f"Outline: {len(outline_steps)} steps planned", 30)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # COVERAGE VALIDATION
+        # ═══════════════════════════════════════════════════════════════════════
+        # Check that all domains are represented
+        
+        covered_domains = set()
+        domain_step_count = {}
+        
+        for step in outline_steps:
+            domain = step.get("domain", "Unknown")
+            covered_domains.add(domain.lower())
+            domain_step_count[domain] = domain_step_count.get(domain, 0) + 1
+        
+        print(f"[QuestCompose] Domain coverage in outline: {domain_step_count}", flush=True)
+        
+        # Check for missing domains
+        missing_domains = []
+        for d in domains:
+            d_name = d.get("name", "").lower()
+            if not any(d_name in cd or cd in d_name for cd in covered_domains):
+                missing_domains.append(d.get("name", "Unknown"))
+        
+        if missing_domains:
+            print(f"[QuestCompose] WARNING: Missing domains in outline: {missing_domains}", flush=True)
+            # Add placeholder steps for missing domains
+            for missing in missing_domains:
+                for i in range(3):  # Add 3 steps per missing domain
+                    outline_steps.append({
+                        "day": len(outline_steps) + 1,
+                        "domain": missing,
+                        "topic": f"{missing} - Part {i+1}",
+                        "type": "info" if i == 0 else "apply" if i == 1 else "boss",
+                    })
+            _progress(f"Added steps for {len(missing_domains)} missing domains", 35)
+        
+        print(f"[QuestCompose] Domain coverage: {domain_step_count}", flush=True)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 3: CONTENT GENERATION (PER DOMAIN)
+        # ═══════════════════════════════════════════════════════════════════════
+        # Generate detailed content one domain at a time
+        
+        _progress("Phase 3: Generating content by domain...", 40)
+        
+        all_steps = []
+        
+        # Group outline steps by domain
+        domain_groups = {}
+        for step in outline_steps:
+            domain = step.get("domain", "General")
+            if domain not in domain_groups:
+                domain_groups[domain] = []
+            domain_groups[domain].append(step)
+        
+        total_domains = len(domain_groups)
+        
+        for domain_idx, (domain_name, domain_outline) in enumerate(domain_groups.items()):
+            # Calculate progress (40% to 90% for content generation)
+            domain_progress = int(40 + (50 * (domain_idx + 1) / total_domains))
+            
+            _progress(f"Generating {domain_name} ({len(domain_outline)} steps)...", domain_progress)
+            
+            # Build outline context for this domain
+            domain_outline_text = "\n".join([
+                f"- Day {s['day']}: {s.get('topic', 'TBD')} ({s.get('type', 'info')})"
+                for s in domain_outline
+            ])
+            
+            content_system = """You are a micro-learning content designer.
+
+═══════════════════════════════════════════════════════════════════════════════
+HARD CONSTRAINTS - EVERY STEP MUST FOLLOW THESE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. Each step = 60-90 minutes (tired working adult)
+2. EXACTLY 3-4 actions per step
+3. Each action = 15-25 minutes, specific and completable
+4. ONE theme per step (never mix reading + lab + reflection)
+
+BAD actions (NEVER use):
+- "Set up complete environment" ❌
+- "Research thoroughly" ❌
+- "Master the fundamentals" ❌
+- "Build and deploy" ❌
+
+GOOD actions:
+- "Read pages 10-20 on X" ✓
+- "Watch 15-min video" ✓
+- "Install tool Y" ✓
+- "Write 3-bullet summary" ✓
+
+Output ONLY JSON array. No markdown."""
+
+            content_user = f"""Generate micro-step content for the "{domain_name}" domain.
+
+**Quest:** {title}
+
+**Steps to generate for this domain:**
+{domain_outline_text}
+
+Generate a JSON array with EXACTLY {len(domain_outline)} steps:
+[
+  {{
+    "type": "info",
+    "title": "Day X: [Micro-Topic]",
+    "prompt": "Today you will [ONE focused goal]. (2-3 sentences max)",
+    "actions": ["[15-25 min task]", "[15-25 min task]", "[15-25 min task]"]
+  }}
+]
+
+REMEMBER: 3-4 actions each, 60-90 min total, ONE theme per step.
+
+JSON array only:"""
+
+            try:
+                content_result = llm_client.complete_system(
+                    system=content_system,
+                    user=content_user,
+                    command="quest-compose-content",
+                    think_mode=True,
+                )
+                
+                content_text = content_result.get("text", "").strip()
+                
+                # Parse content
+                start_idx = content_text.find('[')
+                end_idx = content_text.rfind(']') + 1
+                
+                if start_idx != -1 and end_idx > 0:
+                    content_json = content_text[start_idx:end_idx]
+                    content_steps = json.loads(content_json)
+                    
+                    # Normalize and add steps
+                    for step_data in content_steps:
+                        if not isinstance(step_data, dict):
+                            continue
+                        
+                        step_type = step_data.get("type", "info").lower()
+                        if step_type not in {"info", "recall", "apply", "reflect", "boss"}:
+                            step_type = "info"
+                        
+                        actions = step_data.get("actions", [])
+                        if not isinstance(actions, list):
+                            actions = []
+                        actions = [str(a) for a in actions if a]
+                        
+                        # ENFORCE MICRO-STEP CONSTRAINTS
+                        if len(actions) > 4:
+                            actions = actions[:4]
+                        if len(actions) < 2:
+                            actions.append("Review what you learned today")
+                        
+                        step = {
+                            "id": f"step_{len(all_steps) + 1}",
+                            "type": step_type,
+                            "prompt": step_data.get("prompt", ""),
+                            "title": step_data.get("title", f"Day {len(all_steps) + 1}"),
+                            "actions": actions,
+                            "domain": domain_name,  # Track domain
+                        }
+                        
+                        if step["prompt"]:
+                            all_steps.append(step)
+                    
+            except Exception as e:
+                _progress(f"Domain {domain_name} error: {e}", domain_progress)
+                # Create placeholder steps for failed domain
+                for outline_step in domain_outline:
+                    all_steps.append({
+                        "id": f"step_{len(all_steps) + 1}",
+                        "type": outline_step.get("type", "info"),
+                        "prompt": f"Complete: {outline_step.get('topic', domain_name)}",
+                        "title": f"Day {len(all_steps) + 1}: {outline_step.get('topic', domain_name)}",
+                        "actions": [
+                            f"Study {outline_step.get('topic', domain_name)}",
+                            "Take notes on key concepts",
+                            "Review and summarize",
+                        ],
+                        "domain": domain_name,
+                    })
+                continue
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # FINAL COVERAGE VALIDATION
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        final_domain_count = {}
+        for step in all_steps:
+            d = step.get("domain", "Unknown")
+            final_domain_count[d] = final_domain_count.get(d, 0) + 1
+        
+        print(f"[QuestCompose] Final coverage: {final_domain_count}", flush=True)
+        print(f"[QuestCompose:MultiPhase] SUCCESS - {len(all_steps)} steps across {len(final_domain_count)} domains", flush=True)
+        
+        if all_steps:
+            _progress(f"Complete: {len(all_steps)} steps across {len(final_domain_count)} domains", 95)
+            
+            # Add generation mode metadata to each step for debugging
+            for step in all_steps:
+                step["_generation_mode"] = "multiphase"
+            
+            return all_steps
+        else:
+            print(f"[QuestCompose:MultiPhase] No steps generated, falling back to SingleShot", flush=True)
+            _progress("No steps generated, using fallback", 50)
+            return _generate_steps_single_shot(draft, kernel, progress_callback)
+        
+    except Exception as e:
+        print(f"[QuestCompose:MultiPhase] EXCEPTION: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        print(f"[QuestCompose:MultiPhase] Falling back to SingleShot due to exception", flush=True)
+        return _generate_steps_single_shot(draft, kernel, progress_callback)
+
+
+def _generate_steps_single_shot(
+    draft: Dict[str, Any], 
+    kernel: Any,
+    progress_callback: Optional[callable] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Original single-shot step generation (fallback).
+    
+    Used when chunked generation fails or for simple quests.
+    """
+    def _progress(msg: str, pct: int):
+        if progress_callback:
+            try:
+                progress_callback(msg, pct)
+            except:
+                pass
+        print(f"[QuestCompose:SingleShot] {msg} ({pct}%)", flush=True)
+    
+    try:
+        print(f"[QuestCompose:SingleShot] Starting fallback generation...", flush=True)
+        
+        llm_client = getattr(kernel, 'llm_client', None)
+        if not llm_client:
+            print(f"[QuestCompose:SingleShot] ERROR: No LLM client", flush=True)
+            return []
+        
+        title = draft.get("title", "Untitled Quest")
+        category = draft.get("category", "general")
+        objectives = draft.get("objectives", [])
+        
+        print(f"[QuestCompose:SingleShot] Title: {title}, Objectives: {len(objectives)}", flush=True)
+        
         objectives_text = "\n".join([f"- {obj}" for obj in objectives]) if objectives else "- Complete the quest"
         
-        system_prompt = """You are an expert instructional designer creating detailed, engaging learning quests.
+        system_prompt = """You are a micro-learning architect for NovaOS.
 
-Your steps should be SPECIFIC and ACTIONABLE - not generic templates. Each step should:
-- Reference actual concepts from the learning objectives
-- Include specific tasks, questions, or content relevant to the topic
-- Build progressively toward mastery
-- Feel like a real lesson plan, not a template
-- Include actionable sub-steps that guide the learner through completion
+═══════════════════════════════════════════════════════════════════════════════
+CRITICAL: ONE STEP = ONE DAY = 60-90 MINUTES FOR A WORKING ADULT
+═══════════════════════════════════════════════════════════════════════════════
 
-IMPORTANT STRUCTURE RULE: Each step represents ONE FULL DAY of learning. Do NOT split days into morning/afternoon/evening. One step = one day. If the quest is "learn X in 10 days", generate 10 steps (one per day). Each day's step should contain ALL the activities for that entire day.
+HARD RULES:
+1. Each step = 60-90 minutes MAX (tired adult after work, not full-time student)
+2. EXACTLY 3-4 actions per step (not 6, not 8, not 10)
+3. ONE theme per step (info OR apply, NEVER both combined)
+4. Actions must be atomic and completable in 15-25 minutes each
 
-The difficulty will be auto-calculated based on the steps you create. Create appropriately challenging content based on the objectives.
+DECOMPOSITION:
+- Multi-hour topic → split into multiple days
+- Reading + lab → separate days
+- Multiple concepts → separate days
+- MORE DAYS = BETTER
 
-Respond ONLY with a valid JSON array. No markdown, no explanation, just the JSON."""
+BAD ACTIONS (never use):
+- "Set up complete environment" ❌
+- "Research thoroughly" ❌  
+- "Build and deploy" ❌
+- "Master fundamentals" ❌
+
+GOOD ACTIONS:
+- "Read pages 10-20 on X" ✓
+- "Watch 15-min video on Y" ✓
+- "Install Z tool" ✓
+- "Write 3 bullet summary" ✓
+
+Respond ONLY with valid JSON array. No markdown."""
         
-        user_prompt = f"""Create a detailed learning quest with specific, actionable steps.
+        user_prompt = f"""Create ATOMIC MICRO-STEPS for this quest.
 
 **Quest Title:** {title}
 **Category:** {category}
@@ -1218,119 +2981,59 @@ Respond ONLY with a valid JSON array. No markdown, no explanation, just the JSON
 **Learning Objectives:**
 {objectives_text}
 
----
+Generate 10-30 micro-steps. Each step:
+- 60-90 minutes max
+- EXACTLY 3-4 actions  
+- ONE focused theme
+- Builds on previous day
 
-CRITICAL: Each step = ONE FULL DAY. Do not split days into morning/afternoon/evening segments.
-
-Generate as many steps as needed, where each step represents a complete day of learning:
-- If the quest mentions a timeframe (e.g., "10 days", "2 weeks"), match that number of steps
-- If no timeframe, estimate based on complexity: simple topic = 3-5 days, moderate = 5-10 days, comprehensive = 10-20 days
-- Each day should have enough content to fill a meaningful learning session (not too light, not overwhelming)
-
-Each step needs:
-- `type`: one of [info, recall, apply, reflect, boss]
-- `title`: "Day X: [Descriptive Title]" format (e.g., "Day 1: Setting Up Your Environment")
-- `prompt`: detailed description of what the learner will accomplish THIS ENTIRE DAY (several sentences covering the full day's learning)
-- `actions`: array of ALL specific tasks to complete that day (typically 4-8 actions per day)
-
-**Step type guidelines:**
-- `info`: Teaching days focused on learning new concepts
-- `recall`: Review/checkpoint days to verify understanding
-- `apply`: Hands-on practice days building something
-- `reflect`: Reflection days to consolidate learning
-- `boss`: Final challenge/project days (usually the last day or last few days)
-
-**Example of GOOD day-based steps:**
+JSON array:
 [
   {{
-    "type": "info",
-    "title": "Day 1: Environment Setup and First Program",
-    "prompt": "Today you'll set up your development environment and write your first working program. By the end of the day, you'll have all tools installed, understand the basic workflow, and have successfully run code that produces output.",
-    "actions": [
-      "Install Python 3.x from python.org and verify with 'python --version'",
-      "Install VS Code and the Python extension",
-      "Create a project folder called 'my_first_project'",
-      "Write a hello world program and run it from the terminal",
-      "Modify the program to print 3 different messages",
-      "Learn about print() syntax and string formatting basics"
-    ]
-  }},
-  {{
-    "type": "info", 
-    "title": "Day 2: Variables, Data Types, and Basic Operations",
-    "prompt": "Today focuses entirely on understanding how to store and manipulate data. You'll learn about variables, the four basic data types, and how to perform operations on them. By the end of the day, you'll be comfortable creating variables and using them in expressions.",
-    "actions": [
-      "Learn what variables are and Python's naming rules",
-      "Practice creating variables of each type: int, float, str, bool",
-      "Understand arithmetic operators: +, -, *, /, //, %, **",
-      "Learn string operations: concatenation, repetition, f-strings",
-      "Write a program that uses all four data types",
-      "Complete 5 small exercises combining variables and operators"
-    ]
-  }},
-  {{
-    "type": "boss",
-    "title": "Day 10: Final Project - Build Your Complete Application",
-    "prompt": "Today is your capstone day. You'll design, implement, and test a complete application that uses everything you've learned. This project demonstrates your ability to combine all concepts into working software.",
-    "actions": [
-      "Choose your project from the provided options or propose your own",
-      "Write pseudocode planning out the structure and features",
-      "Create the project folder and file structure",
-      "Implement core functionality with functions and data structures",
-      "Add user input handling and menu system",
-      "Implement file save/load for data persistence",
-      "Test thoroughly and fix any bugs",
-      "Document your code with comments"
-    ]
+    "type": "info|apply|recall|reflect|boss",
+    "title": "Day X: [Single Micro-Topic]",
+    "prompt": "Today's focused micro-goal (2-3 sentences max)",
+    "actions": ["[15-25 min task]", "[15-25 min task]", "[15-25 min task]"]
   }}
 ]
 
-**BAD examples (don't do this):**
-- "Day 1 Morning: Setup" and "Day 1 Afternoon: First Code" ← WRONG, split days
-- Generic titles like "Introduction" or "Step 3" ← WRONG, not descriptive
+JSON only:"""
 
-Now generate SPECIFIC day-based steps for the quest "{title}" with objectives: {objectives_text}
-
-JSON array only:"""
-
-        # Call LLM using complete_system with think_mode=True for quality
-        print(f"[QuestCompose] Generating steps via LLM (gpt-5.1)...", flush=True)
+        print(f"[QuestCompose:SingleShot] Calling LLM...", flush=True)
         
         try:
             result = llm_client.complete_system(
                 system=system_prompt,
                 user=user_prompt,
                 command="quest-compose",
-                think_mode=True,  # Use gpt-5.1 for quality step generation
+                think_mode=True,
             )
+            print(f"[QuestCompose:SingleShot] LLM call complete", flush=True)
         except Exception as api_error:
-            print(f"[QuestCompose] LLM API call failed: {api_error}", flush=True)
+            print(f"[QuestCompose:SingleShot] LLM ERROR: {api_error}", flush=True)
+            import traceback
+            traceback.print_exc()
             return []
-        
-        print(f"[QuestCompose] LLM call completed, result type: {type(result)}", flush=True)
         
         response_text = result.get("text", "").strip()
+        print(f"[QuestCompose:SingleShot] Response length: {len(response_text)}", flush=True)
+        print(f"[QuestCompose:SingleShot] Response preview: {response_text[:300] if response_text else 'EMPTY'}", flush=True)
         
         if not response_text:
-            print("[QuestCompose] Empty response from LLM", flush=True)
+            print(f"[QuestCompose:SingleShot] Empty response from LLM", flush=True)
             return []
-        
-        print(f"[QuestCompose] LLM response length: {len(response_text)}", flush=True)
         
         # Find JSON array in response
         start_idx = response_text.find('[')
         end_idx = response_text.rfind(']') + 1
         
         if start_idx == -1 or end_idx == 0:
-            print(f"[QuestCompose] No JSON array found in LLM response", flush=True)
-            print(f"[QuestCompose] Response preview: {response_text[:200]}", flush=True)
             return []
         
         json_text = response_text[start_idx:end_idx]
         steps_data = json.loads(json_text)
         
         if not isinstance(steps_data, list):
-            print(f"[QuestCompose] LLM response is not a list", flush=True)
             return []
         
         # Normalize steps
@@ -1345,12 +3048,23 @@ JSON array only:"""
             if step_type not in valid_types:
                 step_type = "info"
             
-            # Get actions if present
             actions = step_data.get("actions", [])
             if not isinstance(actions, list):
                 actions = []
-            # Ensure actions are strings
             actions = [str(a) for a in actions if a]
+            
+            # ═══════════════════════════════════════════════════════
+            # ENFORCE MICRO-STEP CONSTRAINTS
+            # ═══════════════════════════════════════════════════════
+            
+            # Limit to 4 actions max (micro-step constraint)
+            if len(actions) > 4:
+                print(f"[QuestCompose] Trimming actions from {len(actions)} to 4", flush=True)
+                actions = actions[:4]
+            
+            # Ensure at least 2 actions
+            if len(actions) < 2:
+                actions.append("Review what you learned today")
             
             step = {
                 "id": f"step_{i}",
@@ -1358,19 +3072,21 @@ JSON array only:"""
                 "prompt": step_data.get("prompt", step_data.get("description", "")),
                 "title": step_data.get("title", f"Step {i}"),
                 "actions": actions,
+                "_generation_mode": "singleshot",  # Mark as fallback-generated
             }
             
             if step["prompt"]:
                 steps.append(step)
         
-        print(f"[QuestCompose] Generated {len(steps)} steps", flush=True)
+        print(f"[QuestCompose:SingleShot] SUCCESS - Generated {len(steps)} steps", flush=True)
+        _progress(f"Complete: {len(steps)} steps", 95)
         return steps if steps else []
         
     except json.JSONDecodeError as e:
-        print(f"[QuestCompose] JSON parse error: {e}", flush=True)
+        print(f"[QuestCompose:SingleShot] JSON parse error: {e}", flush=True)
         return []
     except Exception as e:
-        print(f"[QuestCompose] Error generating steps: {e}", flush=True)
+        print(f"[QuestCompose] Single-shot error: {e}", flush=True)
         return []
 
 

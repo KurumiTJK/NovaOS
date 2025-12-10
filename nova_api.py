@@ -1,18 +1,20 @@
 # nova_api.py
 """
-NovaOS Flask API Server — v0.9.1
+NovaOS Flask API Server — v0.10.1
 
 Now uses the dual-mode architecture:
 - Default: Persona mode (pure conversation)
 - After #boot: NovaOS mode (kernel + modules)
 - After #shutdown: Back to Persona mode
 
+v0.10.1: Added SSE streaming endpoint for long-running operations
 v0.9.1: Added explicit .env loading at startup to ensure API keys are available
 before any LLM client is created. Fixes "Incorrect API key" errors on remote servers.
 """
 
 import os
 import sys
+import json
 from pathlib import Path
 
 # -----------------------------------------------------------------------------
@@ -69,7 +71,7 @@ _ensure_env_loaded()
 # Now safe to import modules that use API keys
 # -----------------------------------------------------------------------------
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, Response
 
 from system.config import Config
 from kernel.nova_kernel import NovaKernel
@@ -148,6 +150,136 @@ def nova_endpoint():
     return jsonify(result)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SSE STREAMING ENDPOINT — v0.10.1
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/nova/stream")
+def nova_stream_endpoint():
+    """
+    Server-Sent Events streaming endpoint for long-running operations.
+    
+    Body: { "text": "#quest-compose ...", "session_id": "..." }
+    
+    Returns: SSE stream with events:
+        - event: progress - Progress updates
+        - event: chunk - Text chunks
+        - event: complete - Final result
+        - event: error - Error occurred
+    
+    Usage (JavaScript):
+        const eventSource = new EventSource('/nova/stream?session_id=...');
+        // or POST with fetch and read stream
+    """
+    data = request.get_json(force=True) or {}
+    text = (data.get("text") or "").strip()
+    session_id = data.get("session_id", "web-default")
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    def generate():
+        """Generator for SSE events."""
+        try:
+            # Send initial progress
+            yield _sse_event("progress", {"message": "Starting...", "percent": 0})
+            
+            # Get or create state
+            state = get_or_create_state(session_id)
+            
+            # Check if this is a streaming-enabled command
+            if text.startswith("#quest-compose"):
+                # Use streaming quest compose
+                yield from _stream_quest_compose(text, session_id, state)
+            else:
+                # For non-streaming commands, just do normal processing
+                yield _sse_event("progress", {"message": "Processing...", "percent": 50})
+                
+                result = handle_user_message(
+                    message=text,
+                    state=state,
+                    kernel=kernel,
+                    persona=persona,
+                )
+                
+                yield _sse_event("complete", result)
+                
+        except Exception as e:
+            print(f"[NovaAPI] Stream error: {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
+            yield _sse_event("error", {"error": str(e)})
+    
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no',  # Disable nginx buffering
+        }
+    )
+
+
+def _sse_event(event_type: str, data: dict) -> str:
+    """Format a Server-Sent Event."""
+    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+def _stream_quest_compose(text: str, session_id: str, state):
+    """
+    Stream quest-compose operation with progress updates.
+    
+    Yields SSE events as the quest is being composed.
+    """
+    try:
+        from kernel.quest_compose_wizard import (
+            handle_quest_compose,
+            get_compose_session,
+            has_active_compose_session,
+        )
+        
+        yield _sse_event("progress", {"message": "Initializing quest composer...", "percent": 10})
+        
+        # Check if wizard is already active
+        if has_active_compose_session(session_id):
+            # Process wizard input
+            from kernel.quest_compose_wizard import process_compose_wizard_input
+            result = process_compose_wizard_input(session_id, text.replace("#quest-compose", "").strip(), kernel)
+            if result:
+                yield _sse_event("complete", {
+                    "text": result.summary,
+                    "ok": result.ok,
+                    "data": result.data if hasattr(result, 'data') else {},
+                })
+                return
+        
+        # Start new wizard or process command
+        yield _sse_event("progress", {"message": "Processing quest composition...", "percent": 30})
+        
+        # For streaming generation, we need to intercept the step generation
+        # and yield progress updates
+        result = handle_user_message(
+            message=text,
+            state=state,
+            kernel=kernel,
+            persona=persona,
+        )
+        
+        yield _sse_event("progress", {"message": "Finalizing...", "percent": 90})
+        yield _sse_event("complete", result)
+        
+    except Exception as e:
+        print(f"[NovaAPI] Quest compose stream error: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc()
+        yield _sse_event("error", {"error": str(e)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# STATUS/HEALTH ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
 @app.get("/nova/status")
 def status_endpoint():
     """
@@ -182,10 +314,11 @@ def health_endpoint():
     api_key = os.getenv("OPENAI_API_KEY", "")
     return jsonify({
         "status": "ok",
-        "version": "0.9.1",
+        "version": "0.10.1",
         "base_dir": str(BASE_DIR),
         "api_key_configured": bool(api_key),
         "api_key_length": len(api_key) if api_key else 0,
+        "streaming_enabled": True,
     })
 
 
