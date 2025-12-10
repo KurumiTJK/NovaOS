@@ -1,0 +1,18 @@
+{
+  "run_id": "4233c342",
+  "quest_id": "test",
+  "status": "in_progress",
+  "current_step_index": 1,
+  "steps_state": {
+    "step_1": {
+      "status": "completed",
+      "user_input": "__COMPLETE__",
+      "validated": true,
+      "score": 1.0,
+      "completed_at": "2025-12-10T00:38:10.397284+00:00"
+    }
+  },
+  "started_at": "2025-12-09T23:28:28.865328+00:00",
+  "updated_at": "2025-12-10T00:38:10.397353+00:00",
+  "mode": "normal"
+}

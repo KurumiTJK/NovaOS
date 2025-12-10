@@ -1,1 +1,93 @@
-{}
+{
+  "test": {
+    "id": "test",
+    "title": "test",
+    "subtitle": null,
+    "description": "learn how to code in 3 days",
+    "category": "test",
+    "module_id": "test",
+    "skill_tree_path": "test.test",
+    "difficulty": 2,
+    "estimated_minutes": 15,
+    "tags": [
+      "learning"
+    ],
+    "steps": [
+      {
+        "id": "step_1",
+        "type": "info",
+        "prompt": "Today you’ll set up a basic coding environment (using Python, a beginner-friendly language) and write your first working programs. By the end of the day, you’ll know how to install the tools, create and run a script, use comments, print output, and work with simple data like numbers and text.",
+        "title": "Day 1: Set Up and Write Your First Program",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Install Python 3 from https://python.org (if it isn’t already installed), then open a terminal/command prompt and run `python --version` or `python3 --version` to confirm it’s installed correctly.",
+          "Choose a code editor (VS Code is recommended). Install it and open it once to make sure it runs. In VS Code, install the official \"Python\" extension.",
+          "Create a folder named `learn_to_code_3_days` on your computer. Inside it, create a file named `day1_hello.py`.",
+          "In `day1_hello.py`, write a simple program:\n`# My first program`\n`print(\"Hello, world!\")`\nSave the file, then open a terminal in that folder and run it with `python day1_hello.py` (or `python3 day1_hello.py`). Verify you see `Hello, world!` printed.",
+          "Modify the program to print three different lines using separate `print()` calls: your name, today’s date, and one reason you want to learn to code.",
+          "Learn and practice comments: add at least three comments in your file explaining what parts of your code do, using `#` for single-line comments.",
+          "Create a new file `day1_introduction.py` and practice working with simple data:\n- Create a variable `name` holding your name as text.\n- Create a variable `age` holding your age as a number.\n- Use `print()` to output a sentence like: `Hello, my name is Alice and I am 25 years old.` using your variables.\nRun the program to confirm it prints correctly.",
+          "Experiment with basic math in code in the same file:\n- Add variables: `a = 7`, `b = 3`.\n- Print the results of `a + b`, `a - b`, `a * b`, and `a / b` with clear labels (e.g., `print(\"a + b =\", a + b)`).\n- Change the values of `a` and `b` and run the script again to see the new results.",
+          "At the end of the day, write a short comment block at the top of `day1_introduction.py` (3–5 lines) in plain English explaining what you did today and one thing that still feels confusing, using `#` at the start of each line."
+        ]
+      },
+      {
+        "id": "step_2",
+        "type": "info",
+        "prompt": "Today you’ll move beyond simple scripts and start making your programs interactive and smart. You will learn how to get input from a user, store and update variables, make decisions with if/else, and repeat actions with loops. By the end of the day, you’ll have a small text-based calculator and a guessing-game style program.",
+        "title": "Day 2: Variables, Decisions, and Repeating Actions",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Create a new file in your `learn_to_code_3_days` folder named `day2_input.py`. In this file, practice reading user input:\n- Use `input(\"What is your name? \")` to ask for a name and store it in a variable `name`.\n- Print a greeting like `Hello, <name>!` using the value you read from the user.",
+          "Extend `day2_input.py` into a tiny age program:\n- Ask the user for their age with `input(\"How old are you? \")`.\n- Convert the input to a number using `int()` and store it in `age`.\n- Calculate what their age will be in 5 years and print: `In 5 years you will be X years old.`",
+          "Create a new file `day2_if_else.py` and practice decision making:\n- Ask the user for a number with `input()` and convert it to `int`.\n- If the number is greater than 10, print `That’s a big number!`; otherwise, print `That’s a small number or equal to 10.` using an `if` and `else` block.\n- Add another condition: if the number is exactly 10, print `You chose exactly ten!` using `elif`.",
+          "In the same `day2_if_else.py`, add another decision example:\n- Ask the user for a password.\n- If the password equals a secret string you choose (e.g., `\"python123\"`), print `Access granted`.\n- Otherwise, print `Access denied`.\n- Add at least two comments explaining the `if` and `else` sections.",
+          "Create a new file `day2_loops.py` and practice loops using `for`:\n- Use `for i in range(5):` to print the numbers 0–4.\n- Modify the loop to print from 1–5 instead.\n- Add a second loop that prints each character in the string `\"code\"` on its own line.",
+          "In `day2_loops.py`, add a simple `while` loop example:\n- Set `count = 3`.\n- While `count` is greater than 0, print `Countdown:` and the value of `count`, then subtract 1 from `count` each time through the loop.\n- After the loop ends, print `Go!`.\nAdd comments explaining when the loop stops.",
+          "Create a mini calculator program in a new file `day2_calculator.py`:\n- Ask the user for two numbers and an operation (`+`, `-`, `*`, or `/`).\n- Use `if/elif` to perform the correct operation on the numbers.\n- Print the result with a clear message.\n- Handle at least one error case: if the user enters an operation you don’t recognize, print an error message instead of crashing.",
+          "Create a simple guessing game in a new file `day2_guess.py`:\n- Set a secret number between 1 and 10 (hard-code it in the code, e.g., `secret = 7`).\n- Use a `while` loop to allow the user to guess until they are correct.\n- After each guess, print whether the guess is too high, too low, or correct.\n- When they guess correctly, print a congratulatory message and end the loop.",
+          "At the end of the day, open all of today’s files and re-read them once. Add at least three new comments total (spread across any of the files) explaining why you used `if`, `elif`, `while`, or `for` in specific places."
+        ]
+      },
+      {
+        "id": "step_3",
+        "type": "boss",
+        "prompt": "Today you’ll combine what you’ve learned into a small but complete text-based application. You’ll design it, write it, and test it yourself. Along the way, you’ll review variables, input, output, decisions, and loops. By the end of the day, you’ll have a working program (such as a simple game or utility) that you can run and show to someone else.",
+        "title": "Day 3: Build and Review Your First Complete Program",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Briefly review your code from Days 1 and 2:\n- Skim `day1_hello.py`, `day1_introduction.py`, `day2_input.py`, `day2_if_else.py`, `day2_loops.py`, `day2_calculator.py`, and `day2_guess.py`.\n- For each file, say out loud (or write in a notebook) one concept it uses (e.g., variables, input, `if`, `for`, `while`).",
+          "Choose one of these project ideas (or a similar one you prefer) for your final program and create a file for it in your folder:\n- `day3_project.py` – Number guessing game with limited attempts.\n- `day3_project.py` – Simple to-do list where you can add and view tasks.\n- `day3_project.py` – Basic quiz with 3–5 questions and a final score.\nRename the file according to your chosen idea if you like (e.g., `day3_quiz.py`).",
+          "Plan your program with comments before writing the code:\n- At the top of your file, write a comment block describing what your program will do in 3–5 lines.\n- Write a step-by-step outline as comments, for example:\n  - `# 1. Greet the user`\n  - `# 2. Explain the rules`\n  - `# 3. Ask for input...`\n  - `# 4. Use a loop to repeat...`\n  - `# 5. Use if/else to check answers or conditions`\nThis outline is your \"pseudocode\" guide.",
+          "Implement the core features using what you’ve learned:\n- Use at least one `input()` to get information from the user.\n- Use variables to store important data (like score, secret number, or a list of tasks).\n- Use at least one `if/else` block to make a decision (e.g., correct vs incorrect answer, win vs lose, valid vs invalid option).\n- Use at least one loop (`for` or `while`) to repeat actions (e.g., multiple questions, multiple guesses, repeated menu).",
+          "Enhance your program with user-friendly details:\n- Print clear instructions at the beginning so someone else could use it without reading the code.\n- Add helpful messages after user actions (e.g., `You have 2 guesses left`, `Task added!`, `Your current score is 3`).\n- Handle at least one error or unexpected input using `if` (e.g., if the user types something other than `1`, `2`, or `3` for a menu choice, show an error and ask again).",
+          "Test your program thoroughly:\n- Run it at least three times with different choices or inputs.\n- Intentionally try to \"break\" it by entering unexpected values (like letters instead of numbers) and observe what happens.\n- Each time you find a bug or confusing behavior, go back to the code, add a comment near the problem, and try to fix it or improve your messages.",
+          "Clean up and document your final project:\n- Remove any unused code or stray print statements that were only for debugging.\n- At the top of the file, update the comment block to include: your name, the date, the program’s name, and a one-sentence summary of what it does.\n- Add short comments to any tricky parts of the code so that a future beginner could understand your logic.",
+          "Reflect briefly on your 3-day journey by adding a final comment block at the very bottom of `day3_project.py` starting with `# Reflection` and answering in 3–5 lines:\n- What are two coding concepts you feel more comfortable with now?\n- What is one thing you still find confusing or want to learn next?\n- How did it feel to build a complete, working program?"
+        ]
+      }
+    ],
+    "rewards": {
+      "xp": 15,
+      "titles": [],
+      "shortcuts": [],
+      "visual_unlock": null
+    },
+    "created_at": "2025-12-09T23:23:02.663543+00:00"
+  }
+}

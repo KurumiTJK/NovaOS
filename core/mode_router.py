@@ -1,6 +1,6 @@
 # core/mode_router.py
 """
-NovaOS v0.9.2 — Mode Router
+NovaOS v0.10.0 — Mode Router
 
 The single entrypoint for all user messages.
 Routes based on NovaState.novaos_enabled:
@@ -15,6 +15,12 @@ Routes based on NovaState.novaos_enabled:
     → NO persona fallback - command shell only
     → Unrecognized input returns fixed error message
     → #shutdown returns to Persona mode
+    
+v0.10.0 CHANGES:
+    → Added quest lock mode support
+    → When a quest is active, raw text goes to Nova for conversation
+    → Only #complete and #halt are allowed during quest mode
+    → Quest start wizard allows selecting quests by number
     
 v0.9.2 CHANGES:
     → Added support for interactive wizard sessions (e.g., #quest-compose)
@@ -71,6 +77,45 @@ def _is_boot_command(message: str) -> bool:
 def _is_shutdown_command(message: str) -> bool:
     """Check if message is a shutdown command."""
     return bool(SHUTDOWN_PATTERNS.match(message.strip()))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v0.10.0: QUEST LOCK MODE CHECK
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _check_quest_mode(
+    message: str,
+    session_id: str,
+    kernel: "NovaKernel",
+    persona: "NovaPersona",
+    state: "NovaState",
+) -> Optional[Dict[str, Any]]:
+    """
+    v0.10.0: Check if quest mode should handle this input.
+    
+    Returns a response dict if quest mode handled it, None otherwise.
+    
+    Quest mode has TWO states:
+    1. Quest START wizard active (choosing quest/lesson)
+       - Raw text and numbers route to wizard
+    2. Quest LOCK mode active (during a lesson)
+       - Raw text routes to Nova conversation
+       - #complete and #halt are allowed
+       - Other # commands are blocked
+    """
+    try:
+        from kernel.quest_v10_integration import check_quest_mode_routing
+        result = check_quest_mode_routing(message, session_id, kernel, persona, state)
+        if result:
+            # Add mode info
+            result["mode"] = state.mode_name
+            return result
+        return None
+    except ImportError:
+        return None
+    except Exception as e:
+        print(f"[ModeRouter] quest mode check error: {e}", flush=True)
+        return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -268,12 +313,13 @@ def _handle_novaos_mode_strict(
     """
     Handle input when NovaOS is ON (STRICT mode).
     
-    v0.9.2 STRICT MODE BEHAVIOR:
+    v0.10.0 STRICT MODE BEHAVIOR:
     
-    THREE things are allowed:
+    FOUR things are allowed:
     1. Valid syscommands (e.g., #status, #help, #quest)
     2. Natural language inputs successfully mapped to a syscommand via NL router
     3. Raw text input when an interactive wizard is active (e.g., #quest-compose)
+    4. Raw text input when quest lock mode is active (conversation with Nova)
     
     If none of these match:
     - NO persona fallback
@@ -281,11 +327,24 @@ def _handle_novaos_mode_strict(
     - Returns fixed error message
     
     This is a COMMAND SHELL, not a chat mode.
+    (Exception: Quest lock mode allows conversation during active quests)
     """
     
     # Check for #shutdown
     if _is_shutdown_command(message):
         return _deactivate_novaos(state, kernel, persona)
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # v0.10.0: QUEST MODE CHECK (MUST BE FIRST)
+    # ─────────────────────────────────────────────────────────────────────
+    # Quest mode handles:
+    # - Quest start wizard (selecting quest/lesson by number)
+    # - Quest lock mode (conversation during active quest)
+    # - Command blocking (only #complete and #halt allowed)
+    
+    quest_result = _check_quest_mode(message, state.session_id, kernel, persona, state)
+    if quest_result:
+        return quest_result
     
     # ─────────────────────────────────────────────────────────────────────
     # v0.9.2: CHECK FOR ACTIVE INTERACTIVE WIZARD

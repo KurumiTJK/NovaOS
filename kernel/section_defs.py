@@ -1,10 +1,15 @@
 # kernel/section_defs.py
 """
-v0.9.0 — Section Definitions for NovaOS Life RPG
+v0.10.0 — Section Definitions for NovaOS Life RPG
 
 Defines the 13 canonical sections and their associated commands.
-Updated for Quest Engine (replaces legacy workflow system).
-Added #shutdown command for dual-mode architecture.
+Updated for Quest Engine with quest lock mode.
+
+v0.10.0 CHANGES:
+- Added #complete command (finish lesson, save progress, preview tomorrow)
+- Added #halt command (pause quest mode, return to normal NovaOS)
+- Updated #quest description (now opens wizard)
+- Updated #next description (now alias for #complete)
 
 Sections:
 1. core          — Nova's heart & OS control center
@@ -140,11 +145,13 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "workflow": Section(
         title="Quest Engine",
-        description="Gamified learning quests with XP, skills, streaks, and boss battles.",
+        description="Gamified learning quests with XP, skills, streaks, and boss battles. Use #quest to start wizard, #complete to finish lessons.",
         commands=[
-            CommandInfo("quest", "Open the Quest Board to list, start, or resume a quest", "#quest"),
-            CommandInfo("next", "Submit your answer and advance to the next step", "#next"),
-            CommandInfo("pause", "Pause the active quest and save progress", "#pause"),
+            CommandInfo("quest", "Open quest wizard to choose and start a quest", "#quest"),
+            CommandInfo("complete", "Finish today's lesson, save progress, preview tomorrow", "#complete"),
+            CommandInfo("halt", "Pause quest mode and return to normal NovaOS", "#halt"),
+            CommandInfo("next", "(Legacy) Alias for #complete", "#next"),
+            CommandInfo("pause", "Pause the active quest outside quest mode", "#pause"),
             CommandInfo("quest-log", "View player progress: level, XP, skills, streak", "#quest-log"),
             CommandInfo("quest-reset", "Reset a quest's progress to replay from start", "#quest-reset id=jwt_intro"),
             CommandInfo("quest-compose", "Compose a new questline with LLM assistance", "#quest-compose"),

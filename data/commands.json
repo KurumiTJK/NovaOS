@@ -115,12 +115,22 @@
   "quest": {
     "handler": "handle_quest",
     "category": "workflow",
-    "description": "Open the Quest Board to list, start, or resume a quest."
+    "description": "Open quest wizard to choose and start a quest, or use id=<id> for direct start."
+  },
+  "complete": {
+    "handler": "handle_complete",
+    "category": "workflow",
+    "description": "Finish today's lesson, save progress, and preview tomorrow's lesson."
+  },
+  "halt": {
+    "handler": "handle_halt",
+    "category": "workflow",
+    "description": "Pause quest mode and return to normal NovaOS."
   },
   "next": {
     "handler": "handle_next",
     "category": "workflow",
-    "description": "Submit your last answer and advance to the next step in the active quest."
+    "description": "Legacy alias for #complete. Use #complete instead."
   },
   "pause": {
     "handler": "handle_pause",

@@ -1,8 +1,14 @@
 # kernel/nova_kernel.py
 """
-v0.9.0 — NovaKernel with Deterministic Model Routing
+v0.10.0 — NovaKernel with Quest Lock Mode
 
-🔥 v0.9.0 CHANGES:
+🔥 v0.10.0 CHANGES:
+- Added quest v0.10.0 integration (wizard, lock mode, #complete, #halt)
+- Quest mode allows conversation during active quests
+- #complete replaces #next as primary command
+- #halt pauses quest mode
+
+v0.9.0 CHANGES:
 - Updated get_model() with enhanced logging
 - Updated get_model_info() to show heavy/light command sets
 - All model routing now deterministic with NO FALLBACK
@@ -202,6 +208,14 @@ class NovaKernel:
         # v0.8.0: InterpretationEngine removed - dead code
         # Wizard logic is now handled by wizard_mode.py
         # NL routing is handled by nl_router.py
+
+        # ---------------- v0.10.0: Quest System Integration ----------------
+        # Registers #complete, #halt handlers and updates #quest with wizard
+        try:
+            from kernel.quest_v10_integration import apply_quest_v10_integration
+            apply_quest_v10_integration(self)
+        except Exception as e:
+            print(f"[NovaKernel] v0.10.0 quest integration failed: {e}", flush=True)
 
 
     # ------------------------------------------------------------------
@@ -568,7 +582,7 @@ class NovaKernel:
                 session_id=session_id,
                 extra={
                     "source": source,
-                    "kernel_version": self.env_state.get("kernel_version", "0.9.0"),
+                    "kernel_version": self.env_state.get("kernel_version", "0.10.0"),
                 },
             )
         except Exception:

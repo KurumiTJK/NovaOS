@@ -1,12 +1,15 @@
 # backend/model_router.py
 """
-v0.9.0 — Model Routing Engine (DETERMINISTIC, NO FALLBACK)
+v0.10.0 — Model Routing Engine (DETERMINISTIC, NO FALLBACK)
 
 Model Tiers (TWO tiers only):
 - MINI:     gpt-4.1-mini  — lightweight syscommands
 - THINKING: gpt-5.1       — heavy LLM-intensive commands, persona
 
-🔥 v0.9.0 CHANGES:
+v0.10.0 CHANGES:
+- Added #complete and #halt to LIGHT_SYSCOMMANDS
+
+v0.9.0 CHANGES:
 - DETERMINISTIC routing: heavy commands → gpt-5.1, light → gpt-4.1-mini
 - NO FALLBACK: if model unavailable, raise hard error
 - Expanded HEAVY_LLM_COMMANDS set with all intensive syscommands
@@ -140,6 +143,10 @@ LIGHT_SYSCOMMANDS: Set[str] = {
     "next",
     "pause",
     
+    # v0.10.0: New quest commands
+    "complete",
+    "halt",
+    
     # Reminder commands
     "remind-add",
     "remind-list",
@@ -225,7 +232,7 @@ class ModelUnavailableError(Exception):
 
 class ModelRouter:
     """
-    v0.9.0 Model Routing Engine — DETERMINISTIC, NO FALLBACK
+    v0.10.0 Model Routing Engine — DETERMINISTIC, NO FALLBACK
     
     Routing Rules:
     1. explicit_model override → use that model exactly (error if invalid)
