@@ -111,11 +111,23 @@ def _check_quest_mode(
             result["mode"] = state.mode_name
             return result
         return None
-    except ImportError:
+    except ImportError as e:
+        print(f"[ModeRouter] quest mode ImportError: {e}", flush=True)
         return None
     except Exception as e:
+        # Log the FULL error - this is critical for debugging Lightsail issues
         print(f"[ModeRouter] quest mode check error: {e}", flush=True)
-        return None
+        import traceback
+        traceback.print_exc()
+        
+        # Return a clear error instead of falling through to strict mode error
+        return {
+            "text": f"⚠️ Quest mode error: {e}\n\nPlease check server logs for details.",
+            "mode": state.mode_name,
+            "handled_by": "quest_mode_error",
+            "ok": False,
+            "error": "QUEST_MODE_ERROR",
+        }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

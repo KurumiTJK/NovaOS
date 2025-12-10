@@ -256,6 +256,8 @@ def handle_quest_conversation(
     Handle a conversational message while a quest is active.
     
     Routes through GPT-5.1 with Nova's persona + working memory + quest context.
+    
+    Includes robust error handling to surface LLM issues clearly.
     """
     from kernel.nova_wm import (
         wm_update,
@@ -272,41 +274,67 @@ def handle_quest_conversation(
             "handled_by": "quest_lock_mode",
         }
     
-    # Check if Working Memory can answer directly
-    direct_answer = wm_answer_reference(session_id, user_message)
+    print(f"[QuestConversation] Processing message for quest={state.quest_id}", flush=True)
     
-    # Update Working Memory with user message
-    wm_update(session_id, user_message)
-    
-    # Get Working Memory context
-    wm_context_string = wm_get_context_string(session_id)
-    
-    # Build quest-specific context
-    quest_context = build_quest_context_for_llm(state)
-    
-    # Combine WM context with quest context
-    combined_context = ""
-    if wm_context_string:
-        combined_context = wm_context_string + "\n\n"
-    combined_context += quest_context
-    
-    # Generate response via persona (which uses GPT-5.1)
-    response_text = persona.generate_response(
-        text=user_message,
-        session_id=session_id,
-        wm_context_string=combined_context,
-        direct_answer=direct_answer,
-    )
-    
-    # Record response in Working Memory
-    if response_text:
-        wm_record_response(session_id, response_text)
-    
-    return {
-        "ok": True,
-        "text": response_text,
-        "mode": "quest_conversation",
-        "handled_by": "quest_lock_mode",
-        "quest_id": state.quest_id,
-        "step_index": state.current_step_index,
-    }
+    try:
+        # Check if Working Memory can answer directly
+        direct_answer = wm_answer_reference(session_id, user_message)
+        
+        # Update Working Memory with user message
+        wm_update(session_id, user_message)
+        
+        # Get Working Memory context
+        wm_context_string = wm_get_context_string(session_id)
+        
+        # Build quest-specific context
+        quest_context = build_quest_context_for_llm(state)
+        
+        # Combine WM context with quest context
+        combined_context = ""
+        if wm_context_string:
+            combined_context = wm_context_string + "\n\n"
+        combined_context += quest_context
+        
+        print(f"[QuestConversation] Calling persona.generate_response()", flush=True)
+        
+        # Generate response via persona (which uses GPT-5.1)
+        response_text = persona.generate_response(
+            text=user_message,
+            session_id=session_id,
+            wm_context_string=combined_context,
+            direct_answer=direct_answer,
+        )
+        
+        print(f"[QuestConversation] Got response: {len(response_text) if response_text else 0} chars", flush=True)
+        
+        # Record response in Working Memory
+        if response_text:
+            wm_record_response(session_id, response_text)
+        
+        return {
+            "ok": True,
+            "text": response_text or "(No response generated)",
+            "mode": "quest_conversation",
+            "handled_by": "quest_lock_mode",
+            "quest_id": state.quest_id,
+            "step_index": state.current_step_index,
+        }
+        
+    except Exception as e:
+        # This is critical - surface LLM errors clearly
+        print(f"[QuestConversation] ERROR: {e}", flush=True)
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "ok": False,
+            "text": (
+                f"⚠️ Nova hit an error talking to the LLM.\n\n"
+                f"Error: {e}\n\n"
+                f"Please check the server logs and verify the API key is configured correctly."
+            ),
+            "mode": "quest_conversation",
+            "handled_by": "quest_lock_mode_error",
+            "quest_id": state.quest_id,
+            "error": str(e),
+        }

@@ -112,25 +112,52 @@ def check_quest_mode_routing(
     # ─────────────────────────────────────────────────────────────────────
     # CHECK 1: Quest Start Wizard Active
     # ─────────────────────────────────────────────────────────────────────
-    if is_quest_wizard_active(session_id):
+    try:
+        wizard_active = is_quest_wizard_active(session_id)
+        print(f"[QuestRouting] session={session_id} wizard_active={wizard_active}", flush=True)
+    except Exception as e:
+        print(f"[QuestRouting] Error checking wizard: {e}", flush=True)
+        wizard_active = False
+    
+    if wizard_active:
         # Only process raw text (not # commands) via wizard
         if not stripped.startswith("#"):
-            response = process_quest_wizard_input(session_id, stripped, kernel)
-            if response:
+            print(f"[QuestRouting] Routing to wizard: '{stripped[:50]}...'", flush=True)
+            try:
+                response = process_quest_wizard_input(session_id, stripped, kernel)
+                if response:
+                    return {
+                        "text": response.summary,
+                        "ok": response.ok,
+                        "command": "quest",
+                        "data": response.data if hasattr(response, 'data') else {},
+                        "mode": mode_name,
+                        "handled_by": "quest_start_wizard",
+                    }
+            except Exception as e:
+                print(f"[QuestRouting] Wizard error: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
                 return {
-                    "text": response.summary,
-                    "ok": response.ok,
+                    "text": f"⚠️ Quest wizard error: {e}\n\nType `#quest` to restart.",
+                    "ok": False,
                     "command": "quest",
-                    "data": response.data if hasattr(response, 'data') else {},
                     "mode": mode_name,
-                    "handled_by": "quest_start_wizard",
+                    "handled_by": "quest_wizard_error",
                 }
         # # commands pass through even when wizard is active
     
     # ─────────────────────────────────────────────────────────────────────
     # CHECK 2: Quest Lock Mode Active
     # ─────────────────────────────────────────────────────────────────────
-    if is_quest_active(session_id):
+    try:
+        quest_active = is_quest_active(session_id)
+        print(f"[QuestRouting] session={session_id} quest_active={quest_active}", flush=True)
+    except Exception as e:
+        print(f"[QuestRouting] Error checking quest active: {e}", flush=True)
+        quest_active = False
+    
+    if quest_active:
         lock_state = get_quest_lock_state(session_id)
         
         if stripped.startswith("#"):
@@ -141,9 +168,11 @@ def check_quest_mode_routing(
             # Check if command is allowed
             if is_command_allowed_in_quest_mode(cmd_name):
                 # Allow #complete and #halt to pass through to normal routing
+                print(f"[QuestRouting] Allowing #{cmd_name} through", flush=True)
                 return None
             else:
                 # Block all other commands
+                print(f"[QuestRouting] Blocking #{cmd_name}", flush=True)
                 return {
                     "text": get_quest_mode_blocked_message(),
                     "ok": False,
@@ -154,17 +183,29 @@ def check_quest_mode_routing(
                 }
         else:
             # Raw text → Quest conversation
-            result = handle_quest_conversation(
-                session_id=session_id,
-                user_message=stripped,
-                kernel=kernel,
-                persona=persona,
-            )
-            
-            result["mode"] = mode_name
-            return result
+            print(f"[QuestRouting] Routing to quest conversation", flush=True)
+            try:
+                result = handle_quest_conversation(
+                    session_id=session_id,
+                    user_message=stripped,
+                    kernel=kernel,
+                    persona=persona,
+                )
+                result["mode"] = mode_name
+                return result
+            except Exception as e:
+                print(f"[QuestRouting] Quest conversation error: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+                return {
+                    "text": f"⚠️ Error processing your message: {e}\n\nThe LLM might be unavailable. Check server logs.",
+                    "ok": False,
+                    "mode": mode_name,
+                    "handled_by": "quest_conversation_error",
+                }
     
     # Quest mode not active, let normal routing handle it
+    print(f"[QuestRouting] No quest mode active, passing through", flush=True)
     return None
 
 
@@ -240,6 +281,18 @@ def apply_quest_v10_integration(kernel: "NovaKernel") -> bool:
         except ImportError:
             print("[v0.10.0] Could not load section_defs patch", flush=True)
         
+        # Register #llm-status debug command
+        SYS_HANDLERS["handle_llm_status"] = handle_llm_status
+        if hasattr(kernel, 'router') and hasattr(kernel.router, 'handlers'):
+            kernel.router.handlers["handle_llm_status"] = handle_llm_status
+        if hasattr(kernel, 'commands') and isinstance(kernel.commands, dict):
+            kernel.commands["llm-status"] = {
+                "handler": "handle_llm_status",
+                "category": "debug",
+                "description": "Test LLM connectivity and show configuration."
+            }
+        print("[v0.10.0] Registered #llm-status debug command", flush=True)
+        
         return True
         
     except Exception as e:
@@ -247,6 +300,103 @@ def apply_quest_v10_integration(kernel: "NovaKernel") -> bool:
         import traceback
         traceback.print_exc()
         return False
+
+
+# =============================================================================
+# LLM STATUS DEBUG COMMAND
+# =============================================================================
+
+def handle_llm_status(
+    cmd_name: str = "llm-status",
+    args: str = "",
+    session_id: str = "",
+    context: Any = None,
+    kernel: Any = None,
+    meta: Any = None,
+    **kwargs
+) -> "CommandResponse":
+    """
+    Debug command to test LLM connectivity.
+    
+    Usage: #llm-status
+    
+    Tests:
+    1. OpenAI API key presence
+    2. Simple LLM call to GPT-5.1
+    3. Persona availability
+    """
+    from .command_types import CommandResponse
+    import os
+    
+    lines = ["═══ LLM STATUS CHECK ═══", ""]
+    
+    # Check 1: API Key
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if api_key:
+        masked = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
+        lines.append(f"✅ OPENAI_API_KEY: {masked} ({len(api_key)} chars)")
+    else:
+        lines.append("❌ OPENAI_API_KEY: NOT SET")
+    lines.append("")
+    
+    # Check 2: LLM Client
+    try:
+        if kernel and hasattr(kernel, 'llm_client'):
+            lines.append("✅ LLM Client: Available")
+            client = kernel.llm_client
+            if hasattr(client, 'default_model'):
+                lines.append(f"   Default model: {client.default_model}")
+        else:
+            lines.append("❌ LLM Client: Not available on kernel")
+    except Exception as e:
+        lines.append(f"❌ LLM Client error: {e}")
+    lines.append("")
+    
+    # Check 3: Persona
+    try:
+        if kernel and hasattr(kernel, 'persona'):
+            lines.append("✅ Persona: Available")
+            persona = kernel.persona
+            if hasattr(persona, 'model'):
+                lines.append(f"   Persona model: {persona.model}")
+        else:
+            lines.append("❌ Persona: Not available on kernel")
+    except Exception as e:
+        lines.append(f"❌ Persona error: {e}")
+    lines.append("")
+    
+    # Check 4: Test LLM Call
+    lines.append("Testing LLM connection...")
+    try:
+        if kernel and hasattr(kernel, 'llm_client'):
+            # Make a minimal test call
+            test_response = kernel.llm_client.chat(
+                messages=[{"role": "user", "content": "Say 'OK' and nothing else."}],
+                model="gpt-5.1",
+                max_tokens=10,
+            )
+            if test_response:
+                content = test_response.get("content", str(test_response))[:50]
+                lines.append(f"✅ LLM Test Call: SUCCESS")
+                lines.append(f"   Response: {content}")
+            else:
+                lines.append("❌ LLM Test Call: Empty response")
+        else:
+            lines.append("⚠️ Cannot test - no LLM client")
+    except Exception as e:
+        lines.append(f"❌ LLM Test Call FAILED: {e}")
+        import traceback
+        lines.append(f"   {traceback.format_exc()[:200]}")
+    
+    lines.append("")
+    lines.append("═════════════════════════")
+    
+    return CommandResponse(
+        ok=True,
+        command=cmd_name,
+        summary="\n".join(lines),
+        data={"api_key_present": bool(api_key)},
+    )
 
 
 def register_quest_commands(commands_dict: Dict[str, Any]) -> None:
