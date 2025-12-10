@@ -26,7 +26,7 @@ import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .command_types import CommandResponse
 
@@ -355,29 +355,29 @@ def _format_steps_with_actions(steps: List[Dict[str, Any]], verbose: bool = True
         verbose: If True, show full prompt and actions under each step
     
     Returns:
-        Formatted string for display
+        Formatted string for display (no markdown)
     """
     lines = []
     for i, step in enumerate(steps, 1):
         step_type = step.get('type', 'info')
         title = step.get('title', step.get('prompt', '')[:50])
         
-        # Step header with extra spacing
+        # Step header with extra spacing (no markdown)
         lines.append(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        lines.append(f"**{i}. [{step_type.upper()}] {title}**")
+        lines.append(f"{i}. [{step_type.upper()}] {title}")
         lines.append("")
         
         if verbose:
-            # Show full prompt (no italic underscores)
+            # Show full prompt
             prompt = step.get('prompt', '')
             if prompt:
                 lines.append(prompt)
                 lines.append("")
             
-            # Show actions with better formatting and spacing
+            # Show actions with better formatting and spacing (no markdown)
             actions = step.get('actions', [])
             if actions:
-                lines.append("**📋 Actions:**")
+                lines.append("📋 Actions:")
                 lines.append("")
                 for j, action in enumerate(actions, 1):
                     lines.append(f"   {j}. {action}")
@@ -390,7 +390,7 @@ def _format_steps_with_actions(steps: List[Dict[str, Any]], verbose: bool = True
 
 
 def _format_preview(draft: Dict[str, Any]) -> str:
-    """Format the draft quest as a preview for the user."""
+    """Format the draft quest as a preview for the user (no markdown, no objectives)."""
     # Calculate difficulty if not set
     difficulty = draft.get('difficulty')
     if difficulty is None:
@@ -405,48 +405,44 @@ def _format_preview(draft: Dict[str, Any]) -> str:
     lines = [
         "═══ New Quest Draft ═══",
         "",
-        f"**ID:** {draft.get('id') or '(auto-generated)'}",
-        f"**Title:** {draft.get('title')}",
-        f"**Category:** {draft.get('category')}",
-        f"**Module:** {draft.get('module_id') or '(standalone)'}",
-        f"**Difficulty:** {'⭐' * difficulty}{'☆' * (5 - difficulty)} ({difficulty_label})",
+        f"ID: {draft.get('id') or '(auto-generated)'}",
+        f"Title: {draft.get('title')}",
+        f"Category: {draft.get('category')}",
+        f"Module: {draft.get('module_id') or '(standalone)'}",
+        f"Difficulty: {'⭐' * difficulty}{'☆' * (5 - difficulty)} ({difficulty_label})",
     ]
     
     if draft.get('skill_tree_path'):
-        lines.append(f"**Skill Path:** {draft['skill_tree_path']}")
+        lines.append(f"Skill Path: {draft['skill_tree_path']}")
     
     if draft.get('tags'):
-        lines.append(f"**Tags:** [{', '.join(draft['tags'])}]")
+        lines.append(f"Tags: [{', '.join(draft['tags'])}]")
     
     lines.append("")
     
-    # Objectives
-    if draft.get('objectives'):
-        lines.append("**Objectives:**")
-        for i, obj in enumerate(draft['objectives'], 1):
-            lines.append(f"  {i}. {obj}")
-        lines.append("")
+    # NOTE: Objectives are stored internally but NOT displayed in preview
+    # (per spec section 4a - hide objectives from final draft)
     
-    # Steps (simple list without actions)
+    # Steps (simple list without actions, no markdown)
     steps = draft.get('steps', [])
     if steps:
-        lines.append(f"**Steps:** ({len(steps)} total)")
+        lines.append(f"Steps: ({len(steps)} total)")
         for i, step in enumerate(steps, 1):
             step_type = step.get('type', 'info')
             title = step.get('title') or step.get('prompt', '')[:50]
             lines.append(f"  {i}. [{step_type}] {title}")
         lines.append("")
     
-    # Validation
+    # Validation (no markdown)
     if draft.get('validation'):
-        lines.append("**Completion Criteria:**")
+        lines.append("Completion Criteria:")
         for criterion in draft['validation']:
             lines.append(f"  • {criterion}")
         lines.append("")
     
-    # XP Rewards
+    # XP Rewards (no markdown)
     xp = len(steps) * 5 if steps else 0
-    lines.append("**Rewards:**")
+    lines.append("Rewards:")
     lines.append(f"  💎 {xp} XP")
     lines.append("")
     
@@ -520,117 +516,110 @@ STAGE_PROMPTS = {
         "\n"
         "Let's create a new quest!\n"
         "\n"
-        "**Step 1/4: Quest Metadata**\n"
+        "Type 'cancel' at any time to exit.\n"
         "\n"
-        "What's the quest title?\n"
-        "(e.g., 'JWT Basics – Intro Quest')\n"
+        "—— Step 1/4: Quest Metadata ——\n"
         "\n"
-        "_Type 'cancel' at any time to exit._"
+        "What's the quest title?"
     ),
     "metadata_category": (
-        "**Category?**\n"
+        "—— Step 1/4: Quest Metadata ——\n"
         "\n"
-        "Common categories: cyber, finance, meta, learning, personal\n"
-        "(Or type your own category name)"
+        "Category?\n"
+        "\n"
+        "This groups your quest with similar content for filtering and organization."
     ),
     "metadata_module": (
-        "**Module?** (optional)\n"
+        "—— Step 1/4: Quest Metadata ——\n"
+        "\n"
+        "Module? (optional)\n"
         "\n"
         "Which module should this quest belong to?\n"
         "\n"
         "{module_list}\n"
         "\n"
-        "_Type a module name or **skip** for none_"
+        "Type a module name or skip for none"
     ),
     "objectives": (
-        "**Step 2/4: Learning Objectives**\n"
+        "—— Step 2/4: Learning Objectives ——\n"
         "\n"
         "What should the learner accomplish?\n"
-        "List 1-3 objectives:\n"
         "\n"
-        "(e.g., '1. Understand JWT structure\\n2. Identify common vulnerabilities')"
+        "List 1-3 objectives that define success for this quest.\n"
+        "\n"
+        "These will be used to generate the quest steps and domains."
     ),
     "steps": (
-        "**Step 3/4: Quest Steps**\n"
+        "—— Step 3/4: Quest Steps ——\n"
         "\n"
         "How would you like to define the steps?\n"
         "\n"
-        "• Type **generate** — Auto-generate steps based on your objectives (recommended)\n"
-        "• Type **manual** — Define steps yourself\n"
+        "Type generate — Auto-generate steps based on your objectives (recommended)\n"
+        "Type manual — Define steps yourself"
     ),
     "steps_manual": (
-        "**Define steps manually**\n"
+        "—— Step 3/4: Quest Steps ——\n"
         "\n"
-        "For each step, specify: **type: description**\n"
+        "Define steps manually\n"
+        "\n"
+        "For each step, specify: type: description\n"
         "\n"
         "Step types:\n"
-        "  • info – Information/reading\n"
-        "  • recall – Knowledge check\n"
-        "  • apply – Hands-on practice\n"
-        "  • reflect – Reflection prompt\n"
-        "  • boss – Final challenge\n"
+        "  info – Information/reading\n"
+        "  recall – Knowledge check\n"
+        "  apply – Hands-on practice\n"
+        "  reflect – Reflection prompt\n"
+        "  boss – Final challenge\n"
         "\n"
-        "Example:\n"
-        "```\n"
-        "info: Read the JWT overview notes\n"
-        "recall: Describe the 3 parts of a JWT\n"
-        "apply: Decode a sample token\n"
-        "boss: Identify a JWT vulnerability\n"
-        "```\n"
-        "\n"
-        "Type your steps (one per line), then type **done**:"
+        "Type your steps (one per line), then type done:"
     ),
     "steps_generating": (
-        "**Generating quest steps...**\n"
+        "—— Step 3/4: Quest Steps ——\n"
+        "\n"
+        "Generating quest steps...\n"
         "\n"
         "Creating steps based on your objectives. One moment..."
     ),
     "validation": (
-        "**Step 4/4: Final Details**\n"
+        "—— Step 4/4: Final Details ——\n"
         "\n"
         "How do we know the quest is complete?\n"
-        "List 1-3 criteria:\n"
         "\n"
-        "(e.g., 'All steps answered', 'Boss challenge passed')\n"
+        "List 1-3 criteria that indicate mastery.\n"
         "\n"
-        "_Type **skip** for default criteria_"
+        "Type skip for default criteria"
     ),
     "tags": (
-        "**Tags** (optional)\n"
+        "—— Step 4/4: Final Details ——\n"
         "\n"
-        "Add tags for organization (comma-separated):\n"
+        "Tags (optional)\n"
         "\n"
-        "(e.g., 'learning, security, jwt')\n"
+        "Add tags for organization (comma-separated).\n"
         "\n"
-        "_Type **skip** to use default tags_"
+        "Type skip to use default tags"
     ),
     # NEW: Domain Review prompts
     "domain_review": (
-        "**NovaOS Quest Composer — Domain Review**\n"
+        "—— Domain Review ——\n"
         "\n"
         "I parsed the following domains from your content:\n"
         "\n"
         "{domain_list}\n"
         "\n"
         "Type:\n"
-        "• **accept** — Use these as your canonical domains\n"
-        "• **regen** — Re-extract domains from the same text\n"
-        "• **manual** — Type your own domain list"
+        "accept — Use these domains and generate quest steps\n"
+        "regen — Re-extract domains from the same text\n"
+        "manual — Type your own domain list"
     ),
     "domain_manual_input": (
-        "**Manual Domain Entry**\n"
+        "—— Domain Review ——\n"
+        "\n"
+        "Manual Domain Entry\n"
         "\n"
         "Type your domains, one per line.\n"
-        "For subtopics, use parentheses: `Topic (sub1, sub2, sub3)`\n"
+        "For subtopics, use parentheses: Topic (sub1, sub2, sub3)\n"
         "\n"
-        "Example:\n"
-        "```\n"
-        "Networking (routing, VLANs, DNS, segmentation)\n"
-        "Active Directory architecture (trusts, delegation, GPOs)\n"
-        "Identity basics (OAuth2/OIDC, SAML, MFA flows)\n"
-        "```\n"
-        "\n"
-        "Type your domains, then type **done**:"
+        "Type your domains, then type done:"
     ),
     "confirm": (
         "{preview}\n"
@@ -639,21 +628,23 @@ STAGE_PROMPTS = {
         "\n"
         "Does this look good?\n"
         "\n"
-        "• Type **confirm** to save\n"
-        "• Type **edit** to modify a field\n"
-        "• Type **cancel** to discard"
+        "Type confirm to save\n"
+        "Type edit to modify a field\n"
+        "Type cancel to discard"
     ),
     "edit_select": (
+        "—— Edit Field ——\n"
+        "\n"
         "Which field would you like to edit?\n"
         "\n"
-        "• title\n"
-        "• category\n"
-        "• difficulty\n"
-        "• skill_path\n"
-        "• objectives\n"
-        "• steps\n"
-        "• validation\n"
-        "• tags\n"
+        "title\n"
+        "category\n"
+        "difficulty\n"
+        "skill_path\n"
+        "objectives\n"
+        "steps\n"
+        "validation\n"
+        "tags\n"
         "\n"
         "Type the field name:"
     ),
@@ -905,10 +896,10 @@ def _get_module_list(kernel: Any) -> str:
             module_names = []
         
         if not module_names:
-            return "_(No modules found - quest will be standalone)_"
+            return "(No modules found - quest will be standalone)"
         
         # Format nicely
-        lines = ["**Available modules:**"]
+        lines = ["Available modules:"]
         for name in sorted(module_names):
             lines.append(f"  • {name}")
         
@@ -916,7 +907,7 @@ def _get_module_list(kernel: Any) -> str:
         
     except Exception as e:
         print(f"[QuestCompose] Error getting modules: {e}", flush=True)
-        return "_(Could not load modules)_"
+        return "(Could not load modules)"
 
 
 def _process_wizard_input(
@@ -1174,9 +1165,9 @@ def _format_domain_list_for_review(domains: List[Dict[str, Any]]) -> str:
         
         if subtopics:
             subtopics_str = ", ".join(subtopics)
-            lines.append(f"**{i}. {name}** — subtopics: {subtopics_str}")
+            lines.append(f"{i}. {name} — subtopics: {subtopics_str}")
         else:
-            lines.append(f"**{i}. {name}**")
+            lines.append(f"{i}. {name}")
     
     return "\n".join(lines)
 
@@ -1192,7 +1183,7 @@ def _handle_domain_review_stage(
     Handle domain review stage - user confirms/edits extracted domains.
     
     Options:
-    - accept: Use these domains
+    - accept: Use these domains and auto-generate steps
     - regen: Re-extract from same text
     - manual: User types their own list
     """
@@ -1202,19 +1193,65 @@ def _handle_domain_review_stage(
     if session.awaiting_manual_domains:
         return _handle_manual_domain_input(cmd_name, session, user_input, session_id, kernel)
     
-    # Handle accept
+    # Handle accept - now auto-generates steps
     if user_input_lower in ("accept", "yes", "y", "ok", "confirm"):
-        # Confirm domains and proceed to steps
+        # Confirm domains
         session.draft["domains"] = session.candidate_domains
         session.domains_confirmed = True
         
         print(f"[QuestCompose] Domains accepted: {[d.get('name', '?') for d in session.candidate_domains]}", flush=True)
+        print(f"[QuestCompose] Auto-generating steps...", flush=True)
         
-        # Move to steps stage
+        # Auto-generate steps immediately (skip the generate/manual choice)
         session.stage = "steps"
-        session.substage = ""
+        session.substage = "generating"
         set_compose_session(session_id, session)
-        return _get_current_prompt(cmd_name, session)
+        
+        # Generate steps using LLM
+        generated_steps = None
+        generation_error = None
+        
+        if kernel:
+            try:
+                print(f"[QuestCompose] Starting generation for: {session.draft.get('title', 'Untitled')}", flush=True)
+                generated_steps = _generate_steps_with_llm(session.draft, kernel)
+                print(f"[QuestCompose] Generation returned {len(generated_steps) if generated_steps else 0} steps", flush=True)
+            except Exception as e:
+                generation_error = str(e)
+                print(f"[QuestCompose] Generation EXCEPTION: {e}", flush=True)
+                import traceback
+                traceback.print_exc()
+        
+        if generated_steps:
+            session.draft["steps"] = generated_steps
+            
+            # Show generated steps with actions
+            step_list = _format_steps_with_actions(generated_steps, verbose=True)
+            
+            session.substage = "confirm_generated"
+            set_compose_session(session_id, session)
+            
+            return _base_response(
+                cmd_name,
+                f"Generated {len(generated_steps)} steps:\n\n{step_list}\n"
+                f"Type accept to use these, regenerate to try again, or manual to define your own:",
+                {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
+            )
+        else:
+            # Generation failed - fall back to manual
+            error_msg = "Could not generate steps."
+            if generation_error:
+                error_msg += f"\n\n⚠️ Error: {generation_error}"
+            error_msg += "\n\nPlease define them manually.\n\n" + STAGE_PROMPTS["steps_manual"]
+            
+            session.substage = "manual"
+            set_compose_session(session_id, session)
+            
+            return _base_response(
+                cmd_name,
+                error_msg,
+                {"wizard_active": True, "stage": "steps", "substage": "manual"}
+            )
     
     # Handle regen
     elif user_input_lower in ("regen", "regenerate", "retry", "again"):
@@ -1233,7 +1270,7 @@ def _handle_domain_review_stage(
     else:
         return _base_response(
             cmd_name,
-            "Please type **accept**, **regen**, or **manual**:",
+            "Please type accept, regen, or manual:",
             {"wizard_active": True, "stage": "domain_review"}
         )
 
@@ -1268,8 +1305,8 @@ def _handle_manual_domain_input(
         domain_list = _format_domain_list_for_review(session.candidate_domains)
         return _base_response(
             cmd_name,
-            f"**Your domains:**\n\n{domain_list}\n\n"
-            "Type **accept** to confirm or **manual** to re-enter:",
+            f"Your domains:\n\n{domain_list}\n\n"
+            "Type accept to confirm or manual to re-enter:",
             {"wizard_active": True, "stage": "domain_review"}
         )
     
@@ -1296,15 +1333,15 @@ def _handle_manual_domain_input(
         
         return _base_response(
             cmd_name,
-            f"Added {len(domains)} domain(s). Enter more or type **done**:",
+            f"Added {len(domains)} domain(s). Enter more or type done:",
             {"wizard_active": True, "stage": "domain_review"}
         )
     else:
         return _base_response(
             cmd_name,
             "Could not parse any domains. Please use format:\n"
-            "`Domain Name (subtopic1, subtopic2)`\n\n"
-            "Enter domains or type **done**:",
+            "Domain Name (subtopic1, subtopic2)\n\n"
+            "Enter domains or type done:",
             {"wizard_active": True, "stage": "domain_review"}
         )
 
@@ -1358,8 +1395,8 @@ def _handle_steps_stage(
                 
                 return _base_response(
                     cmd_name,
-                    f"**Generated {len(generated_steps)} steps:**\n\n{step_list}\n"
-                    f"Type **accept** to use these, **regenerate** to try again, or **manual** to define your own:",
+                    f"Generated {len(generated_steps)} steps:\n\n{step_list}\n"
+                    f"Type accept to use these, regenerate to try again, or manual to define your own:",
                     {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
                 )
             else:
@@ -1388,7 +1425,7 @@ def _handle_steps_stage(
             # Default to showing the choice prompt
             return _base_response(
                 cmd_name,
-                "Please type **generate** or **manual**:",
+                "Please type generate or manual:",
                 {"wizard_active": True, "stage": "steps", "substage": "choice"}
             )
     
@@ -1414,13 +1451,13 @@ def _handle_steps_stage(
                     set_compose_session(session_id, session)
                     return _base_response(
                         cmd_name,
-                        f"**Regenerated {len(generated_steps)} steps:**\n\n{step_list}\n"
-                        f"Type **accept** to use these, **regenerate** to try again, or **manual** to define your own:",
+                        f"Regenerated {len(generated_steps)} steps:\n\n{step_list}\n"
+                        f"Type accept to use these, regenerate to try again, or manual to define your own:",
                         {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
                     )
             return _base_response(
                 cmd_name,
-                "Could not regenerate. Type **accept** to use current steps or **manual** to define your own:",
+                "Could not regenerate. Type accept to use current steps or manual to define your own:",
                 {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
             )
         
@@ -1437,7 +1474,7 @@ def _handle_steps_stage(
         else:
             return _base_response(
                 cmd_name,
-                "Please type **accept**, **regenerate**, or **manual**:",
+                "Please type accept, regenerate, or manual:",
                 {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
             )
     
@@ -1487,7 +1524,7 @@ def _handle_steps_stage(
         
         return _base_response(
             cmd_name,
-            f"Current steps:\n{step_list}\n\nAdd more steps or type **done** to continue:",
+            f"Current steps:\n{step_list}\n\nAdd more steps or type done to continue:",
             {"wizard_active": True, "stage": "steps", "substage": "manual", "step_count": len(current_steps)}
         )
     
@@ -3830,385 +3867,6 @@ JSON only:"""
         return []
 
 
-# =============================================================================
-# v0.10.3: STREAMING SUPPORT FOR QUEST COMPOSE
-# =============================================================================
-
-def _generate_steps_with_llm_streaming(
-    draft: Dict[str, Any], 
-    kernel: Any,
-    session_id: str,
-) -> Generator[Dict[str, Any], None, None]:
-    """
-    Streaming version of step generation that yields progress events.
-    
-    v0.10.3: NEW - Streaming generator for QuestCompose.
-    
-    Instead of blocking until all steps are generated, this yields events:
-    - {"type": "log", "message": "..."} - Log messages
-    - {"type": "progress", "message": "...", "percent": N} - Progress updates
-    - {"type": "update", "content": "..."} - Partial content previews
-    - {"type": "steps", "steps": [...]} - Final generated steps
-    - {"type": "error", "message": "..."} - Error occurred
-    
-    This allows the frontend to show real-time progress during the heavy
-    LLM generation phases (outline + content), avoiding Cloudflare 524 timeouts.
-    
-    Args:
-        draft: Quest draft dictionary with title, objectives, domains, etc.
-        kernel: NovaKernel instance
-        session_id: Session ID for logging
-    
-    Yields:
-        Dict events with type and payload
-    """
-    def _log(msg: str):
-        return {"type": "log", "message": f"[QuestCompose] {msg}"}
-    
-    def _progress(msg: str, pct: int):
-        return {"type": "progress", "message": msg, "percent": pct}
-    
-    def _update(content: str):
-        return {"type": "update", "content": content}
-    
-    def _steps(steps_list: List[Dict[str, Any]]):
-        return {"type": "steps", "steps": steps_list}
-    
-    def _error(msg: str):
-        return {"type": "error", "message": msg}
-    
-    try:
-        yield _log("Starting streaming generation...")
-        yield _progress("Initializing...", 5)
-        
-        # Get LLM client from kernel
-        llm_client = getattr(kernel, 'llm_client', None)
-        if not llm_client:
-            yield _error("No LLM client available")
-            return
-        
-        title = draft.get("title", "Untitled Quest")
-        category = draft.get("category", "general")
-        objectives = draft.get("objectives", [])
-        
-        yield _log(f"Quest: {title}")
-        yield _log(f"Objectives: {len(objectives)}")
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 1: USE CONFIRMED DOMAINS
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 1: Loading confirmed domains...", 10)
-        
-        domains = draft.get("domains", [])
-        
-        if domains:
-            yield _log(f"Using {len(domains)} confirmed domains")
-            for d in domains:
-                domain_name = d.get("name", "?")
-                subtopics = d.get("subtopics", [])
-                yield _log(f"  - {domain_name}: {len(subtopics)} subtopics")
-        else:
-            # Fallback: extract from objectives
-            yield _log("No confirmed domains, extracting from objectives...")
-            yield _progress("Phase 1: Extracting domains from objectives...", 12)
-            
-            raw_text = "\n".join(objectives) if isinstance(objectives, list) else str(objectives)
-            domains = _structural_extract_domains(raw_text)
-            yield _log(f"Extracted {len(domains)} domains")
-        
-        if not domains:
-            yield _log("Warning: No domains found, using single-shot fallback")
-            yield _progress("Using fallback generation...", 15)
-            
-            # Use single-shot fallback (non-streaming)
-            steps = _generate_steps_single_shot(draft, kernel)
-            if steps:
-                yield _steps(steps)
-            else:
-                yield _error("Could not generate steps")
-            return
-        
-        # Calculate target steps
-        total_subtopics = sum(len(d.get("subtopics", [])) for d in domains)
-        steps_per_subtopic = 2
-        boss_steps = len(domains)
-        target_steps = max(10, (total_subtopics * steps_per_subtopic) + boss_steps)
-        target_steps = min(target_steps, 45)
-        
-        yield _log(f"Target: {target_steps} steps across {len(domains)} domains")
-        yield _progress("Phase 1 complete", 20)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 2: GENERATE SUBTOPIC-AWARE OUTLINE
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 2: Generating outline...", 25)
-        yield _log("Creating subtopic-aware outline with LLM...")
-        
-        # Build domain list text for prompt
-        domain_list_text = ""
-        for d in domains:
-            domain_name = d.get("name", "Unknown")
-            subtopics = d.get("subtopics", [])
-            if subtopics:
-                subtopic_str = ", ".join(subtopics)
-                domain_list_text += f"- {domain_name}: [{subtopic_str}]\n"
-            else:
-                domain_list_text += f"- {domain_name}: (general coverage)\n"
-        
-        outline_system = """You are a curriculum architect for NovaOS micro-learning.
-Create a detailed day-by-day outline that ensures ALL subtopics are covered.
-
-RULES:
-1. Every subtopic MUST appear in at least one step
-2. Each domain ends with exactly ONE BOSS step
-3. BOSS steps integrate 2-4 subtopics into a capstone
-4. Distribute subtopics evenly across the timeline
-
-Output ONLY valid JSON. No markdown."""
-
-        outline_user = f"""Create a {target_steps}-step outline for "{title}".
-
-DOMAINS AND SUBTOPICS TO COVER:
-{domain_list_text}
-
-OUTPUT THIS EXACT JSON STRUCTURE:
-{{
-  "total_steps": {target_steps},
-  "outline": [
-    {{"day": 1, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Intro to Subtopic A", "step_type": "INFO"}},
-    {{"day": 2, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Hands-on with Subtopic A", "step_type": "APPLY"}},
-    {{"day": 3, "domain": "Domain Name", "subtopics": ["Subtopic B"], "topic": "Learn Subtopic B", "step_type": "INFO"}},
-    {{"day": 4, "domain": "Domain Name", "subtopics": ["Subtopic A", "Subtopic B"], "topic": "Domain Capstone", "step_type": "BOSS"}}
-  ]
-}}
-
-JSON only:"""
-
-        yield _log("Calling LLM for outline generation...")
-        
-        outline_steps = []
-        try:
-            # Check if streaming is available
-            if hasattr(llm_client, 'stream_complete_system'):
-                # Use streaming LLM call for outline
-                outline_text = ""
-                chunk_count = 0
-                for chunk in llm_client.stream_complete_system(
-                    system=outline_system,
-                    user=outline_user,
-                    command="quest-compose-outline-stream",
-                    think_mode=True,
-                ):
-                    outline_text += chunk
-                    chunk_count += 1
-                    # Yield periodic updates so connection stays alive
-                    if chunk_count % 20 == 0:
-                        yield _log(f"Generating outline... ({len(outline_text)} chars)")
-            else:
-                # Fallback to non-streaming
-                yield _log("Using non-streaming LLM call for outline...")
-                result = llm_client.complete_system(
-                    system=outline_system,
-                    user=outline_user,
-                    command="quest-compose-outline",
-                    think_mode=True,
-                )
-                outline_text = result.get("text", "").strip()
-            
-            yield _progress("Phase 2: Parsing outline...", 35)
-            
-            # Parse the outline JSON
-            start_idx = outline_text.find('{')
-            end_idx = outline_text.rfind('}') + 1
-            
-            if start_idx != -1 and end_idx > 0:
-                outline_json = outline_text[start_idx:end_idx]
-                parsed = json.loads(outline_json)
-                outline_steps = parsed.get("outline", [])
-                yield _log(f"Parsed {len(outline_steps)} outline steps")
-            
-        except Exception as e:
-            yield _log(f"Outline LLM error: {e}")
-            yield _log("Using programmatic outline fallback...")
-            outline_steps = _generate_programmatic_outline(domains, target_steps)
-        
-        if not outline_steps:
-            yield _log("Using programmatic outline fallback...")
-            outline_steps = _generate_programmatic_outline(domains, target_steps)
-        
-        yield _progress("Phase 2 complete", 40)
-        yield _update(f"Outline: {len(outline_steps)} steps planned")
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 3: GENERATE CONTENT PER DOMAIN (STREAMING)
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 3: Generating step content...", 45)
-        
-        # Group outline by domain
-        domain_outlines = {}
-        for step in outline_steps:
-            domain = step.get("domain", "Unknown")
-            if domain not in domain_outlines:
-                domain_outlines[domain] = []
-            domain_outlines[domain].append(step)
-        
-        all_steps = []
-        domain_count = len(domain_outlines)
-        processed_domains = 0
-        
-        for domain_name, domain_outline in domain_outlines.items():
-            processed_domains += 1
-            base_percent = 45 + int((processed_domains / domain_count) * 45)
-            
-            yield _log(f"Generating content for domain: {domain_name}")
-            yield _progress(f"Domain {processed_domains}/{domain_count}: {domain_name}", base_percent)
-            
-            # Get subtopics for this domain
-            domain_info = next((d for d in domains if d.get("name") == domain_name), {})
-            subtopics = domain_info.get("subtopics", [])
-            
-            # Build outline text for this domain
-            domain_outline_text = ""
-            for i, step in enumerate(domain_outline, 1):
-                step_type = step.get("step_type", "INFO")
-                topic = step.get("topic", f"Step {i}")
-                step_subtopics = step.get("subtopics", [])
-                domain_outline_text += f"{i}. [{step_type}] {topic} (subtopics: {step_subtopics})\n"
-            
-            content_system = """You are a micro-learning content designer.
-
-HARD CONSTRAINTS:
-1. Each step = 60-90 minutes (tired working adult)
-2. EXACTLY 3-4 actions per step
-3. Each action = 15-25 minutes, specific and completable
-4. ONE theme per step
-
-STEP TYPES:
-- INFO: Reading, videos, studying concepts
-- APPLY: Hands-on labs, building, testing
-- RECALL: Flashcards, quizzes, summaries
-- BOSS: Capstone challenge, multi-step scenario
-
-Output ONLY JSON array. No markdown."""
-
-            content_user = f"""Generate micro-step content for "{domain_name}".
-
-**Quest:** {title}
-**Subtopics to cover:** {subtopics}
-
-**Steps to generate:**
-{domain_outline_text}
-
-Generate a JSON array with EXACTLY {len(domain_outline)} steps:
-[
-  {{
-    "step_type": "INFO",
-    "title": "Day X: Topic",
-    "prompt": "Today's goal (2-3 sentences)",
-    "actions": ["15-25 min task", "15-25 min task", "15-25 min task"],
-    "subtopics": ["from input"]
-  }}
-]
-
-JSON array only:"""
-
-            try:
-                # Stream content generation if available
-                if hasattr(llm_client, 'stream_complete_system'):
-                    content_text = ""
-                    chunk_count = 0
-                    for chunk in llm_client.stream_complete_system(
-                        system=content_system,
-                        user=content_user,
-                        command="quest-compose-content-stream",
-                        think_mode=True,
-                    ):
-                        content_text += chunk
-                        chunk_count += 1
-                        # Keep connection alive
-                        if chunk_count % 30 == 0:
-                            yield _log(f"  Generating content... ({len(content_text)} chars)")
-                else:
-                    # Fallback to non-streaming
-                    result = llm_client.complete_system(
-                        system=content_system,
-                        user=content_user,
-                        command="quest-compose-content",
-                        think_mode=True,
-                    )
-                    content_text = result.get("text", "").strip()
-                
-                # Parse content
-                start_idx = content_text.find('[')
-                end_idx = content_text.rfind(']') + 1
-                
-                if start_idx != -1 and end_idx > 0:
-                    content_json = content_text[start_idx:end_idx]
-                    content_steps = json.loads(content_json)
-                    
-                    # Normalize and add steps
-                    step_num = len(all_steps) + 1
-                    for step_data in content_steps:
-                        if not isinstance(step_data, dict):
-                            continue
-                        
-                        step_type = step_data.get("step_type", step_data.get("type", "info"))
-                        step_type = str(step_type).lower()
-                        valid_types = {"info", "recall", "apply", "reflect", "boss", "action", "transfer", "mini_boss"}
-                        if step_type not in valid_types:
-                            step_type = "info"
-                        
-                        actions = step_data.get("actions", [])
-                        if not isinstance(actions, list):
-                            actions = []
-                        actions = [str(a) for a in actions if a][:4]  # Max 4 actions
-                        
-                        step = {
-                            "id": f"step_{step_num}",
-                            "type": step_type,
-                            "prompt": step_data.get("prompt", step_data.get("description", "")),
-                            "title": step_data.get("title", f"Step {step_num}"),
-                            "actions": actions,
-                            "subtopics": step_data.get("subtopics", []),
-                            "_domain": domain_name,
-                            "_generation_mode": "streaming",
-                        }
-                        
-                        if step["prompt"]:
-                            all_steps.append(step)
-                            step_num += 1
-                    
-                    yield _log(f"  Generated {len(content_steps)} steps for {domain_name}")
-                
-            except Exception as e:
-                yield _log(f"  Content generation error for {domain_name}: {e}")
-                # Continue with other domains
-        
-        yield _progress("Phase 3 complete", 95)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # FINALIZE
-        # ═══════════════════════════════════════════════════════════════════════
-        if all_steps:
-            yield _log(f"Generation complete: {len(all_steps)} total steps")
-            yield _progress("Complete!", 100)
-            yield _steps(all_steps)
-        else:
-            yield _log("No steps generated, trying single-shot fallback...")
-            yield _progress("Using fallback...", 98)
-            
-            fallback_steps = _generate_steps_single_shot(draft, kernel)
-            if fallback_steps:
-                yield _steps(fallback_steps)
-            else:
-                yield _error("Could not generate steps after all attempts")
-    
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        yield _error(f"Generation failed: {str(e)}")
-
-
 def _handle_validation_stage(
     cmd_name: str,
     session: QuestComposeSession,
@@ -4271,10 +3929,10 @@ def _handle_confirm_stage(
             
             return _base_response(
                 cmd_name,
-                f"✓ Quest **{quest.title}** saved!\n\n"
-                f"Quest ID: `{quest.id}`\n\n"
-                f"View it with `#quest-inspect id={quest.id}`\n"
-                f"Start it with `#quest id={quest.id}`",
+                f"✓ Quest '{quest.title}' saved!\n\n"
+                f"Quest ID: {quest.id}\n\n"
+                f"View it with #quest-inspect id={quest.id}\n"
+                f"Start it with #quest id={quest.id}",
                 {
                     "wizard_active": False,
                     "quest_id": quest.id,
@@ -4304,7 +3962,7 @@ def _handle_confirm_stage(
     else:
         return _base_response(
             cmd_name,
-            "Please type **confirm**, **edit**, or **cancel**:",
+            "Please type confirm, edit, or cancel:",
             {"wizard_active": True, "stage": "confirm"}
         )
 
@@ -4404,8 +4062,8 @@ def _handle_noninteractive(
         quest = engine.create_quest_from_spec(quest_dict)
         return _base_response(
             cmd_name,
-            f"✓ Quest **{quest.title}** created.\n\n"
-            f"Quest ID: `{quest.id}`",
+            f"✓ Quest '{quest.title}' created.\n\n"
+            f"Quest ID: {quest.id}",
             {
                 "quest_id": quest.id,
                 "saved": True,
@@ -4459,3 +4117,11 @@ def process_compose_wizard_input(
         session_id,
         kernel,  # Pass full kernel for LLM access
     )
+
+
+# =============================================================================
+# BACKWARDS COMPATIBILITY ALIASES
+# =============================================================================
+
+# Alias for old streaming function name (no longer used but may be imported)
+_generate_steps_with_llm_streaming = _generate_steps_with_llm
