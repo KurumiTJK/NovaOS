@@ -1,14 +1,5 @@
 {
-  "quest_runs": {
-    "test": {
-      "status": "in_progress",
-      "last_step_id": "step_1",
-      "attempts": 1,
-      "completed_at": null,
-      "xp_earned": 0,
-      "boss_cleared": false
-    }
-  },
+  "quest_runs": {},
   "skills": {},
   "streaks": {
     "learning_days": {
