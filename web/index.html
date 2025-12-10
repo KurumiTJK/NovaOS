@@ -1161,6 +1161,8 @@
      * Update the QuestCompose state based on API response.
      * Called after each response to track wizard state.
      * 
+     * If auto_generate flag is set, automatically trigger generation.
+     * 
      * @param {Object} data - Response data from /nova or streaming
      */
     function updateQuestComposeState(data) {
@@ -1171,6 +1173,15 @@
         questComposeState.substage = wizardData.substage || null;
         
         console.log('[NovaOS] QuestCompose state updated:', questComposeState);
+        
+        // v0.10.3: Auto-trigger generation if flag is set
+        if (wizardData.auto_generate === true && questComposeState.stage === 'steps') {
+          console.log('[NovaOS] Auto-triggering QuestCompose generation...');
+          // Small delay to let the UI update first
+          setTimeout(() => {
+            sendMessage('generate');
+          }, 100);
+        }
       }
     }
 

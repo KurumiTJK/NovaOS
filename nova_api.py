@@ -543,10 +543,10 @@ def _stream_quest_compose_wizard(text: str, session_id: str, state):
                 # Fallback to simple format
                 step_list = "\n".join([f"  {i+1}. [{s.get('type', 'info')}] {s.get('title', s.get('prompt', '')[:50])}" for i, s in enumerate(generated_steps)])
             
-            # Build the response
+            # Build the response (no markdown)
             response_text = (
-                f"**Generated {len(generated_steps)} steps:**\n\n{step_list}\n\n"
-                f"Type **accept** to use these, **regenerate** to try again, or **manual** to define your own:"
+                f"Generated {len(generated_steps)} steps:\n\n{step_list}\n\n"
+                f"Type accept to use these, regenerate to try again, or manual to define your own."
             )
             
             # Build result dict directly (avoid CommandResponse serialization issues)
