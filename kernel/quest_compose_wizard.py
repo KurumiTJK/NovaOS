@@ -2419,12 +2419,394 @@ def _parse_domain_with_subtopics(text: str) -> Dict[str, Any]:
         }
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# SUBTOPIC ENGINE HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _get_domain_subtopic_map(domains: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+    """
+    Build a flattened domain→subtopics map from confirmed domains.
+    
+    Args:
+        domains: List of domain dicts with 'name' and 'subtopics' keys
+        
+    Returns:
+        {
+            "AWS": ["IAM escalation", "STS abuse", "CloudTrail evasion"],
+            "Azure": ["Entra ID misconfig", "Hybrid identity"],
+            ...
+        }
+        
+    If subtopics is missing or not a list, returns empty list for that domain.
+    """
+    result = {}
+    
+    for d in domains:
+        name = d.get("name", "").strip()
+        if not name:
+            continue
+        
+        subtopics = d.get("subtopics", [])
+        
+        # Handle various subtopic formats
+        if isinstance(subtopics, list):
+            # Normalize: strip whitespace from each subtopic
+            clean_subtopics = [s.strip() for s in subtopics if isinstance(s, str) and s.strip()]
+        elif isinstance(subtopics, str):
+            # Single string - wrap in list
+            clean_subtopics = [subtopics.strip()] if subtopics.strip() else []
+        else:
+            clean_subtopics = []
+        
+        result[name] = clean_subtopics
+    
+    return result
+
+
+def _calculate_subtopic_aware_target_steps(domains: List[Dict[str, Any]], min_per_domain: int = 3) -> int:
+    """
+    Calculate target step count based on domains AND subtopics.
+    
+    Ensures enough steps to cover all subtopics while maintaining domain balance.
+    
+    Formula:
+    - At least min_per_domain steps per domain
+    - At least 1 step per subtopic
+    - Whichever total is higher
+    """
+    num_domains = len(domains)
+    total_subtopics = sum(len(d.get("subtopics", [])) for d in domains)
+    
+    # Minimum based on domains
+    domain_minimum = num_domains * min_per_domain
+    
+    # Minimum based on subtopics (1 per subtopic)
+    subtopic_minimum = total_subtopics
+    
+    # Use whichever is higher, with a floor of 12
+    target = max(domain_minimum, subtopic_minimum, 12)
+    
+    return target
+
+
+def _audit_subtopic_coverage(
+    outline_steps: List[Dict[str, Any]], 
+    domain_subtopic_map: Dict[str, List[str]]
+) -> Dict[str, Dict[str, int]]:
+    """
+    Audit which subtopics are covered by outline steps.
+    
+    Args:
+        outline_steps: List of step dicts (must have 'domain' and optionally 'subtopics')
+        domain_subtopic_map: {domain_name: [subtopic1, subtopic2, ...]}
+        
+    Returns:
+        {
+            "AWS": {"IAM escalation": 2, "STS abuse": 1, "CloudTrail evasion": 0},
+            "Azure": {"Entra ID misconfig": 1, "Hybrid identity": 0},
+            ...
+        }
+        
+    Zero means the subtopic was NOT covered by any step.
+    """
+    # Initialize coverage map with zeros
+    coverage = {}
+    for domain, subtopics in domain_subtopic_map.items():
+        coverage[domain] = {st: 0 for st in subtopics}
+    
+    # Count coverage from steps
+    for step in outline_steps:
+        step_domain = step.get("domain", "").strip()
+        step_subtopics = step.get("subtopics", [])
+        
+        # Normalize step_subtopics to list
+        if isinstance(step_subtopics, str):
+            step_subtopics = [step_subtopics]
+        elif not isinstance(step_subtopics, list):
+            step_subtopics = []
+        
+        # Match domain (fuzzy match for slight variations)
+        matched_domain = None
+        for domain in coverage.keys():
+            if domain.lower() == step_domain.lower() or domain.lower() in step_domain.lower():
+                matched_domain = domain
+                break
+        
+        if matched_domain and step_subtopics:
+            for st in step_subtopics:
+                st_normalized = st.strip().lower()
+                # Find matching subtopic in the coverage map
+                for known_st in coverage[matched_domain]:
+                    if known_st.lower() == st_normalized or st_normalized in known_st.lower() or known_st.lower() in st_normalized:
+                        coverage[matched_domain][known_st] += 1
+                        break
+    
+    return coverage
+
+
+def _get_missing_subtopics(coverage: Dict[str, Dict[str, int]]) -> Dict[str, List[str]]:
+    """
+    Extract subtopics with zero coverage.
+    
+    Returns:
+        {"AWS": ["CloudTrail evasion"], "Azure": ["Hybrid identity"], ...}
+    """
+    missing = {}
+    for domain, subtopic_counts in coverage.items():
+        uncovered = [st for st, count in subtopic_counts.items() if count == 0]
+        if uncovered:
+            missing[domain] = uncovered
+    return missing
+
+
+def _generate_subtopic_patch_steps(
+    missing_subtopics: Dict[str, List[str]], 
+    current_step_count: int
+) -> List[Dict[str, Any]]:
+    """
+    Generate placeholder steps for missing subtopics.
+    
+    Each missing subtopic gets one patch step.
+    
+    Args:
+        missing_subtopics: {domain: [uncovered_subtopics]}
+        current_step_count: Current number of steps (for numbering)
+        
+    Returns:
+        List of patch steps to append to outline
+    """
+    patch_steps = []
+    day_counter = current_step_count + 1
+    
+    for domain, subtopics in missing_subtopics.items():
+        for subtopic in subtopics:
+            patch_steps.append({
+                "day": day_counter,
+                "domain": domain,
+                "subtopics": [subtopic],
+                "type": "info",
+                "topic": f"{domain}: {subtopic}",
+                "title": f"Day {day_counter}: {subtopic}",
+                "prompt": f"Deep dive into {subtopic} within {domain}. Focus on understanding core concepts and practical applications.",
+                "actions": [
+                    f"Study 1–2 focused resources on {subtopic} and take notes.",
+                    f"Write a short summary explaining how {subtopic} fits into {domain}.",
+                    f"List at least 3 offensive or defensive implications you see."
+                ],
+                "_generation_mode": "subtopic_patch"
+            })
+            day_counter += 1
+    
+    return patch_steps
+
+
+def _normalize_outline_step_subtopics(step: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ensure a step has a properly formatted subtopics field.
+    
+    - If missing, set to []
+    - If string, wrap in list
+    - If list, keep as-is
+    """
+    subtopics = step.get("subtopics")
+    
+    if subtopics is None:
+        step["subtopics"] = []
+    elif isinstance(subtopics, str):
+        step["subtopics"] = [subtopics.strip()] if subtopics.strip() else []
+    elif isinstance(subtopics, list):
+        step["subtopics"] = [s.strip() for s in subtopics if isinstance(s, str) and s.strip()]
+    else:
+        step["subtopics"] = []
+    
+    return step
+
+
+def _log_domain_subtopic_map(domain_subtopic_map: Dict[str, List[str]]) -> None:
+    """Log the domain-subtopic map for debugging."""
+    print(f"[QuestCompose] Domain-subtopic map:", flush=True)
+    for domain, subtopics in domain_subtopic_map.items():
+        print(f"[QuestCompose]   - {domain}: {len(subtopics)} subtopics", flush=True)
+
+
+def _log_subtopic_coverage(coverage: Dict[str, Dict[str, int]], missing: Dict[str, List[str]]) -> None:
+    """Log subtopic coverage details for debugging."""
+    print(f"[QuestCompose] Subtopic coverage in outline:", flush=True)
+    for domain, subtopic_counts in coverage.items():
+        print(f"[QuestCompose]   - {domain}: {subtopic_counts}", flush=True)
+    
+    if missing:
+        for domain, uncovered in missing.items():
+            print(f"[QuestCompose] WARNING: Missing subtopics in outline for '{domain}': {uncovered}", flush=True)
+    else:
+        print(f"[QuestCompose] All subtopics covered!", flush=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BOSS STEP ENFORCEMENT HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _normalize_step_type(step: Dict[str, Any]) -> str:
+    """
+    Normalize and validate step_type field.
+    
+    Allowed values: INFO, APPLY, RECALL, BOSS
+    Uses heuristics to classify if step_type is missing or invalid.
+    
+    Args:
+        step: Step dict that may or may not have step_type
+        
+    Returns:
+        Normalized step_type string (uppercase)
+    """
+    raw = (step.get("step_type") or step.get("type") or "").strip().upper()
+    
+    # If it's already one of the allowed values, keep it
+    if raw in {"INFO", "APPLY", "RECALL", "BOSS"}:
+        return raw
+    
+    # Handle legacy lowercase values
+    if raw.lower() in {"info", "apply", "recall", "boss"}:
+        return raw.upper()
+    
+    # Heuristics: classify based on content if missing/invalid
+    title = (step.get("title") or step.get("topic") or "").lower()
+    actions = step.get("actions", [])
+    actions_text = " ".join(actions) if isinstance(actions, list) else str(actions)
+    text_blob = f"{title} {actions_text}".lower()
+    
+    # Check for BOSS indicators
+    if any(k in text_blob for k in ["boss", "capstone", "final project", "full-chain", "mini-project"]):
+        return "BOSS"
+    
+    # Check for APPLY indicators
+    if any(k in text_blob for k in ["lab", "ctf", "walkthrough", "practice", "hands-on", "exercise", "build", "deploy", "configure"]):
+        return "APPLY"
+    
+    # Check for RECALL indicators
+    if any(k in text_blob for k in ["review", "recall", "quiz", "flashcard", "cheat sheet", "summarize", "recap"]):
+        return "RECALL"
+    
+    # Default to INFO
+    return "INFO"
+
+
+def _enforce_boss_per_domain(
+    steps: List[Dict[str, Any]], 
+    domains: List[Dict[str, Any]],
+    domain_subtopic_map: Dict[str, List[str]]
+) -> List[Dict[str, Any]]:
+    """
+    Ensure every domain gets exactly ONE BOSS step.
+    
+    Rules:
+    - If a domain has multiple BOSS steps, demote all but the last to APPLY
+    - If a domain has no BOSS step, promote the last step for that domain to BOSS
+    - BOSS steps should reference multiple subtopics when possible
+    
+    Args:
+        steps: List of outline steps (modified in place)
+        domains: List of domain dicts with 'name' and 'subtopics'
+        domain_subtopic_map: {domain_name: [subtopic1, subtopic2, ...]}
+        
+    Returns:
+        The modified steps list (same reference, modified in place)
+    """
+    print(f"[QuestCompose:Boss] Enforcing one BOSS per domain...", flush=True)
+    
+    # 1) Normalize step_type for every step
+    for step in steps:
+        step["step_type"] = _normalize_step_type(step)
+    
+    domain_names = [d.get("name") for d in domains if d.get("name")]
+    
+    # 2) Group steps by domain (preserving order)
+    steps_by_domain: Dict[str, List[Dict[str, Any]]] = {name: [] for name in domain_names}
+    for step in steps:
+        domain = step.get("domain")
+        if domain in steps_by_domain:
+            steps_by_domain[domain].append(step)
+        elif domain:
+            # Domain not in our list but exists - create entry
+            if domain not in steps_by_domain:
+                steps_by_domain[domain] = []
+            steps_by_domain[domain].append(step)
+    
+    # 3) For each domain, enforce single BOSS
+    for domain in domain_names:
+        domain_steps = steps_by_domain.get(domain, [])
+        if not domain_steps:
+            print(f"[QuestCompose:Boss] WARNING: No steps found for domain '{domain}'", flush=True)
+            continue
+        
+        # Find all BOSS steps for this domain
+        boss_indices = [i for i, s in enumerate(domain_steps) if s.get("step_type") == "BOSS"]
+        
+        if not boss_indices:
+            # No BOSS yet → promote last step
+            last_step = domain_steps[-1]
+            last_step["step_type"] = "BOSS"
+            
+            # Enhance BOSS with multiple subtopics if available
+            domain_subtopics = domain_subtopic_map.get(domain, [])
+            if domain_subtopics and len(domain_subtopics) > 1:
+                # Include multiple subtopics for the capstone
+                current_subtopics = last_step.get("subtopics", [])
+                if len(current_subtopics) < 3:
+                    # Add more subtopics (up to 4 total)
+                    for st in domain_subtopics:
+                        if st not in current_subtopics:
+                            current_subtopics.append(st)
+                            if len(current_subtopics) >= 4:
+                                break
+                    last_step["subtopics"] = current_subtopics
+            
+            print(f"[QuestCompose:Boss] No boss for domain '{domain}', promoting last step to BOSS.", flush=True)
+            
+        elif len(boss_indices) > 1:
+            # Too many BOSS steps → keep only the last one
+            last_local_idx = boss_indices[-1]
+            
+            # Demote all earlier BOSS steps to APPLY
+            for i in boss_indices[:-1]:
+                domain_steps[i]["step_type"] = "APPLY"
+                print(f"[QuestCompose:Boss] Demoting extra boss step for domain '{domain}' to APPLY.", flush=True)
+            
+            print(f"[QuestCompose:Boss] Keeping step as final boss for domain '{domain}'.", flush=True)
+        else:
+            # Exactly one BOSS - perfect!
+            print(f"[QuestCompose:Boss] Domain '{domain}' has exactly one BOSS step. ✓", flush=True)
+    
+    # 4) Log final boss distribution
+    boss_count_by_domain = {}
+    for step in steps:
+        if step.get("step_type") == "BOSS":
+            domain = step.get("domain", "Unknown")
+            boss_count_by_domain[domain] = boss_count_by_domain.get(domain, 0) + 1
+    
+    print(f"[QuestCompose:Boss] Final BOSS distribution: {boss_count_by_domain}", flush=True)
+    
+    return steps
+
+
+def _log_step_type_distribution(steps: List[Dict[str, Any]]) -> None:
+    """Log the distribution of step types for debugging."""
+    type_counts = {"INFO": 0, "APPLY": 0, "RECALL": 0, "BOSS": 0}
+    
+    for step in steps:
+        step_type = step.get("step_type", "INFO")
+        if step_type in type_counts:
+            type_counts[step_type] += 1
+    
+    print(f"[QuestCompose:Boss] Step type distribution: {type_counts}", flush=True)
+
+
 def _generate_programmatic_outline(domains: List[Dict[str, Any]], target_steps: int) -> List[Dict[str, Any]]:
     """
-    Generate a balanced outline programmatically when LLM fails.
+    Generate a subtopic-aware outline programmatically when LLM fails.
     
-    This is a fallback that ensures all domains are covered with
-    a reasonable distribution of steps.
+    This is a fallback that ensures all domains AND subtopics are covered
+    with a reasonable distribution of steps, including exactly one BOSS per domain.
     """
     outline = []
     num_domains = len(domains)
@@ -2432,39 +2814,64 @@ def _generate_programmatic_outline(domains: List[Dict[str, Any]], target_steps: 
     if num_domains == 0:
         return []
     
-    # Calculate steps per domain (at least 3 each)
-    steps_per_domain = max(3, target_steps // num_domains)
-    
-    # Step type rotation
-    step_types = ["info", "info", "apply", "apply", "recall", "reflect", "boss"]
+    # Step type rotation (INFO → APPLY pattern, then BOSS at end)
+    step_type_rotation = ["INFO", "INFO", "APPLY", "APPLY", "RECALL", "INFO"]
     
     day = 1
     for domain in domains:
         domain_name = domain.get("name", "Unknown")
         subtopics = domain.get("subtopics", [])
         
-        # Generate steps for this domain
-        for i in range(steps_per_domain):
-            # Use subtopic if available, otherwise generic
-            if subtopics and i < len(subtopics):
-                topic = f"{subtopics[i]} fundamentals" if i == 0 else subtopics[i]
-            else:
-                topic = f"{domain_name} - Part {i + 1}"
+        if subtopics:
+            # Create at least one step per subtopic
+            for i, subtopic in enumerate(subtopics):
+                step_type = step_type_rotation[i % len(step_type_rotation)]
+                
+                outline.append({
+                    "day": day,
+                    "domain": domain_name,
+                    "subtopics": [subtopic],
+                    "topic": subtopic,
+                    "type": step_type.lower(),  # Legacy field
+                    "step_type": step_type,      # New canonical field
+                    "_generation_mode": "programmatic"
+                })
+                day += 1
             
-            step_type = step_types[i % len(step_types)]
-            
-            # Last step of domain is boss type
-            if i == steps_per_domain - 1:
-                step_type = "boss"
-                topic = f"{domain_name} mini-project"
-            
+            # Add exactly one BOSS step at the end of this domain
             outline.append({
                 "day": day,
                 "domain": domain_name,
-                "topic": topic,
-                "type": step_type,
+                "subtopics": subtopics[:4] if len(subtopics) > 4 else subtopics,  # Multi-subtopic capstone
+                "topic": f"{domain_name} Capstone: Full-Chain Scenario",
+                "type": "boss",
+                "step_type": "BOSS",
+                "_generation_mode": "programmatic"
             })
             day += 1
+        else:
+            # No subtopics - create minimum 3 steps with BOSS at end
+            steps_per_domain = max(3, target_steps // num_domains)
+            
+            for i in range(steps_per_domain):
+                topic = f"{domain_name} - Part {i + 1}"
+                step_type = step_type_rotation[i % len(step_type_rotation)]
+                
+                # Last step of domain is BOSS
+                if i == steps_per_domain - 1:
+                    step_type = "BOSS"
+                    topic = f"{domain_name} Capstone"
+                
+                outline.append({
+                    "day": day,
+                    "domain": domain_name,
+                    "subtopics": [],
+                    "topic": topic,
+                    "type": step_type.lower(),
+                    "step_type": step_type,
+                    "_generation_mode": "programmatic"
+                })
+                day += 1
     
     return outline
 
@@ -2555,29 +2962,43 @@ def _generate_steps_with_llm(
         
         _progress(f"Using {len(domains)} domains", 15)
         
-        # Log final domains
+        # Log final domains with subtopic counts
         print(f"[QuestCompose] Domains for generation:", flush=True)
         for d in domains:
-            print(f"[QuestCompose]   - {d.get('name', '?')}", flush=True)
+            subtopics = d.get('subtopics', [])
+            print(f"[QuestCompose]   - {d.get('name', '?')} ({len(subtopics)} subtopics)", flush=True)
         
         # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 2: DOMAIN-BALANCED OUTLINE
+        # PHASE 2: SUBTOPIC-AWARE BALANCED OUTLINE
         # ═══════════════════════════════════════════════════════════════════════
-        # Allocate steps per domain, ensuring balanced coverage
+        # Creates an outline that covers ALL domains AND ALL subtopics
+        # Every subtopic gets at least one step
         
-        _progress("Phase 2: Creating balanced outline...", 20)
+        _progress("Phase 2: Creating subtopic-aware outline...", 20)
         
-        # Build domain list for prompt
-        domain_names = [d.get("name", f"Domain {i+1}") for i, d in enumerate(domains)]
-        domain_list_text = "\n".join([
-            f"{i+1}. {d.get('name', '?')}" + (f" (subtopics: {', '.join(d.get('subtopics', []))})" if d.get('subtopics') else "")
-            for i, d in enumerate(domains)
-        ])
+        # Build domain-subtopic map (single source of truth)
+        domain_subtopic_map = _get_domain_subtopic_map(domains)
+        _log_domain_subtopic_map(domain_subtopic_map)
         
-        # Calculate target steps
+        # Calculate target steps based on domains AND subtopics
         num_domains = len(domains)
-        target_steps = max(num_domains * 4, 12)  # At least 4 steps per domain, minimum 12 total
+        target_steps = _calculate_subtopic_aware_target_steps(domains, min_per_domain=3)
         
+        print(f"[QuestCompose] Target steps: {target_steps} (domains: {num_domains}, subtopics: {sum(len(st) for st in domain_subtopic_map.values())})", flush=True)
+        
+        # Build subtopic-aware domain list for prompt
+        domain_list_text = ""
+        for i, d in enumerate(domains):
+            name = d.get('name', f'Domain {i+1}')
+            subtopics = d.get('subtopics', [])
+            domain_list_text += f"\n{i+1}. **{name}**"
+            if subtopics:
+                domain_list_text += f"\n   Subtopics (EACH must appear in at least one step):"
+                for st in subtopics:
+                    domain_list_text += f"\n   - {st}"
+            domain_list_text += "\n"
+        
+        # Subtopic-aware outline prompt with step_type and BOSS requirements
         outline_system = """You are a curriculum architect. Create a day-by-day learning outline.
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -2599,45 +3020,75 @@ DO:
 - Ensure all arrays and objects are properly closed
 
 ═══════════════════════════════════════════════════════════════════════════════
-OUTLINE REQUIREMENTS
+SUBTOPIC-AWARE OUTLINE REQUIREMENTS
 ═══════════════════════════════════════════════════════════════════════════════
 
 1. EVERY domain MUST have 3-7 steps (no domain gets 0, 1, or 2)
-2. Each step = 60-90 minutes (working adult, not student)  
-3. One step = ONE focused micro-topic
-4. Distribute steps EVENLY across domains
-5. If domain has subtopics, use them to create specific step topics
+2. EVERY subtopic listed under a domain MUST appear in at least one step
+3. Each step MUST include a "subtopics" array listing which subtopic(s) it covers
+4. Each step = 60-90 minutes (working adult, not student)
+5. One step = ONE focused micro-topic (1-2 subtopics max per step, except BOSS)
+6. Distribute steps EVENLY across domains
 
-Step types:
-- info: Learn concepts (reading, watching, studying)
-- apply: Hands-on practice (labs, exercises)
-- recall: Review and quiz
-- reflect: Think and journal
-- boss: Mini-project or assessment"""
+═══════════════════════════════════════════════════════════════════════════════
+STEP TYPES (step_type field) - REQUIRED
+═══════════════════════════════════════════════════════════════════════════════
+
+Each step MUST have a "step_type" field with ONE of these values:
+
+- "INFO"   — Concept/reading/explanation day (learn theory, watch videos, read docs)
+- "APPLY"  — Hands-on lab, walkthrough, CTF-style practice (build/configure/exploit)
+- "RECALL" — Review day: quizzes, flashcards, cheat sheets, summarization
+- "BOSS"   — Full-chain capstone lab/scenario that integrates multiple subtopics
+
+═══════════════════════════════════════════════════════════════════════════════
+BOSS STEP RULES - CRITICAL
+═══════════════════════════════════════════════════════════════════════════════
+
+- Each domain gets EXACTLY ONE "BOSS" step
+- The BOSS step MUST be the LAST step for that domain
+- The BOSS step should reference MULTIPLE subtopics (2-4) from that domain
+- The BOSS step is a capstone that tests if the learner can chain skills together
+- Do NOT create more than one BOSS per domain
+- Do NOT create any domain without a BOSS step
+
+VALIDATION BEFORE RESPONDING:
+- Count steps per domain (must be >= 3)
+- Check that EVERY domain has exactly ONE BOSS step as its last step
+- Check that EVERY listed subtopic appears in at least one step's "subtopics" array
+- Ensure JSON is valid with no trailing commas"""
 
         outline_user = f"""Create a balanced {target_steps}-step outline for "{title}".
 
-DOMAINS TO COVER (each needs 3-7 steps):
+DOMAINS AND SUBTOPICS TO COVER:
 {domain_list_text}
+
+CRITICAL RULES:
+1. Every subtopic listed above MUST appear in at least one step's "subtopics" array
+2. Every domain MUST have exactly ONE BOSS step as its LAST step
+3. BOSS steps should integrate 2-4 subtopics into a full-chain scenario
 
 OUTPUT THIS EXACT JSON STRUCTURE:
 {{
   "total_steps": {target_steps},
   "outline": [
-    {{"day": 1, "domain": "First Domain Name", "topic": "Specific topic", "type": "info"}},
-    {{"day": 2, "domain": "First Domain Name", "topic": "Another topic", "type": "apply"}},
-    {{"day": 3, "domain": "Second Domain Name", "topic": "Its first topic", "type": "info"}}
+    {{"day": 1, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Intro to Subtopic A", "step_type": "INFO"}},
+    {{"day": 2, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Hands-on with Subtopic A", "step_type": "APPLY"}},
+    {{"day": 3, "domain": "Domain Name", "subtopics": ["Subtopic B"], "topic": "Learn Subtopic B", "step_type": "INFO"}},
+    {{"day": 4, "domain": "Domain Name", "subtopics": ["Subtopic A", "Subtopic B"], "topic": "Domain Capstone: Full Chain", "step_type": "BOSS"}},
+    {{"day": 5, "domain": "Other Domain", "subtopics": ["Subtopic X"], "topic": "Intro to X", "step_type": "INFO"}}
   ]
 }}
 
-VALIDATION BEFORE RESPONDING:
-1. Count: Does each domain have >= 3 steps?
-2. Missing: Is any domain from my list absent? If yes, add steps for it.
-3. JSON: Is this valid JSON with no trailing commas or comments?
+REMEMBER:
+- "subtopics" is a LIST even if it has one item: ["single item"]
+- "step_type" MUST be one of: "INFO", "APPLY", "RECALL", "BOSS" (uppercase)
+- Every domain's LAST step must be step_type: "BOSS"
+- Domain names must match exactly
 
-Output the JSON object only:"""
+JSON output only:"""
 
-        print(f"[QuestCompose] Calling LLM for outline (target: {target_steps} steps)...", flush=True)
+        print(f"[QuestCompose] Calling LLM for subtopic-aware outline (target: {target_steps} steps)...", flush=True)
         
         outline_steps = []
         outline_parse_attempts = 0
@@ -2675,6 +3126,10 @@ Output the JSON object only:"""
                 if not outline_steps:
                     raise ValueError("No outline steps in response")
                 
+                # Normalize subtopics field for each step
+                for step in outline_steps:
+                    _normalize_outline_step_subtopics(step)
+                
                 print(f"[QuestCompose] Parsed {len(outline_steps)} outline steps", flush=True)
                 
             except (json.JSONDecodeError, ValueError) as e:
@@ -2693,9 +3148,8 @@ Output the JSON object only:"""
         _progress(f"Outline: {len(outline_steps)} steps planned", 30)
         
         # ═══════════════════════════════════════════════════════════════════════
-        # COVERAGE VALIDATION
+        # DOMAIN COVERAGE VALIDATION (existing behavior)
         # ═══════════════════════════════════════════════════════════════════════
-        # Check that all domains are represented
         
         covered_domains = set()
         domain_step_count = {}
@@ -2718,23 +3172,87 @@ Output the JSON object only:"""
             print(f"[QuestCompose] WARNING: Missing domains in outline: {missing_domains}", flush=True)
             # Add placeholder steps for missing domains
             for missing in missing_domains:
-                for i in range(3):  # Add 3 steps per missing domain
-                    outline_steps.append({
-                        "day": len(outline_steps) + 1,
-                        "domain": missing,
-                        "topic": f"{missing} - Part {i+1}",
-                        "type": "info" if i == 0 else "apply" if i == 1 else "boss",
-                    })
-            _progress(f"Added steps for {len(missing_domains)} missing domains", 35)
-        
-        print(f"[QuestCompose] Domain coverage: {domain_step_count}", flush=True)
+                domain_subtopics = domain_subtopic_map.get(missing, [])
+                if domain_subtopics:
+                    # Create one step per subtopic for missing domain
+                    for st in domain_subtopics:
+                        outline_steps.append({
+                            "day": len(outline_steps) + 1,
+                            "domain": missing,
+                            "subtopics": [st],
+                            "topic": f"{missing}: {st}",
+                            "type": "info",
+                            "_generation_mode": "domain_patch"
+                        })
+                else:
+                    # No subtopics - create 3 generic steps
+                    for i in range(3):
+                        outline_steps.append({
+                            "day": len(outline_steps) + 1,
+                            "domain": missing,
+                            "subtopics": [],
+                            "topic": f"{missing} - Part {i+1}",
+                            "type": "info" if i == 0 else "apply" if i == 1 else "boss",
+                            "_generation_mode": "domain_patch"
+                        })
+            _progress(f"Added steps for {len(missing_domains)} missing domains", 33)
         
         # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 3: CONTENT GENERATION (PER DOMAIN)
+        # SUBTOPIC COVERAGE VALIDATION (NEW)
         # ═══════════════════════════════════════════════════════════════════════
-        # Generate detailed content one domain at a time
+        # Ensure every subtopic is covered by at least one step
         
-        _progress("Phase 3: Generating content by domain...", 40)
+        _progress("Validating subtopic coverage...", 35)
+        
+        # Only do subtopic audit if we have subtopics
+        total_subtopics = sum(len(st) for st in domain_subtopic_map.values())
+        
+        if total_subtopics > 0:
+            # Audit subtopic coverage
+            subtopic_coverage = _audit_subtopic_coverage(outline_steps, domain_subtopic_map)
+            missing_subtopics = _get_missing_subtopics(subtopic_coverage)
+            
+            # Log coverage details
+            _log_subtopic_coverage(subtopic_coverage, missing_subtopics)
+            
+            # Patch missing subtopics
+            if missing_subtopics:
+                patch_steps = _generate_subtopic_patch_steps(missing_subtopics, len(outline_steps))
+                outline_steps.extend(patch_steps)
+                
+                total_patched = sum(len(st) for st in missing_subtopics.values())
+                print(f"[QuestCompose] Added {total_patched} patch step(s) for missing subtopics.", flush=True)
+                _progress(f"Patched {total_patched} missing subtopics", 37)
+        else:
+            print(f"[QuestCompose] No subtopics defined, skipping subtopic coverage audit", flush=True)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # BOSS STEP ENFORCEMENT
+        # ═══════════════════════════════════════════════════════════════════════
+        # Ensure exactly one BOSS per domain, positioned as the last step
+        
+        _progress("Enforcing boss steps...", 38)
+        
+        # Enforce one BOSS per domain (normalizes step_type and fixes violations)
+        outline_steps = _enforce_boss_per_domain(outline_steps, domains, domain_subtopic_map)
+        
+        # Log step type distribution
+        _log_step_type_distribution(outline_steps)
+        
+        print(f"[QuestCompose:Boss] Boss normalization complete.", flush=True)
+        
+        # Renumber days sequentially
+        for i, step in enumerate(outline_steps):
+            step["day"] = i + 1
+        
+        print(f"[QuestCompose] Final outline: {len(outline_steps)} steps", flush=True)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE 3: SUBTOPIC-AWARE CONTENT GENERATION (PER DOMAIN)
+        # ═══════════════════════════════════════════════════════════════════════
+        # Generate detailed content one domain at a time, using subtopics
+        
+        _progress("Phase 3: Generating subtopic-aware content by domain...", 40)
         
         all_steps = []
         
@@ -2752,13 +3270,32 @@ Output the JSON object only:"""
             # Calculate progress (40% to 90% for content generation)
             domain_progress = int(40 + (50 * (domain_idx + 1) / total_domains))
             
-            _progress(f"Generating {domain_name} ({len(domain_outline)} steps)...", domain_progress)
+            # Get subtopics for this domain
+            domain_subtopics = domain_subtopic_map.get(domain_name, [])
             
-            # Build outline context for this domain
-            domain_outline_text = "\n".join([
-                f"- Day {s['day']}: {s.get('topic', 'TBD')} ({s.get('type', 'info')})"
-                for s in domain_outline
-            ])
+            _progress(f"Generating {domain_name} ({len(domain_outline)} steps, {len(domain_subtopics)} subtopics)...", domain_progress)
+            print(f"[QuestCompose] Generating content for domain '{domain_name}' (subtopics: {domain_subtopics})", flush=True)
+            
+            # Build subtopic-aware outline context for this domain with step_type
+            domain_outline_text = ""
+            for s in domain_outline:
+                step_subtopics = s.get('subtopics', [])
+                step_type = s.get('step_type', 'INFO')
+                subtopics_str = f" [Subtopics: {', '.join(step_subtopics)}]" if step_subtopics else ""
+                domain_outline_text += f"- Day {s['day']}: {s.get('topic', 'TBD')} (step_type: {step_type}){subtopics_str}\n"
+                
+                # Debug log with step_type
+                print(f"[QuestCompose] Step {s['day']} ({domain_name} / {step_type}) subtopics: {step_subtopics}", flush=True)
+            
+            # Build subtopics context for prompt
+            subtopics_context = ""
+            if domain_subtopics:
+                subtopics_context = f"""
+**Domain Subtopics (for reference):**
+{chr(10).join(['- ' + st for st in domain_subtopics])}
+
+Each step below has specific subtopic(s) it must focus on. Ensure the content deeply covers those subtopics.
+"""
             
             content_system = """You are a micro-learning content designer.
 
@@ -2770,6 +3307,33 @@ HARD CONSTRAINTS - EVERY STEP MUST FOLLOW THESE
 2. EXACTLY 3-4 actions per step
 3. Each action = 15-25 minutes, specific and completable
 4. ONE theme per step (never mix reading + lab + reflection)
+5. Each step's content MUST focus on its assigned subtopic(s)
+
+═══════════════════════════════════════════════════════════════════════════════
+STEP TYPE GUIDANCE
+═══════════════════════════════════════════════════════════════════════════════
+
+Generate content appropriate to the step_type:
+
+**INFO** (concept/reading day):
+- Actions: Read docs, watch videos, study diagrams, take notes
+- Focus on understanding theory and concepts
+
+**APPLY** (hands-on lab day):
+- Actions: Configure, build, deploy, exploit, defend, test
+- Focus on practical skills, walkthroughs, CTF-style exercises
+
+**RECALL** (review day):
+- Actions: Create flashcards, take quizzes, write cheat sheets, summarize
+- Focus on retention and self-testing
+
+**BOSS** (capstone day):
+- This is a BOSS FIGHT - a full-chain capstone lab
+- Actions should chain multiple skills into a realistic scenario
+- The learner must combine knowledge from multiple subtopics
+- Make it challenging but achievable in 90 minutes
+- Include multi-step attack/defense flows or integrated projects
+- Example: "Complete a full privilege escalation chain from S3 → IAM → persistence"
 
 BAD actions (NEVER use):
 - "Set up complete environment" ❌
@@ -2782,27 +3346,42 @@ GOOD actions:
 - "Watch 15-min video" ✓
 - "Install tool Y" ✓
 - "Write 3-bullet summary" ✓
+- "Complete CTF challenge: exploit X to gain Y" ✓
 
-Output ONLY JSON array. No markdown."""
+Output ONLY JSON array. No markdown. Include "subtopics" and "step_type" fields from input."""
 
             content_user = f"""Generate micro-step content for the "{domain_name}" domain.
 
 **Quest:** {title}
-
-**Steps to generate for this domain:**
+{subtopics_context}
+**Steps to generate (with their step_type and assigned subtopics):**
 {domain_outline_text}
 
-Generate a JSON array with EXACTLY {len(domain_outline)} steps:
+Generate a JSON array with EXACTLY {len(domain_outline)} steps.
+PRESERVE the subtopics and step_type fields from each step.
+
 [
   {{
-    "type": "info",
-    "title": "Day X: [Micro-Topic]",
-    "prompt": "Today you will [ONE focused goal]. (2-3 sentences max)",
-    "actions": ["[15-25 min task]", "[15-25 min task]", "[15-25 min task]"]
+    "step_type": "INFO",
+    "title": "Day X: [Micro-Topic focused on subtopic]",
+    "prompt": "Today you will [ONE focused goal related to subtopic]. (2-3 sentences max)",
+    "actions": ["[15-25 min task about subtopic]", "[15-25 min task]", "[15-25 min task]"],
+    "subtopics": ["copy from input"]
+  }},
+  {{
+    "step_type": "BOSS",
+    "title": "Day Y: {domain_name} Boss Fight",
+    "prompt": "Today is your capstone challenge. You will chain together [multiple subtopics] into a full scenario.",
+    "actions": ["[Multi-step challenge action 1]", "[Challenge action 2]", "[Challenge action 3]", "[Final validation]"],
+    "subtopics": ["multiple", "subtopics", "from input"]
   }}
 ]
 
-REMEMBER: 3-4 actions each, 60-90 min total, ONE theme per step.
+REMEMBER: 
+- 3-4 actions each, 60-90 min total, ONE theme per step
+- Content MUST focus on the listed subtopics
+- BOSS steps should be challenging capstone scenarios
+- Copy the subtopics and step_type from input to output
 
 JSON array only:"""
 
@@ -2824,14 +3403,22 @@ JSON array only:"""
                     content_json = content_text[start_idx:end_idx]
                     content_steps = json.loads(content_json)
                     
-                    # Normalize and add steps
-                    for step_data in content_steps:
+                    # Normalize and add steps, preserving subtopics and step_type from outline
+                    for step_idx, step_data in enumerate(content_steps):
                         if not isinstance(step_data, dict):
                             continue
                         
-                        step_type = step_data.get("type", "info").lower()
-                        if step_type not in {"info", "recall", "apply", "reflect", "boss"}:
-                            step_type = "info"
+                        # Get step_type - prefer from outline (authoritative)
+                        if step_idx < len(domain_outline):
+                            outline_step = domain_outline[step_idx]
+                            step_type = outline_step.get("step_type", "INFO")
+                        else:
+                            step_type = _normalize_step_type(step_data)
+                        
+                        # Legacy type field for backwards compatibility
+                        legacy_type = step_type.lower()
+                        if legacy_type not in {"info", "recall", "apply", "reflect", "boss"}:
+                            legacy_type = "info"
                         
                         actions = step_data.get("actions", [])
                         if not isinstance(actions, list):
@@ -2844,13 +3431,27 @@ JSON array only:"""
                         if len(actions) < 2:
                             actions.append("Review what you learned today")
                         
+                        # Get subtopics - prefer from outline (authoritative)
+                        if step_idx < len(domain_outline):
+                            step_subtopics = domain_outline[step_idx].get("subtopics", [])
+                        else:
+                            step_subtopics = step_data.get("subtopics", [])
+                        
+                        # Normalize subtopics
+                        if isinstance(step_subtopics, str):
+                            step_subtopics = [step_subtopics] if step_subtopics else []
+                        elif not isinstance(step_subtopics, list):
+                            step_subtopics = []
+                        
                         step = {
                             "id": f"step_{len(all_steps) + 1}",
-                            "type": step_type,
+                            "type": legacy_type,        # Legacy field for backwards compat
+                            "step_type": step_type,     # New canonical field
                             "prompt": step_data.get("prompt", ""),
                             "title": step_data.get("title", f"Day {len(all_steps) + 1}"),
                             "actions": actions,
-                            "domain": domain_name,  # Track domain
+                            "domain": domain_name,
+                            "subtopics": step_subtopics,
                         }
                         
                         if step["prompt"]:
@@ -2858,11 +3459,14 @@ JSON array only:"""
                     
             except Exception as e:
                 _progress(f"Domain {domain_name} error: {e}", domain_progress)
-                # Create placeholder steps for failed domain
+                # Create placeholder steps for failed domain, preserving subtopics and step_type
                 for outline_step in domain_outline:
+                    step_subtopics = outline_step.get("subtopics", [])
+                    step_type = outline_step.get("step_type", "INFO")
                     all_steps.append({
                         "id": f"step_{len(all_steps) + 1}",
-                        "type": outline_step.get("type", "info"),
+                        "type": step_type.lower(),
+                        "step_type": step_type,
                         "prompt": f"Complete: {outline_step.get('topic', domain_name)}",
                         "title": f"Day {len(all_steps) + 1}: {outline_step.get('topic', domain_name)}",
                         "actions": [
@@ -2871,6 +3475,7 @@ JSON array only:"""
                             "Review and summarize",
                         ],
                         "domain": domain_name,
+                        "subtopics": step_subtopics,
                     })
                 continue
         
@@ -2879,11 +3484,18 @@ JSON array only:"""
         # ═══════════════════════════════════════════════════════════════════════
         
         final_domain_count = {}
+        final_subtopic_count = 0
+        final_boss_count = {}
         for step in all_steps:
             d = step.get("domain", "Unknown")
             final_domain_count[d] = final_domain_count.get(d, 0) + 1
+            final_subtopic_count += len(step.get("subtopics", []))
+            if step.get("step_type") == "BOSS":
+                final_boss_count[d] = final_boss_count.get(d, 0) + 1
         
         print(f"[QuestCompose] Final coverage: {final_domain_count}", flush=True)
+        print(f"[QuestCompose] Steps with subtopics: {final_subtopic_count} subtopic references", flush=True)
+        print(f"[QuestCompose:Boss] Final BOSS steps per domain: {final_boss_count}", flush=True)
         print(f"[QuestCompose:MultiPhase] SUCCESS - {len(all_steps)} steps across {len(final_domain_count)} domains", flush=True)
         
         if all_steps:
