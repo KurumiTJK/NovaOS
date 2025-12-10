@@ -1,9 +1,10 @@
 """
-NovaOS Flask API — v0.10.2
+NovaOS Flask API — v0.10.3
 
 Updated with:
 - JSON error responses for LLM timeout/network failures
 - Global exception handler to prevent HTML error pages
+- Enhanced SSE streaming for QuestCompose wizard "generate" action
 - Proper error envelope format: {"ok": false, "error": "...", "message": "..."}
 """
 
@@ -256,7 +257,7 @@ def nova_endpoint():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SSE STREAMING ENDPOINT — v0.10.1
+# SSE STREAMING ENDPOINT — v0.10.3 (Enhanced for QuestCompose)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/nova/stream")
@@ -264,17 +265,25 @@ def nova_stream_endpoint():
     """
     Server-Sent Events streaming endpoint for long-running operations.
     
-    Body: { "text": "#quest-compose ...", "session_id": "..." }
+    v0.10.3: Enhanced to support QuestCompose wizard streaming with progress events.
+    
+    Body: { "text": "generate", "session_id": "...", "stream_mode": "quest_compose" }
     
     Returns: SSE stream with events:
-        - event: progress - Progress updates
-        - event: chunk - Text chunks
-        - event: complete - Final result
-        - event: error - Error occurred
+        - event: progress      - Progress updates { message, percent }
+        - event: wizard_log    - QuestCompose log messages { session_id, message }
+        - event: wizard_update - Partial content updates { session_id, content }
+        - event: wizard_complete - Final result { session_id, result }
+        - event: wizard_error  - Error occurred { session_id, error, message }
+        - event: complete      - Generic completion (non-wizard)
+        - event: error         - Generic error
     
     Usage (JavaScript):
-        const eventSource = new EventSource('/nova/stream?session_id=...');
-        // or POST with fetch and read stream
+        const response = await fetch('/nova/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: 'generate', session_id: '...', stream_mode: 'quest_compose' })
+        });
     """
     try:
         data = request.get_json(force=True) or {}
@@ -287,6 +296,7 @@ def nova_stream_endpoint():
     
     text = (data.get("text") or "").strip()
     session_id = data.get("session_id", "web-default")
+    stream_mode = data.get("stream_mode", "")  # v0.10.3: Optional mode hint
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
@@ -300,7 +310,13 @@ def nova_stream_endpoint():
             # Get or create state
             state = get_or_create_state(session_id)
             
-            # Check if this is a streaming-enabled command
+            # === v0.10.3: QuestCompose Streaming Support ===
+            # Check if this is a QuestCompose wizard streaming request
+            if stream_mode == "quest_compose" or _is_quest_compose_generate(text, session_id):
+                yield from _stream_quest_compose_wizard(text, session_id, state)
+                return
+            
+            # Check if this is a streaming-enabled command (legacy path)
             if text.startswith("#quest-compose"):
                 # Use streaming quest compose
                 yield from _stream_quest_compose(text, session_id, state)
@@ -320,14 +336,16 @@ def nova_stream_endpoint():
         # v0.10.2: Catch LLM timeout errors in streaming
         except LLMTimeoutError as e:
             print(f"[NovaAPI] Stream LLM timeout: {e}", file=sys.stderr, flush=True)
-            yield _sse_event("error", {
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
                 "error": "llm_timeout",
                 "message": "Nova timed out talking to the LLM. Please try again.",
             })
         
         except (PersonaModeError, StrictModeError, LLMError) as e:
             print(f"[NovaAPI] Stream LLM error: {e}", file=sys.stderr, flush=True)
-            yield _sse_event("error", {
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
                 "error": "llm_error",
                 "message": str(e),
             })
@@ -336,7 +354,11 @@ def nova_stream_endpoint():
             print(f"[NovaAPI] Stream error: {e}", file=sys.stderr, flush=True)
             import traceback
             traceback.print_exc()
-            yield _sse_event("error", {"error": str(e)})
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
+                "error": "server_error",
+                "message": str(e),
+            })
     
     return Response(
         generate(),
@@ -354,9 +376,213 @@ def _sse_event(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# v0.10.3: QuestCompose Streaming Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _is_quest_compose_generate(text: str, session_id: str) -> bool:
+    """
+    Check if this is a QuestCompose wizard "generate" action at Step 3.
+    
+    Returns True if:
+    - There's an active QuestCompose wizard session
+    - The session is at stage="steps", substage="choice" or ""
+    - The user input is "generate", "gen", "g", or "auto"
+    """
+    try:
+        from kernel.quest_compose_wizard import (
+            has_active_compose_session,
+            get_compose_session,
+        )
+        
+        if not has_active_compose_session(session_id):
+            return False
+        
+        session = get_compose_session(session_id)
+        if not session:
+            return False
+        
+        # Check if we're at the steps stage, waiting for generate/manual choice
+        if session.stage != "steps":
+            return False
+        
+        if session.substage not in ("", "choice"):
+            return False
+        
+        # Check if the input is a "generate" command
+        choice = text.lower().strip()
+        return choice in ("generate", "gen", "g", "auto")
+    
+    except Exception as e:
+        print(f"[NovaAPI] Error checking quest compose state: {e}", file=sys.stderr, flush=True)
+        return False
+
+
+def _stream_quest_compose_wizard(text: str, session_id: str, state):
+    """
+    Stream the QuestCompose wizard "generate" action with real-time progress.
+    
+    v0.10.3: This is the main streaming handler for QuestCompose step generation.
+    
+    Yields SSE events as the wizard processes:
+    - wizard_log: Progress messages from the generation pipeline
+    - wizard_update: Partial content (e.g., outline steps as they're generated)
+    - wizard_complete: Final result with generated steps
+    - wizard_error: Error occurred during generation
+    """
+    from kernel.quest_compose_wizard import (
+        get_compose_session,
+        set_compose_session,
+        _generate_steps_with_llm_streaming,
+        _format_steps_with_actions,
+        _base_response,
+    )
+    
+    cmd_name = "#quest-compose"
+    
+    try:
+        yield _sse_event("wizard_log", {
+            "session_id": session_id,
+            "message": "[QuestCompose] Starting streaming generation...",
+        })
+        yield _sse_event("progress", {"message": "Initializing...", "percent": 5})
+        
+        # Get the wizard session
+        session = get_compose_session(session_id)
+        if not session:
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
+                "error": "no_session",
+                "message": "No active QuestCompose wizard session found.",
+            })
+            return
+        
+        # Create a streaming progress callback that yields SSE events
+        def progress_callback(message: str, percent: int):
+            """Callback invoked by _generate_steps_with_llm_streaming for progress."""
+            # This is called from within the generator, so we can't yield here directly
+            # Instead, we'll use a different approach - see below
+            pass
+        
+        # Generate steps with streaming
+        yield _sse_event("wizard_log", {
+            "session_id": session_id,
+            "message": f"[QuestCompose] Generating steps for: {session.draft.get('title', 'Untitled')}",
+        })
+        yield _sse_event("progress", {"message": "Phase 1: Analyzing objectives...", "percent": 10})
+        
+        # Use the streaming generator version
+        generated_steps = []
+        generation_error = None
+        
+        try:
+            # Call the streaming version which yields progress events
+            for event in _generate_steps_with_llm_streaming(session.draft, kernel, session_id):
+                if event["type"] == "log":
+                    yield _sse_event("wizard_log", {
+                        "session_id": session_id,
+                        "message": event["message"],
+                    })
+                elif event["type"] == "progress":
+                    yield _sse_event("progress", {
+                        "message": event["message"],
+                        "percent": event["percent"],
+                    })
+                elif event["type"] == "update":
+                    yield _sse_event("wizard_update", {
+                        "session_id": session_id,
+                        "content": event["content"],
+                    })
+                elif event["type"] == "steps":
+                    generated_steps = event["steps"]
+                elif event["type"] == "error":
+                    generation_error = event["message"]
+                    break
+        
+        except LLMTimeoutError as e:
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
+                "error": "llm_timeout",
+                "message": "Nova timed out while generating steps. Please try again.",
+            })
+            return
+        
+        except Exception as e:
+            print(f"[NovaAPI] Quest compose generation error: {e}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
+                "error": "generation_error",
+                "message": f"Error generating steps: {str(e)}",
+            })
+            return
+        
+        # Handle generation result
+        if generation_error:
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
+                "error": "generation_failed",
+                "message": generation_error,
+            })
+            return
+        
+        if generated_steps:
+            # Success! Update the session
+            session.draft["steps"] = generated_steps
+            session.substage = "confirm_generated"
+            set_compose_session(session_id, session)
+            
+            # Format steps for display
+            step_list = _format_steps_with_actions(generated_steps, verbose=True)
+            
+            # Build the response
+            response_text = (
+                f"**Generated {len(generated_steps)} steps:**\n\n{step_list}\n"
+                f"Type **accept** to use these, **regenerate** to try again, or **manual** to define your own:"
+            )
+            
+            result = _base_response(
+                cmd_name,
+                response_text,
+                {"wizard_active": True, "stage": "steps", "substage": "confirm_generated"}
+            )
+            
+            yield _sse_event("progress", {"message": "Complete!", "percent": 100})
+            yield _sse_event("wizard_complete", {
+                "session_id": session_id,
+                "result": {
+                    "ok": result.ok,
+                    "text": result.summary,
+                    "summary": result.summary,
+                    "data": result.data if hasattr(result, 'data') else {},
+                    "steps_count": len(generated_steps),
+                }
+            })
+        else:
+            # Generation returned no steps
+            error_msg = "Could not generate steps. Please try again or use manual mode."
+            
+            yield _sse_event("wizard_error", {
+                "session_id": session_id,
+                "error": "no_steps",
+                "message": error_msg,
+            })
+    
+    except Exception as e:
+        print(f"[NovaAPI] Quest compose stream error: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc()
+        yield _sse_event("wizard_error", {
+            "session_id": session_id,
+            "error": "server_error",
+            "message": str(e),
+        })
+
+
 def _stream_quest_compose(text: str, session_id: str, state):
     """
-    Stream quest-compose operation with progress updates.
+    Stream quest-compose operation with progress updates (legacy path).
     
     Yields SSE events as the quest is being composed.
     """
@@ -448,11 +674,12 @@ def health_endpoint():
     api_key = os.getenv("OPENAI_API_KEY", "")
     return jsonify({
         "status": "ok",
-        "version": "0.10.2",
+        "version": "0.10.3",
         "base_dir": str(BASE_DIR),
         "api_key_configured": bool(api_key),
         "api_key_length": len(api_key) if api_key else 0,
         "streaming_enabled": True,
+        "quest_compose_streaming": True,  # v0.10.3
     })
 
 

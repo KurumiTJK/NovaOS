@@ -539,6 +539,80 @@
         border-right: 1px solid var(--border-color);
       }
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       v0.10.3: QUEST COMPOSE PROGRESS STYLES
+       ═══════════════════════════════════════════════════════════════════════ */
+    
+    .quest-compose-progress {
+      background: var(--bg-nova);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 8px 0;
+      max-width: 85%;
+    }
+    
+    .progress-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    
+    .progress-icon {
+      font-size: 1.25rem;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .progress-title {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .progress-bar-container {
+      height: 6px;
+      background: var(--bg-secondary);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #60a5fa);
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+    
+    .progress-message {
+      font-size: 0.875rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    
+    .progress-logs {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .progress-log-line {
+      padding: 2px 0;
+      opacity: 0.8;
+    }
+    
+    .progress-log-line:last-child {
+      opacity: 1;
+      color: var(--text-secondary);
+    }
   </style>
 </head>
 
@@ -1041,12 +1115,257 @@
       return 'Nova returned an empty response. Please try again.';
     }
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // v0.10.3: QUEST COMPOSE STREAMING SUPPORT
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Track whether we're in an active QuestCompose wizard session.
+     * This is updated based on responses from the backend.
+     */
+    let questComposeState = {
+      active: false,
+      stage: null,
+      substage: null,
+    };
+
+    /**
+     * Check if the current message is a QuestCompose "generate" action.
+     * 
+     * Returns true if:
+     * - We're in an active QuestCompose wizard (based on previous response)
+     * - The wizard is at stage="steps", substage="choice" or ""
+     * - The user input is "generate", "gen", "g", or "auto"
+     * 
+     * @param {string} text - User's input text
+     * @returns {boolean}
+     */
+    function isQuestComposeGenerateAction(text) {
+      if (!questComposeState.active) {
+        return false;
+      }
+      
+      if (questComposeState.stage !== 'steps') {
+        return false;
+      }
+      
+      if (questComposeState.substage !== '' && questComposeState.substage !== 'choice' && questComposeState.substage !== null) {
+        return false;
+      }
+      
+      const choice = text.toLowerCase().trim();
+      return ['generate', 'gen', 'g', 'auto'].includes(choice);
+    }
+
+    /**
+     * Update the QuestCompose state based on API response.
+     * Called after each response to track wizard state.
+     * 
+     * @param {Object} data - Response data from /nova or streaming
+     */
+    function updateQuestComposeState(data) {
+      if (data && data.data) {
+        const wizardData = data.data;
+        questComposeState.active = wizardData.wizard_active === true;
+        questComposeState.stage = wizardData.stage || null;
+        questComposeState.substage = wizardData.substage || null;
+        
+        console.log('[NovaOS] QuestCompose state updated:', questComposeState);
+      }
+    }
+
+    /**
+     * Show a progress indicator for QuestCompose generation.
+     * 
+     * @param {string} message - Progress message
+     * @param {number} percent - Progress percentage (0-100)
+     */
+    function showQuestComposeProgress(message, percent) {
+      // Check if progress element exists, create if not
+      let progressEl = document.getElementById('questComposeProgress');
+      
+      if (!progressEl) {
+        progressEl = document.createElement('div');
+        progressEl.id = 'questComposeProgress';
+        progressEl.className = 'quest-compose-progress';
+        progressEl.innerHTML = `
+          <div class="progress-header">
+            <span class="progress-icon">⚡</span>
+            <span class="progress-title">QuestCompose is generating...</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar" style="width: 0%"></div>
+          </div>
+          <div class="progress-message"></div>
+          <div class="progress-logs"></div>
+        `;
+        
+        // Insert before the typing indicator or at the end of chat
+        const typingIndicator = document.getElementById('typingIndicator');
+        if (typingIndicator) {
+          chatMessages.insertBefore(progressEl, typingIndicator);
+        } else {
+          chatMessages.appendChild(progressEl);
+        }
+        
+        scrollToBottom();
+      }
+      
+      // Update progress
+      const progressBar = progressEl.querySelector('.progress-bar');
+      const progressMessage = progressEl.querySelector('.progress-message');
+      
+      if (progressBar) {
+        progressBar.style.width = `${percent}%`;
+      }
+      if (progressMessage) {
+        progressMessage.textContent = message;
+      }
+      
+      scrollToBottom();
+    }
+
+    /**
+     * Append a log message to the QuestCompose progress display.
+     * 
+     * @param {string} message - Log message
+     */
+    function appendQuestComposeLog(message) {
+      const progressEl = document.getElementById('questComposeProgress');
+      if (!progressEl) return;
+      
+      const logsEl = progressEl.querySelector('.progress-logs');
+      if (!logsEl) return;
+      
+      const logLine = document.createElement('div');
+      logLine.className = 'progress-log-line';
+      logLine.textContent = message;
+      logsEl.appendChild(logLine);
+      
+      // Keep only last 5 log lines
+      while (logsEl.children.length > 5) {
+        logsEl.removeChild(logsEl.firstChild);
+      }
+      
+      scrollToBottom();
+    }
+
+    /**
+     * Hide and remove the QuestCompose progress display.
+     */
+    function hideQuestComposeProgress() {
+      const progressEl = document.getElementById('questComposeProgress');
+      if (progressEl) {
+        progressEl.remove();
+      }
+    }
+
+    /**
+     * Send a QuestCompose "generate" command via SSE streaming.
+     * 
+     * v0.10.3: This streams the heavy step generation to avoid Cloudflare timeouts.
+     * 
+     * @param {string} sessionId - Session ID
+     * @param {Object} callbacks - Event callbacks
+     */
+    async function sendQuestComposeGenerate(sessionId, callbacks = {}) {
+      const { onLog, onProgress, onUpdate, onComplete, onError } = callbacks;
+      
+      console.log('[NovaOS] Starting QuestCompose streaming generation');
+      
+      try {
+        const response = await fetch('/nova/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: 'generate', 
+            session_id: sessionId,
+            stream_mode: 'quest_compose',
+          }),
+        });
+        
+        if (!response.ok) {
+          let errText = '';
+          try {
+            errText = await response.text();
+            const errJson = JSON.parse(errText);
+            onError?.(errJson.message || errJson.error || `Server error (HTTP ${response.status})`);
+          } catch (e) {
+            onError?.(`Server error (HTTP ${response.status}): ${errText.slice(0, 200)}`);
+          }
+          return;
+        }
+        
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            console.log('[NovaOS] SSE stream complete');
+            break;
+          }
+          
+          buffer += decoder.decode(value, { stream: true });
+          
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          
+          let currentEvent = null;
+          
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7).trim();
+            } else if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              try {
+                const parsed = JSON.parse(data);
+                
+                switch (currentEvent) {
+                  case 'wizard_log':
+                    console.log('[NovaOS] wizard_log:', parsed.message);
+                    onLog?.(parsed.message);
+                    break;
+                  case 'wizard_update':
+                    onUpdate?.(parsed.content);
+                    break;
+                  case 'wizard_complete':
+                    console.log('[NovaOS] wizard_complete:', parsed.result);
+                    onComplete?.(parsed.result);
+                    break;
+                  case 'wizard_error':
+                    console.error('[NovaOS] wizard_error:', parsed.message);
+                    onError?.(parsed.message || parsed.error || 'Unknown wizard error');
+                    break;
+                  case 'progress':
+                    onProgress?.(parsed.message, parsed.percent);
+                    break;
+                  case 'complete':
+                    onComplete?.(parsed);
+                    break;
+                  case 'error':
+                    onError?.(parsed.error || parsed.message || 'Unknown error');
+                    break;
+                }
+              } catch (e) {
+                onLog?.(data);
+              }
+              currentEvent = null;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[NovaOS] Streaming error:', error);
+        onError?.(error.message || 'Connection failed');
+      }
+    }
+
     /**
      * Send a message to Nova.
      * 
-     * v0.10.2: Updated to use callNova() helper for robust error handling.
-     * This function no longer directly calls response.json() — all JSON parsing
-     * and error handling is done in callNova().
+     * v0.10.3: Updated to detect QuestCompose "generate" action and use streaming.
+     * v0.10.2: Uses callNova() helper for robust error handling.
      */
     async function sendMessage(text) {
       if (!text.trim()) return;
@@ -1061,6 +1380,65 @@
       // Disable send while processing
       sendButton.disabled = true;
 
+      // === v0.10.3: Check if this is a QuestCompose generate action ===
+      if (isQuestComposeGenerateAction(text)) {
+        console.log('[NovaOS] Detected QuestCompose generate action, using streaming');
+        
+        // Show progress UI instead of typing indicator
+        showQuestComposeProgress('Initializing...', 0);
+        
+        try {
+          await sendQuestComposeGenerate(SESSION_ID, {
+            onLog: (msg) => {
+              appendQuestComposeLog(msg);
+            },
+            onProgress: (msg, pct) => {
+              showQuestComposeProgress(msg, pct);
+            },
+            onUpdate: (content) => {
+              console.log('[NovaOS] QuestCompose update:', content);
+            },
+            onComplete: (result) => {
+              console.log('[NovaOS] QuestCompose complete:', result);
+              
+              hideQuestComposeProgress();
+              
+              if (result && result.data) {
+                updateQuestComposeState({ data: result.data });
+              }
+              
+              const reply = result.text || result.summary || 'Steps generated successfully!';
+              appendNovaMessage(reply);
+              
+              sendButton.disabled = false;
+              inputField.focus();
+            },
+            onError: (err) => {
+              console.error('[NovaOS] QuestCompose error:', err);
+              
+              hideQuestComposeProgress();
+              appendNovaMessage(`Error generating steps: ${err}. Please try again or use manual mode.`);
+              
+              sendButton.disabled = false;
+              inputField.focus();
+            },
+          });
+          
+        } catch (error) {
+          console.error('[NovaOS] QuestCompose streaming error:', error);
+          
+          hideQuestComposeProgress();
+          appendNovaMessage(`Connection error: ${error.message}. Please try again.`);
+          
+          sendButton.disabled = false;
+          inputField.focus();
+        }
+        
+        return;
+      }
+
+      // === Normal (non-streaming) message flow ===
+      
       // Show typing indicator
       showTypingIndicator();
 
@@ -1078,6 +1456,9 @@
         if (!data) {
           return;
         }
+
+        // v0.10.3: Update QuestCompose state based on response
+        updateQuestComposeState(data);
 
         // Extract and display Nova's response
         const reply = extractNovaResponse(data);
