@@ -804,8 +804,125 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // API COMMUNICATION
+    // API COMMUNICATION — v0.10.2 with robust error handling
     // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Safely call the /nova endpoint with comprehensive error handling.
+     * 
+     * v0.10.2: This helper ensures we NEVER call response.json() on:
+     * - Network errors (fetch throws)
+     * - Non-2xx HTTP responses (which may be HTML error pages)
+     * - Non-JSON content types (e.g., HTML from nginx/Cloudflare)
+     * - Malformed JSON responses
+     * 
+     * @param {Object} payload - The request payload { text: "...", session_id: "..." }
+     * @returns {Object|null} - The parsed JSON response, or null on error
+     */
+    async function callNova(payload) {
+      let res;
+      
+      // Step 1: Try to fetch — catch network errors
+      try {
+        res = await fetch('/nova', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch (err) {
+        // Network error (offline, DNS failure, CORS, etc.)
+        console.error('[NovaOS] Network error calling /nova:', err);
+        appendNovaMessage(
+          "Nova couldn't reach the server (network error). Please check your connection and try again."
+        );
+        return null;
+      }
+
+      // Step 2: Check HTTP status — non-2xx means error (possibly HTML page)
+      if (!res.ok) {
+        // Read as text first — it might be HTML, not JSON
+        let errorText = '';
+        try {
+          errorText = await res.text();
+        } catch (e) {
+          errorText = '(unable to read response body)';
+        }
+        
+        console.error('[NovaOS] Server error from /nova:', res.status, errorText.slice(0, 500));
+        
+        // Try to parse as JSON in case backend sent a JSON error envelope
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.message || errorJson.text) {
+            appendNovaMessage(
+              errorJson.text || errorJson.message || `Server error (HTTP ${res.status})`
+            );
+            return null;
+          }
+        } catch (e) {
+          // Not JSON — probably HTML error page from nginx/Cloudflare
+        }
+        
+        // Provide user-friendly message based on status code
+        let userMessage = `Nova hit a server error (HTTP ${res.status}). `;
+        if (res.status === 502 || res.status === 504) {
+          userMessage += "The server may be overloaded or restarting. Please try again in a moment.";
+        } else if (res.status === 503) {
+          userMessage += "The service is temporarily unavailable. Please try again later.";
+        } else if (res.status >= 500) {
+          userMessage += "Please try again or check the server logs.";
+        } else {
+          userMessage += "Please try again.";
+        }
+        
+        appendNovaMessage(userMessage);
+        return null;
+      }
+
+      // Step 3: Validate Content-Type is JSON
+      const contentType = (res.headers.get('content-type') || '').toLowerCase();
+      if (!contentType.includes('application/json')) {
+        // Got a non-JSON response (HTML, text, etc.)
+        let bodyText = '';
+        try {
+          bodyText = await res.text();
+        } catch (e) {
+          bodyText = '(unable to read response body)';
+        }
+        
+        console.error('[NovaOS] Expected JSON from /nova, got Content-Type:', contentType);
+        console.error('[NovaOS] Response body preview:', bodyText.slice(0, 500));
+        
+        appendNovaMessage(
+          "Nova got a non-JSON response from the server. This usually means the server encountered an error. Please try again or check the backend logs."
+        );
+        return null;
+      }
+
+      // Step 4: Parse JSON — catch malformed JSON
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        console.error('[NovaOS] JSON parse error from /nova:', err);
+        appendNovaMessage(
+          "Nova received a malformed JSON response from the server. Please try again."
+        );
+        return null;
+      }
+
+      // Step 5: Check for backend error envelope (ok: false)
+      if (data && data.ok === false) {
+        console.warn('[NovaOS] Backend returned error envelope:', data);
+        // Use the backend's message if available
+        const errorMessage = data.text || data.message || "Nova couldn't complete this request.";
+        appendNovaMessage(errorMessage);
+        return null;
+      }
+
+      // Success — return the parsed data
+      return data;
+    }
 
     /**
      * Extract the human-readable response text from the API response.
@@ -829,6 +946,11 @@
      * NEVER show raw JSON in the chat window.
      */
     function extractNovaResponse(data) {
+      // Guard against null/undefined
+      if (!data) {
+        return 'Nova returned no data. Please try again.';
+      }
+
       // DEBUG: Log the raw response to help diagnose issues
       console.log('NovaOS: Raw API response:', JSON.stringify(data, null, 2));
 
@@ -919,6 +1041,13 @@
       return 'Nova returned an empty response. Please try again.';
     }
 
+    /**
+     * Send a message to Nova.
+     * 
+     * v0.10.2: Updated to use callNova() helper for robust error handling.
+     * This function no longer directly calls response.json() — all JSON parsing
+     * and error handling is done in callNova().
+     */
     async function sendMessage(text) {
       if (!text.trim()) return;
 
@@ -936,32 +1065,34 @@
       showTypingIndicator();
 
       try {
-        const response = await fetch('/nova', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            text: text,
-            session_id: SESSION_ID
-          })
+        // v0.10.2: Use the new callNova() helper for safe error handling
+        const data = await callNova({
+          text: text,
+          session_id: SESSION_ID
         });
-
-        const data = await response.json();
 
         // Hide typing indicator
         hideTypingIndicator();
+
+        // If callNova returned null, it already showed an error message
+        if (!data) {
+          return;
+        }
 
         // Extract and display Nova's response
         const reply = extractNovaResponse(data);
         appendNovaMessage(reply);
 
       } catch (error) {
+        // This catch is a safety net — callNova should handle all errors
+        // but we keep this in case something unexpected happens
+        console.error('[NovaOS] Unexpected error in sendMessage:', error);
+        
         // Hide typing indicator
         hideTypingIndicator();
 
         // Show error message
-        appendNovaMessage(`Connection error: ${error.message}. Please try again.`);
+        appendNovaMessage(`Unexpected error: ${error.message}. Please try again.`);
       } finally {
         // Re-enable send button
         sendButton.disabled = false;

@@ -1,66 +1,53 @@
-# nova_api.py
 """
-NovaOS Flask API Server — v0.10.1
+NovaOS Flask API — v0.10.2
 
-Now uses the dual-mode architecture:
-- Default: Persona mode (pure conversation)
-- After #boot: NovaOS mode (kernel + modules)
-- After #shutdown: Back to Persona mode
-
-v0.10.1: Added SSE streaming endpoint for long-running operations
-v0.9.1: Added explicit .env loading at startup to ensure API keys are available
-before any LLM client is created. Fixes "Incorrect API key" errors on remote servers.
+Updated with:
+- JSON error responses for LLM timeout/network failures
+- Global exception handler to prevent HTML error pages
+- Proper error envelope format: {"ok": false, "error": "...", "message": "..."}
 """
 
+import json
 import os
 import sys
-import json
 from pathlib import Path
 
 # -----------------------------------------------------------------------------
-# CRITICAL: Load .env BEFORE any other imports that might use API keys
+# Path Setup — Must happen BEFORE any other imports
 # -----------------------------------------------------------------------------
 
-BASE_DIR = Path(__file__).parent.resolve()
+BASE_DIR = Path(__file__).resolve().parent
 
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
+
+# -----------------------------------------------------------------------------
+# Environment Loading — Must happen BEFORE importing modules that use API keys
+# -----------------------------------------------------------------------------
 
 def _ensure_env_loaded():
     """
-    Load .env file before any imports that might need API keys.
-    
-    This is called at module level, before Flask or LLMClient imports,
-    to ensure environment variables are set early.
+    Ensure .env is loaded before any other imports.
+    This is critical for LLMClient initialization.
     """
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        print("[NovaAPI] WARNING: python-dotenv not installed", file=sys.stderr, flush=True)
+        return
+    
     env_path = BASE_DIR / ".env"
-    
     if env_path.exists():
-        try:
-            with open(env_path, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if "=" in line:
-                        key, _, value = line.partition("=")
-                        key = key.strip()
-                        value = value.strip()
-                        # Remove quotes
-                        if value and value[0] in ('"', "'") and value[-1] == value[0]:
-                            value = value[1:-1]
-                        if key:
-                            os.environ[key] = value
-            print(f"[NovaAPI] Loaded .env from: {env_path}", flush=True)
-        except Exception as e:
-            print(f"[NovaAPI] Warning: Could not load .env: {e}", file=sys.stderr, flush=True)
+        load_dotenv(env_path, override=True)
+        print(f"[NovaAPI] Loaded .env from {env_path}", flush=True)
     else:
-        print(f"[NovaAPI] Warning: .env not found at {env_path}", file=sys.stderr, flush=True)
-    
-    # Verify API key is loaded
-    api_key = os.getenv("OPENAI_API_KEY", "")
-    if api_key:
-        print(f"[NovaAPI] OPENAI_API_KEY: found ({len(api_key)} chars)", flush=True)
-    else:
-        print(f"[NovaAPI] WARNING: OPENAI_API_KEY not found!", file=sys.stderr, flush=True)
+        cwd_env = Path.cwd() / ".env"
+        if cwd_env.exists():
+            load_dotenv(cwd_env, override=True)
+            print(f"[NovaAPI] Loaded .env from {cwd_env}", flush=True)
+        else:
+            print(f"[NovaAPI] WARNING: No .env file found", file=sys.stderr, flush=True)
 
 
 # Load environment FIRST
@@ -75,7 +62,7 @@ from flask import Flask, request, jsonify, send_from_directory, Response
 
 from system.config import Config
 from kernel.nova_kernel import NovaKernel
-from backend.llm_client import LLMClient
+from backend.llm_client import LLMClient, LLMTimeoutError, LLMError, PersonaModeError, StrictModeError
 from persona.nova_persona import NovaPersona
 
 # v0.9.0: Import mode router
@@ -106,6 +93,57 @@ persona = NovaPersona(llm_client)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# v0.10.2: GLOBAL ERROR HANDLERS — Ensure JSON responses, never HTML
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """
+    Global exception handler to ensure all errors return JSON, not HTML.
+    
+    v0.10.2: This prevents the frontend from receiving HTML error pages
+    that cause 'Unexpected token <' errors when calling response.json().
+    """
+    # Log the error
+    print(f"[NovaAPI] Unhandled exception: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+    import traceback
+    traceback.print_exc()
+    
+    # Return JSON error response
+    return jsonify({
+        "ok": False,
+        "error": "server_error",
+        "message": f"An unexpected server error occurred: {str(e)}",
+        "text": "Nova encountered an unexpected error. Please try again.",
+    }), 500
+
+
+@app.errorhandler(404)
+def handle_404(e):
+    """Return JSON for 404 errors on API routes."""
+    if request.path.startswith('/nova'):
+        return jsonify({
+            "ok": False,
+            "error": "not_found",
+            "message": f"Endpoint not found: {request.path}",
+            "text": "Nova endpoint not found.",
+        }), 404
+    # For non-API routes, return the index.html for SPA routing
+    return send_from_directory(app.static_folder, "index.html")
+
+
+@app.errorhandler(500)
+def handle_500(e):
+    """Return JSON for 500 errors."""
+    return jsonify({
+        "ok": False,
+        "error": "server_error",
+        "message": "Internal server error",
+        "text": "Nova encountered a server error. Please try again.",
+    }), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # ROUTES
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -128,26 +166,93 @@ def nova_endpoint():
         "handled_by": "persona" | "kernel" | "mode_router",
         ...
     }
+    
+    v0.10.2: Now catches LLM timeout/network errors and returns JSON error envelope
+    instead of letting Flask return HTML 500 pages.
     """
-    data = request.get_json(force=True) or {}
+    try:
+        data = request.get_json(force=True) or {}
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": "invalid_json",
+            "message": f"Invalid JSON in request body: {e}",
+            "text": "Nova received invalid JSON. Please try again.",
+        }), 400
+    
     text = (data.get("text") or "").strip()
     session_id = data.get("session_id", "web-default")
 
     if not text:
-        return jsonify({"error": "No text provided", "text": ""}), 400
+        return jsonify({
+            "ok": False,
+            "error": "no_text",
+            "message": "No text provided",
+            "text": "",
+        }), 400
 
-    # Get or create state for this session
-    state = get_or_create_state(session_id)
+    try:
+        # Get or create state for this session
+        state = get_or_create_state(session_id)
+        
+        # Route through the mode router
+        result = handle_user_message(
+            message=text,
+            state=state,
+            kernel=kernel,
+            persona=persona,
+        )
+        
+        return jsonify(result)
     
-    # Route through the mode router
-    result = handle_user_message(
-        message=text,
-        state=state,
-        kernel=kernel,
-        persona=persona,
-    )
+    # v0.10.2: Catch LLM timeout/network errors specifically
+    except LLMTimeoutError as e:
+        print(f"[NovaAPI] LLM timeout: {e}", file=sys.stderr, flush=True)
+        return jsonify({
+            "ok": False,
+            "error": "llm_timeout",
+            "message": "Nova timed out talking to the LLM. Please try again.",
+            "text": "Nova timed out while processing your request. The AI service may be slow or unavailable. Please try again in a moment.",
+        }), 502
     
-    return jsonify(result)
+    except PersonaModeError as e:
+        print(f"[NovaAPI] Persona mode error: {e}", file=sys.stderr, flush=True)
+        return jsonify({
+            "ok": False,
+            "error": "persona_error",
+            "message": str(e),
+            "text": "Nova's persona mode encountered an error. Please try again.",
+        }), 502
+    
+    except StrictModeError as e:
+        print(f"[NovaAPI] Strict mode error: {e}", file=sys.stderr, flush=True)
+        return jsonify({
+            "ok": False,
+            "error": "strict_mode_error",
+            "message": str(e),
+            "text": "Nova's strict mode encountered an error. Please try again.",
+        }), 502
+    
+    except LLMError as e:
+        print(f"[NovaAPI] LLM error: {e}", file=sys.stderr, flush=True)
+        return jsonify({
+            "ok": False,
+            "error": "llm_error",
+            "message": str(e),
+            "text": "Nova encountered an LLM error. Please try again.",
+        }), 502
+    
+    except Exception as e:
+        # Catch-all for any other errors — return JSON, not HTML
+        print(f"[NovaAPI] Unexpected error in /nova: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "ok": False,
+            "error": "server_error",
+            "message": f"Unexpected server error: {str(e)}",
+            "text": "Nova encountered an unexpected error. Please try again.",
+        }), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -171,7 +276,15 @@ def nova_stream_endpoint():
         const eventSource = new EventSource('/nova/stream?session_id=...');
         // or POST with fetch and read stream
     """
-    data = request.get_json(force=True) or {}
+    try:
+        data = request.get_json(force=True) or {}
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": "invalid_json",
+            "message": f"Invalid JSON in request body: {e}",
+        }), 400
+    
     text = (data.get("text") or "").strip()
     session_id = data.get("session_id", "web-default")
 
@@ -203,6 +316,21 @@ def nova_stream_endpoint():
                 )
                 
                 yield _sse_event("complete", result)
+        
+        # v0.10.2: Catch LLM timeout errors in streaming
+        except LLMTimeoutError as e:
+            print(f"[NovaAPI] Stream LLM timeout: {e}", file=sys.stderr, flush=True)
+            yield _sse_event("error", {
+                "error": "llm_timeout",
+                "message": "Nova timed out talking to the LLM. Please try again.",
+            })
+        
+        except (PersonaModeError, StrictModeError, LLMError) as e:
+            print(f"[NovaAPI] Stream LLM error: {e}", file=sys.stderr, flush=True)
+            yield _sse_event("error", {
+                "error": "llm_error",
+                "message": str(e),
+            })
                 
         except Exception as e:
             print(f"[NovaAPI] Stream error: {e}", file=sys.stderr, flush=True)
@@ -269,6 +397,12 @@ def _stream_quest_compose(text: str, session_id: str, state):
         yield _sse_event("progress", {"message": "Finalizing...", "percent": 90})
         yield _sse_event("complete", result)
         
+    except LLMTimeoutError as e:
+        print(f"[NovaAPI] Quest compose LLM timeout: {e}", file=sys.stderr, flush=True)
+        yield _sse_event("error", {
+            "error": "llm_timeout",
+            "message": "Nova timed out while composing your quest. Please try again.",
+        })
     except Exception as e:
         print(f"[NovaAPI] Quest compose stream error: {e}", file=sys.stderr, flush=True)
         import traceback
@@ -314,7 +448,7 @@ def health_endpoint():
     api_key = os.getenv("OPENAI_API_KEY", "")
     return jsonify({
         "status": "ok",
-        "version": "0.10.1",
+        "version": "0.10.2",
         "base_dir": str(BASE_DIR),
         "api_key_configured": bool(api_key),
         "api_key_length": len(api_key) if api_key else 0,

@@ -1,28 +1,11 @@
-# backend/llm_client.py
 """
-v0.10.1 — LLM Client with Streaming Support
+NovaOS LLM Client — v0.10.2
 
-🔥 v0.10.1 CHANGES:
-- Added streaming support for long-running operations
-- New stream_complete_system() method returns a generator
-- Keeps connections alive during quest-compose generation
-
-v0.9.0 CHANGES:
-- PERSONA MODE: Always gpt-5.1, NO FALLBACK, hard error on failure
-- STRICT MODE: Uses ModelRouter with deterministic routing
-- Enhanced logging: logs model + command for every call
-- Removed all fallback behavior
-
-Two channels:
-1. PERSONA: Nova talking to user → ALWAYS gpt-5.1 (hard error if fails)
-2. SYSTEM: syscommand tasks → routed by ModelRouter (no fallback)
-
-Logging:
-    Every LLM call prints to terminal:
-    [LLM] channel=<channel> command=<cmd> model=<model>
+Updated with:
+- Explicit timeout on OpenAI API calls (90s, less than Gunicorn's 120s)
+- Custom LLMTimeoutError exception for timeout/network failures
+- Proper exception handling for APITimeoutError, APIConnectionError
 """
-
-from __future__ import annotations
 
 import os
 import sys
@@ -31,12 +14,12 @@ from typing import Any, Dict, Generator, List, Optional
 
 
 # -----------------------------------------------------------------------------
-# ROBUST .env Loading
+# Path Resolution
 # -----------------------------------------------------------------------------
 
 def _get_project_root() -> Path:
     """
-    Get the project root directory.
+    Get the absolute path to the project root.
     
     This works regardless of the current working directory by finding
     the directory containing this file and going up to the project root.
@@ -89,11 +72,21 @@ _load_env_file()
 # -----------------------------------------------------------------------------
 
 try:
-    from openai import OpenAI
+    from openai import OpenAI, APIConnectionError, APITimeoutError
     _HAS_OPENAI = True
 except ImportError:
     _HAS_OPENAI = False
     OpenAI = None
+    APIConnectionError = Exception
+    APITimeoutError = Exception
+
+# Also import httpx for network-level timeout handling
+try:
+    import httpx
+    _HAS_HTTPX = True
+except ImportError:
+    _HAS_HTTPX = False
+    httpx = None
 
 
 # -----------------------------------------------------------------------------
@@ -121,6 +114,16 @@ class LLMError(Exception):
     pass
 
 
+class LLMTimeoutError(LLMError):
+    """
+    Raised when an LLM API call times out or fails due to network issues.
+    
+    v0.10.2: New exception for graceful timeout handling.
+    This allows Flask routes to catch this specifically and return JSON errors.
+    """
+    pass
+
+
 class PersonaModeError(LLMError):
     """Raised when persona mode LLM call fails (NO FALLBACK)."""
     pass
@@ -132,18 +135,32 @@ class StrictModeError(LLMError):
 
 
 # -----------------------------------------------------------------------------
+# Constants
+# -----------------------------------------------------------------------------
+
+# LLM client timeout in seconds - MUST be less than Gunicorn worker timeout
+# Gunicorn should be set to 120s, so we use 90s here
+LLM_CLIENT_TIMEOUT = 90
+
+
+# -----------------------------------------------------------------------------
 # LLM Client
 # -----------------------------------------------------------------------------
 
 class LLMClient:
     """
-    v0.10.1 LLM Client — Deterministic Model Selection + Streaming
+    v0.10.2 LLM Client — Deterministic Model Selection + Streaming + Timeout Handling
     
     Channels:
     - PERSONA: Always gpt-5.1, hard error on failure
     - SYSTEM: Routed by ModelRouter (heavy→gpt-5.1, light→gpt-4.1-mini)
     
     Logs ALL LLM calls to terminal with channel, command, and model.
+    
+    v0.10.2 Changes:
+    - Added explicit timeout (90s) to all API calls
+    - Catches APITimeoutError, APIConnectionError, and httpx.TimeoutException
+    - Raises LLMTimeoutError on timeout/network failures for clean JSON error handling
     """
 
     def __init__(self, router: Optional[ModelRouter] = None):
@@ -165,8 +182,13 @@ class LLMClient:
         # Log key info (masked)
         key_preview = f"{api_key[:8]}...{api_key[-4:]}" if len(api_key) > 12 else "***"
         print(f"[LLM] Initializing client with key: {key_preview}", flush=True)
+        print(f"[LLM] Client timeout: {LLM_CLIENT_TIMEOUT}s", flush=True)
         
-        self.client = OpenAI(api_key=api_key)
+        # Initialize OpenAI client with default timeout
+        self.client = OpenAI(
+            api_key=api_key,
+            timeout=LLM_CLIENT_TIMEOUT,  # v0.10.2: Explicit timeout
+        )
         self.router = router or get_router()
 
     def _call_api(
@@ -180,6 +202,11 @@ class LLMClient:
     ) -> str:
         """
         Make the actual OpenAI API call.
+        
+        v0.10.2: Added timeout handling and custom exception.
+        - Uses explicit timeout (90s) on all calls
+        - Catches APITimeoutError, APIConnectionError, httpx.TimeoutException
+        - Raises LLMTimeoutError on timeout/network failures
         
         v0.9.0: Filters out incompatible kwargs before calling the API.
         Only passes standard Chat Completions parameters.
@@ -218,10 +245,48 @@ class LLMClient:
                     {"role": "system", "content": system_prompt},
                     *messages,
                 ],
+                timeout=LLM_CLIENT_TIMEOUT,  # v0.10.2: Explicit timeout per call
                 **filtered_kwargs,
             )
             return resp.choices[0].message.content or ""
+        
+        # v0.10.2: Catch timeout and connection errors specifically
+        except APITimeoutError as e:
+            print(
+                f"[LLM] TIMEOUT channel={channel} command={command} model={model} error={e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise LLMTimeoutError(
+                f"LLM request timed out after {LLM_CLIENT_TIMEOUT}s. "
+                f"Channel={channel}, command={command}, model={model}"
+            ) from e
+        
+        except APIConnectionError as e:
+            print(
+                f"[LLM] CONNECTION ERROR channel={channel} command={command} model={model} error={e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise LLMTimeoutError(
+                f"LLM connection failed (network error). "
+                f"Channel={channel}, command={command}, model={model}. Error: {e}"
+            ) from e
+        
         except Exception as e:
+            # Check if it's an httpx timeout (can happen at lower level)
+            if _HAS_HTTPX and isinstance(e, (httpx.TimeoutException, httpx.ConnectError, httpx.ReadTimeout)):
+                print(
+                    f"[LLM] HTTPX TIMEOUT channel={channel} command={command} model={model} error={e}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise LLMTimeoutError(
+                    f"LLM request failed (httpx network error). "
+                    f"Channel={channel}, command={command}, model={model}. Error: {e}"
+                ) from e
+            
+            # Re-raise other exceptions as-is
             print(
                 f"[LLM] ERROR channel={channel} command={command} model={model} error={e}",
                 file=sys.stderr,
@@ -241,6 +306,7 @@ class LLMClient:
         """
         Make a streaming OpenAI API call.
         
+        v0.10.2: Added timeout handling for streaming calls.
         v0.10.1: Returns a generator that yields text chunks.
         """
         allowed_params = {
@@ -270,14 +336,50 @@ class LLMClient:
                     *messages,
                 ],
                 stream=True,
+                timeout=LLM_CLIENT_TIMEOUT,  # v0.10.2: Explicit timeout
                 **filtered_kwargs,
             )
             
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
+        
+        # v0.10.2: Catch timeout and connection errors
+        except APITimeoutError as e:
+            print(
+                f"[LLM] STREAMING TIMEOUT channel={channel} command={command} model={model} error={e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise LLMTimeoutError(
+                f"LLM streaming request timed out after {LLM_CLIENT_TIMEOUT}s. "
+                f"Channel={channel}, command={command}, model={model}"
+            ) from e
+        
+        except APIConnectionError as e:
+            print(
+                f"[LLM] STREAMING CONNECTION ERROR channel={channel} command={command} model={model} error={e}",
+                file=sys.stderr,
+                flush=True,
+            )
+            raise LLMTimeoutError(
+                f"LLM streaming connection failed (network error). "
+                f"Channel={channel}, command={command}, model={model}. Error: {e}"
+            ) from e
                     
         except Exception as e:
+            # Check for httpx timeout
+            if _HAS_HTTPX and isinstance(e, (httpx.TimeoutException, httpx.ConnectError, httpx.ReadTimeout)):
+                print(
+                    f"[LLM] STREAMING HTTPX TIMEOUT channel={channel} command={command} model={model} error={e}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise LLMTimeoutError(
+                    f"LLM streaming request failed (httpx network error). "
+                    f"Channel={channel}, command={command}, model={model}. Error: {e}"
+                ) from e
+            
             print(
                 f"[LLM] ERROR channel={channel} command={command} model={model} error={e}",
                 file=sys.stderr,
@@ -387,30 +489,33 @@ class LLMClient:
         
         v0.9.0: NO FALLBACK. If the call fails, raises PersonaModeError.
         """
-        # Persona mode: ALWAYS gpt-5.1 unless explicitly overridden
         model = model_override or PERSONA_MODEL
+        command = kwargs.pop("command", None) or "persona"
         
-        print(f"[LLM] channel=persona command=persona_chat model={model}", flush=True)
+        # LOG - this fires for EVERY persona call
+        print(f"[LLM] channel=persona command={command} model={model}", flush=True)
         
         msg_list = messages or []
         msg_list = [*msg_list, {"role": "user", "content": user}]
-
+        
         try:
             text = self._call_api(
                 model=model,
                 system_prompt=system,
                 messages=msg_list,
                 channel="persona",
-                command="persona_chat",
+                command=command,
                 **kwargs,
             )
+        except LLMTimeoutError:
+            # Re-raise timeout errors as-is so Flask can handle them
+            raise
         except Exception as e:
-            # NO FALLBACK — raise hard error
             raise PersonaModeError(
-                f"Persona mode LLM call failed with model={model}. "
-                f"Error: {e}. NO FALLBACK available."
+                f"Persona LLM call failed with model={model}. Error: {e}. "
+                f"NO FALLBACK — persona mode requires gpt-5.1."
             ) from e
-
+        
         return {
             "text": text,
             "session_id": session_id,
@@ -419,31 +524,28 @@ class LLMClient:
         }
 
     # -------------------------------------------------------------------------
-    # SYSTEM CHANNEL — Routed by ModelRouter, NO FALLBACK
+    # SYSTEM CHANNEL — Model routed by ModelRouter
     # -------------------------------------------------------------------------
 
     def complete_system(
         self,
         system: str,
         user: str,
-        command: Optional[str] = None,
         messages: Optional[List[Dict[str, str]]] = None,
         session_id: Optional[str] = None,
-        think_mode: bool = False,
+        command: Optional[str] = None,
         explicit_model: Optional[str] = None,
+        think_mode: bool = False,
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        System channel — uses ModelRouter for model selection.
+        System channel — model selected by ModelRouter.
         
-        v0.9.0: DETERMINISTIC routing, NO FALLBACK.
-        - Heavy commands (quest-compose, flow, etc.) → gpt-5.1
-        - Light commands (help, status, etc.) → gpt-4.1-mini
-        - think_mode=True → gpt-5.1
-        
-        Raises StrictModeError if LLM call fails.
+        v0.9.0: Deterministic routing.
+        - Heavy commands (quest-compose, generate-steps, etc.) → gpt-5.1
+        - Light commands (everything else) → gpt-4.1-mini
+        - Think mode → gpt-5.1 (o1-style reasoning)
         """
-        # Use ModelRouter for deterministic routing
         ctx = RoutingContext(
             command=command,
             input_length=len(user),
@@ -471,11 +573,13 @@ class LLMClient:
                 command=cmd_str,
                 **kwargs,
             )
+        except LLMTimeoutError:
+            # Re-raise timeout errors as-is
+            raise
         except Exception as e:
-            # NO FALLBACK — raise hard error
             raise StrictModeError(
-                f"Strict mode LLM call failed for command='{cmd_str}' with model={model}. "
-                f"Error: {e}. NO FALLBACK available."
+                f"System LLM call failed for command='{cmd_str}' with model={model}. "
+                f"Error: {e}."
             ) from e
 
         return {
@@ -487,21 +591,22 @@ class LLMClient:
         }
 
     # -------------------------------------------------------------------------
-    # STREAMING SYSTEM CHANNEL — For long-running operations
+    # STREAMING SYSTEM CHANNEL
     # -------------------------------------------------------------------------
 
     def stream_complete_system(
         self,
         system: str,
         user: str,
-        command: Optional[str] = None,
         messages: Optional[List[Dict[str, str]]] = None,
-        think_mode: bool = False,
+        session_id: Optional[str] = None,
+        command: Optional[str] = None,
         explicit_model: Optional[str] = None,
+        think_mode: bool = False,
         **kwargs,
     ) -> Generator[str, None, None]:
         """
-        Streaming system channel — returns a generator of text chunks.
+        Streaming system channel.
         
         v0.10.1: For long-running operations like quest-compose.
         Keeps the connection alive by yielding chunks as they arrive.
@@ -537,6 +642,9 @@ class LLMClient:
                 command=cmd_str,
                 **kwargs,
             )
+        except LLMTimeoutError:
+            # Re-raise timeout errors as-is
+            raise
         except Exception as e:
             raise StrictModeError(
                 f"Streaming LLM call failed for command='{cmd_str}' with model={model}. "
