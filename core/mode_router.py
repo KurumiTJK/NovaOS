@@ -82,6 +82,8 @@ STRICT_MODE_ERROR_MESSAGE = (
 
 BOOT_PATTERNS = re.compile(r"^#boot\b", re.IGNORECASE)
 SHUTDOWN_PATTERNS = re.compile(r"^#shutdown\b", re.IGNORECASE)
+# v0.11.0-fix5: Session-end pattern for persona mode support
+SESSION_END_PATTERNS = re.compile(r"^#session-end\b", re.IGNORECASE)
 
 
 def _is_boot_command(message: str) -> bool:
@@ -92,6 +94,11 @@ def _is_boot_command(message: str) -> bool:
 def _is_shutdown_command(message: str) -> bool:
     """Check if message is a shutdown command."""
     return bool(SHUTDOWN_PATTERNS.match(message.strip()))
+
+
+def _is_session_end_command(message: str) -> bool:
+    """Check if message is a session-end command."""
+    return bool(SESSION_END_PATTERNS.match(message.strip()))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -299,11 +306,18 @@ def _handle_persona_mode(
     Only #boot is recognized. Everything else is pure persona chat.
     
     v0.11.0: Added memory features (remember this, auto-extraction, LTM injection)
+    v0.11.0-fix5: Added #session-end support in persona mode
     """
     
     # Check for #boot command
     if _is_boot_command(message):
         return _activate_novaos(state, kernel, persona)
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # v0.11.0-fix5: #session-end support in persona mode
+    # ─────────────────────────────────────────────────────────────────────
+    if _is_session_end_command(message):
+        return _handle_session_end_in_persona_mode(state, kernel, persona)
     
     # ─────────────────────────────────────────────────────────────────────
     # v0.11.0: "REMEMBER THIS" CHECK (short-circuit if detected)
@@ -327,13 +341,13 @@ def _handle_persona_mode(
     
     # ─────────────────────────────────────────────────────────────────────
     # v0.11.0: AUTO-EXTRACTION (profile, procedural, episodic)
+    # v0.11.0-fix1: Removed session_id param (not accepted by function)
     # ─────────────────────────────────────────────────────────────────────
     if _HAS_MEMORY_HELPERS:
         try:
             run_auto_extraction(
                 user_text=message,
                 memory_manager=kernel.memory_manager,
-                session_id=state.session_id,
             )
         except Exception as e:
             print(f"[ModeRouter] auto_extraction error: {e}", flush=True)
@@ -345,14 +359,15 @@ def _handle_persona_mode(
     
     # ─────────────────────────────────────────────────────────────────────
     # v0.11.0: BUILD LTM CONTEXT (profile + relevant semantic memories)
+    # v0.11.0-fix1: Fixed parameter name (module_tag, not current_module)
     # ─────────────────────────────────────────────────────────────────────
     ltm_context_string = ""
     if _HAS_MEMORY_HELPERS:
         try:
             ltm_context_string = build_ltm_context_for_persona(
                 memory_manager=kernel.memory_manager,
-                current_module=None,  # No module context in pure Persona mode
-                user_text=message,
+                module_tag=None,      # FIXED: correct parameter name
+                user_text=message,    # Now accepted by patched function
             )
         except Exception as e:
             print(f"[ModeRouter] LTM context build error: {e}", flush=True)
@@ -573,6 +588,45 @@ def _deactivate_novaos(
         "handled_by": "mode_router",
         "event": "shutdown",
         "ok": True,
+    }
+
+
+def _handle_session_end_in_persona_mode(
+    state: NovaState,
+    kernel: "NovaKernel",
+    persona: "NovaPersona",
+) -> Dict[str, Any]:
+    """
+    Handle #session-end in persona mode.
+    
+    v0.11.0-fix5: Added to allow session snapshots without entering strict mode.
+    
+    This routes directly to the kernel's session-end handler.
+    """
+    # Route to kernel to handle the session-end syscommand
+    kernel_result = kernel.handle_input("#session-end", state.session_id)
+    
+    # Extract response text
+    if hasattr(kernel_result, "to_dict"):
+        result_dict = kernel_result.to_dict()
+    elif hasattr(kernel_result, "__dict__"):
+        result_dict = kernel_result.__dict__
+    else:
+        result_dict = dict(kernel_result) if kernel_result else {}
+    
+    text = (
+        result_dict.get("text") or
+        result_dict.get("summary") or
+        (result_dict.get("content", {}).get("summary") 
+         if isinstance(result_dict.get("content"), dict) else None) or
+        "Session ended."
+    )
+    
+    return {
+        "text": text,
+        "mode": state.mode_name,
+        "handled_by": "session_end_persona",
+        "ok": result_dict.get("ok", True),
     }
 
 

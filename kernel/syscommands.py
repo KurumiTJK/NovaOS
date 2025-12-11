@@ -458,13 +458,44 @@ def handle_recall(cmd_name, args, session_id, context, kernel, meta) -> CommandR
 
 
 def handle_forget(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Delete memory items by id, tag, or type."""
+    """Delete memory items by id, tag, type, or all.
+    
+    Usage:
+        #forget id=<id>           — Delete a specific memory
+        #forget ids=1,2,3         — Delete multiple memories
+        #forget tags=<tag>        — Delete all memories with tag
+        #forget type=<type>       — Delete all memories of type
+        #forget all               — Delete ALL memories (use with caution!)
+    
+    v0.11.0-fix5: Added 'all' action to clear entire memory store.
+    """
     mm = kernel.memory_manager
     ids = None
     tags = None
     mem_type = None
 
     if isinstance(args, dict):
+        # ─────────────────────────────────────────────────────────────────
+        # v0.11.0-fix5: Check for "all" action first
+        # ─────────────────────────────────────────────────────────────────
+        positional = args.get("_", [])
+        if positional and str(positional[0]).lower() == "all":
+            # Get all memories
+            all_memories = mm.recall(limit=10000)
+            if not all_memories:
+                return _base_response(cmd_name, "No memories to forget.", {"removed": 0})
+            
+            all_ids = [m.id for m in all_memories]
+            removed = mm.forget(ids=all_ids)
+            return _base_response(
+                cmd_name, 
+                f"⚠ Forgot ALL {removed} memory item(s). Memory store is now empty.",
+                {"removed": removed, "action": "forget_all"}
+            )
+        
+        # ─────────────────────────────────────────────────────────────────
+        # Standard forget by id/ids/tags/type
+        # ─────────────────────────────────────────────────────────────────
         raw_ids = args.get("ids") or args.get("id")
         
         if raw_ids is None and "_" in args and args["_"]:

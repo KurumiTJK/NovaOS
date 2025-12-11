@@ -34,30 +34,33 @@ logger = logging.getLogger("nova.memory")
 # =============================================================================
 
 # Identity patterns — stored as profile:identity
+# PATCHED v0.11.0-fix2: Changed regex to stop at period or end-of-string only (not comma)
 IDENTITY_PATTERNS = [
     (r"\bmy name is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", "name"),
     (r"\bi(?:'m| am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", "name"),
-    (r"\bi work at\s+(.+?)(?:\.|,|$)", "employer"),
-    (r"\bi(?:'m| am) (?:a|an)\s+(.+?)\s+at\s+(.+?)(?:\.|,|$)", "role_employer"),
-    (r"\bi(?:'m| am) currently working as\s+(?:a|an)?\s*(.+?)(?:\.|,|$)", "role"),
-    (r"\bmy (?:long-term )?goal is\s+(.+?)(?:\.|,|$)", "goal"),
-    (r"\bi(?:'m| am) (?:a|an)\s+(.+?)(?:\.|,|$)", "role"),
-    (r"\bi live in\s+(.+?)(?:\.|,|$)", "location"),
-    (r"\bi(?:'m| am) from\s+(.+?)(?:\.|,|$)", "origin"),
+    (r"\bi work at\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'m| am) (?:a|an)\s+(.+?)\s+at\s+(.+?)(?:\.|$)", "role_employer"),
+    (r"\bi(?:'m| am) currently working as\s+(?:a|an)?\s*(.+?)(?:\.|$)", "role"),
+    (r"\bmy (?:long-term )?goal is\s+(.+?)(?:\.|$)", "goal"),
+    (r"\bi(?:'m| am) (?:a|an)\s+(.+?)(?:\.|$)", "role"),
+    (r"\bi live in\s+(.+?)(?:\.|$)", "location"),
+    (r"\bi(?:'m| am) from\s+(.+?)(?:\.|$)", "origin"),
     (r"\bi(?:'m| am)\s+(\d+)\s+years old", "age"),
 ]
 
 # Preference patterns — stored as profile:preference
+# PATCHED v0.11.0-fix2: Changed regex to stop at period or end-of-string only (not comma)
+# This prevents "I prefer a warm, gentle tone" from being cut at the comma
 PREFERENCE_PATTERNS = [
-    (r"\bi prefer\s+(.+?)(?:\.|,|$)", "preference"),
-    (r"\bi like\s+(.+?)(?:\.|,|$)", "like"),
-    (r"\bi don(?:'t| not) like\s+(.+?)(?:\.|,|$)", "dislike"),
-    (r"\bmy favorite\s+(.+?)\s+is\s+(.+?)(?:\.|,|$)", "favorite"),
-    (r"\bi want nova to\s+(.+?)(?:\.|,|$)", "nova_preference"),
-    (r"\bi(?:'d| would) prefer\s+(.+?)(?:\.|,|$)", "preference"),
-    (r"\bplease (?:always|don't|never)\s+(.+?)(?:\.|,|$)", "behavior_preference"),
-    (r"\bi love\s+(.+?)(?:\.|,|$)", "like"),
-    (r"\bi hate\s+(.+?)(?:\.|,|$)", "dislike"),
+    (r"\bi prefer\s+(.+?)(?:\.|$)", "preference"),
+    (r"\bi like\s+(.+?)(?:\.|$)", "like"),
+    (r"\bi don(?:'t| not) like\s+(.+?)(?:\.|$)", "dislike"),
+    (r"\bmy favorite\s+(.+?)\s+is\s+(.+?)(?:\.|$)", "favorite"),
+    (r"\bi want nova to\s+(.+?)(?:\.|$)", "nova_preference"),
+    (r"\bi(?:'d| would) prefer\s+(.+?)(?:\.|$)", "preference"),
+    (r"\bplease (?:always|don't|never)\s+(.+?)(?:\.|$)", "behavior_preference"),
+    (r"\bi love\s+(.+?)(?:\.|$)", "like"),
+    (r"\bi hate\s+(.+?)(?:\.|$)", "dislike"),
 ]
 
 
@@ -286,6 +289,10 @@ def handle_remember_intent(
     
     This function is safe: it never raises uncaught exceptions.
     
+    PATCHED v0.11.0-fix3: Now looks for user_message (full text) first,
+    then falls back to user_summary (truncated). Also stores full payload
+    up to 500 chars instead of relying on WM's 100-char summaries.
+    
     Args:
         session_id: Session identifier
         user_text: The user's message
@@ -310,15 +317,22 @@ def handle_remember_intent(
             memory_payload = extracted_content.strip()
         else:
             # "Remember this" with no content — try to get from WM turn history
+            # PATCHED: Look for full user_message first, then fall back to user_summary
             if wm and hasattr(wm, 'turn_history') and wm.turn_history:
-                # Get the last user message from turn history
+                # Get the last user message from turn history (skip "remember this" itself)
                 for turn in reversed(wm.turn_history):
-                    if hasattr(turn, 'user_summary') and turn.user_summary:
-                        memory_payload = turn.user_summary
-                        break
-                    elif hasattr(turn, 'user_text') and turn.user_text:
-                        memory_payload = turn.user_text
-                        break
+                    # First try: user_message (full text, if WM stores it)
+                    if hasattr(turn, 'user_message') and turn.user_message:
+                        # Skip if this IS the "remember this" message
+                        if not _detect_remember_intent(turn.user_message)[0]:
+                            memory_payload = turn.user_message
+                            break
+                    # Fallback: user_summary (truncated)
+                    elif hasattr(turn, 'user_summary') and turn.user_summary:
+                        # Skip if this IS the "remember this" message
+                        if not _detect_remember_intent(turn.user_summary)[0]:
+                            memory_payload = turn.user_summary
+                            break
         
         if not memory_payload or len(memory_payload.strip()) < 10:
             return (
@@ -370,8 +384,8 @@ def handle_remember_intent(
             )
             logger.info("Manual remember: stored memory id=%s payload='%s'", item.id, memory_payload[:50])
             
-            # Build confirmation
-            short_payload = memory_payload[:80] + "..." if len(memory_payload) > 80 else memory_payload
+            # Build confirmation (PATCHED: increased from 80 to 150)
+            short_payload = memory_payload[:150] + "..." if len(memory_payload) > 150 else memory_payload
             return f"Got it — I'll remember this: \"{short_payload}\""
             
         except Exception as e:
@@ -521,22 +535,38 @@ def format_ltm_context(
 def build_ltm_context_for_persona(
     memory_manager: "MemoryManager",
     module_tag: Optional[str] = None,
+    # PATCHED v0.11.0-fix1: Accept both old and new parameter names
+    current_module: Optional[str] = None,  # Alias for module_tag (backward compat)
+    user_text: Optional[str] = None,       # For future relevance scoring
 ) -> str:
     """
     Build the full LTM context string for injection into persona prompts.
     
     This is the main entry point for LTM injection.
     
+    PATCHED v0.11.0-fix1:
+    - Now accepts both `module_tag` and `current_module` parameters
+    - Added `user_text` parameter for future semantic search
+    
     Args:
         memory_manager: MemoryManager instance
         module_tag: Optional current module for scoped retrieval
+        current_module: Alias for module_tag (for backward compatibility with callers)
+        user_text: Optional user text for relevance scoring (future use)
     
     Returns:
         Formatted LTM context string
     """
+    # PATCHED: Support both parameter names
+    effective_module = module_tag or current_module
+    
     try:
         profile_memories = get_profile_memories(memory_manager, limit=10)
-        semantic_memories = get_relevant_semantic_memories(memory_manager, module_tag=module_tag, limit=5)
+        semantic_memories = get_relevant_semantic_memories(
+            memory_manager, 
+            module_tag=effective_module,
+            limit=5
+        )
         
         context = format_ltm_context(profile_memories, semantic_memories)
         

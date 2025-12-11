@@ -391,7 +391,11 @@ class WMQuestion:
 
 @dataclass 
 class WMTurnSummary:
-    """A compressed summary of a conversation turn."""
+    """A compressed summary of a conversation turn.
+    
+    PATCHED v0.11.0-fix3: Added user_message and nova_message fields
+    to store full text (up to 500 chars) for "remember this" functionality.
+    """
     turn_number: int
     user_summary: str
     nova_summary: str
@@ -399,9 +403,12 @@ class WMTurnSummary:
     topics_discussed: List[str] = field(default_factory=list)
     emotional_tone: EmotionalTone = EmotionalTone.NEUTRAL
     timestamp: datetime = field(default_factory=datetime.now)
+    # PATCHED v0.11.0-fix3: Store full messages for "remember this" flow
+    user_message: Optional[str] = None   # Full user text (up to 500 chars)
+    nova_message: Optional[str] = None   # Full nova text (up to 500 chars)
     
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "turn": self.turn_number,
             "user": self.user_summary,
             "nova": self.nova_summary,
@@ -409,6 +416,12 @@ class WMTurnSummary:
             "topics": self.topics_discussed,
             "tone": self.emotional_tone.value,
         }
+        # Include full messages if present
+        if self.user_message:
+            result["user_full"] = self.user_message
+        if self.nova_message:
+            result["nova_full"] = self.nova_message
+        return result
 
 
 # Legacy compatibility - keep for API stability
@@ -791,6 +804,10 @@ class NovaWorkingMemory:
         entity_ids = [e.id for e in extracted_entities]
         topic_ids = [t.id for t in extracted_topics]
         
+        # PATCHED v0.11.0-fix3: Store full message (up to 500 chars) for "remember this"
+        full_user_message = user_message[:500] if user_message and len(user_message) > 500 else user_message
+        full_nova_response = nova_response[:500] if nova_response and len(nova_response) > 500 else nova_response
+        
         turn_summary = WMTurnSummary(
             turn_number=self.turn_count,
             user_summary=user_summary,
@@ -798,6 +815,8 @@ class NovaWorkingMemory:
             entities_mentioned=entity_ids,
             topics_discussed=topic_ids,
             emotional_tone=tone,
+            user_message=full_user_message,      # PATCHED: full text
+            nova_message=full_nova_response,     # PATCHED: full text
         )
         
         self.last_turn_summary = turn_summary
@@ -810,9 +829,14 @@ class NovaWorkingMemory:
         return results
     
     def record_nova_response(self, response: str) -> None:
-        """Record Nova's response after it's generated."""
+        """Record Nova's response after it's generated.
+        
+        PATCHED v0.11.0-fix3: Also stores full response (up to 500 chars).
+        """
         if self.last_turn_summary:
             self.last_turn_summary.nova_summary = self._summarize_message(response)
+            # PATCHED: Store full response for potential future use
+            self.last_turn_summary.nova_message = response[:500] if response and len(response) > 500 else response
     
     # =========================================================================
     # ENTITY MANAGEMENT

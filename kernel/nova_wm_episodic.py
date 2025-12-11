@@ -143,7 +143,8 @@ class EpisodicSnapshot:
         if self.turn_summaries:
             lines.append("Recent turns:")
             for ts in self.turn_summaries[-3:]:
-                lines.append(f"  - {ts[:100]}")
+                # PATCHED v0.11.0-fix5: Increased from 100 to 300 chars for payload display
+                lines.append(f"  - {ts[:300]}")
         
         return "\n".join(lines)
 
@@ -282,11 +283,18 @@ def create_snapshot_from_wm(
     snapshot.tone = wm.emotional_tone.value
     
     # Turn summaries
+    # PATCHED v0.11.0-fix3: Use correct field names with fallbacks
+    # PATCHED v0.11.0-fix5: Increased truncation from 100 to 500 chars for maximum context
+    # Fields: user_message/nova_message (full text) or user_summary/nova_summary (truncated)
     for turn in wm.turn_history[-5:]:
-        if turn.user_message:
-            snapshot.turn_summaries.append(f"User: {turn.user_message[:100]}")
-        if turn.nova_response:
-            snapshot.turn_summaries.append(f"Nova: {turn.nova_response[:100]}")
+        # Try full message first, fall back to summary
+        user_text = getattr(turn, 'user_message', None) or getattr(turn, 'user_summary', None)
+        nova_text = getattr(turn, 'nova_message', None) or getattr(turn, 'nova_summary', None)
+        
+        if user_text:
+            snapshot.turn_summaries.append(f"User: {user_text[:500]}")
+        if nova_text:
+            snapshot.turn_summaries.append(f"Nova: {nova_text[:500]}")
     
     # Behavior Layer data (if available)
     if behavior_engine:
@@ -366,16 +374,20 @@ def episodic_snapshot(
         # Store in MemoryManager
         payload = snapshot.to_payload_string()
         
-        # Also store full JSON in metadata for restore
-        memory_id = memory_manager.store(
-            type="episodic",
+        # Also store full JSON in trace for restore
+        # PATCHED v0.11.0-fix4: Changed type= to mem_type=, metadata= to trace=
+        memory_item = memory_manager.store(
+            mem_type="episodic",
             payload=payload,
             tags=snapshot.tags,
-            metadata={
+            trace={
                 "wm_snapshot": snapshot.to_dict(),
                 "snapshot_version": "0.7.3",
             }
         )
+        
+        # PATCHED v0.11.0-fix5: Extract .id from MemoryItem object
+        memory_id = memory_item.id if hasattr(memory_item, 'id') else memory_item
         
         # Update index
         index = get_episodic_index(session_id)
@@ -428,11 +440,13 @@ def episodic_restore(
             return False, f"Memory #{memory_id} not found."
         
         # Check it's an episodic with WM snapshot
+        # PATCHED v0.11.0-fix4: Use 'type' attribute and 'trace' for snapshot data
         if memory.get("type") != "episodic":
             return False, f"Memory #{memory_id} is not an episodic memory."
         
-        metadata = memory.get("metadata", {})
-        snapshot_data = metadata.get("wm_snapshot")
+        # Snapshot data is stored in trace (was called metadata in original code)
+        trace_data = memory.get("trace", {})
+        snapshot_data = trace_data.get("wm_snapshot")
         
         if not snapshot_data:
             return False, f"Memory #{memory_id} does not contain a WM snapshot."
@@ -586,11 +600,13 @@ def find_relevant_episodics(
     
     try:
         # Query all episodic memories with wm-snapshot tag
-        memories = memory_manager.recall(type="episodic", tags=["wm-snapshot"])
+        # PATCHED v0.11.0-fix4: Changed type= to mem_type=, access .trace attribute
+        memories = memory_manager.recall(mem_type="episodic", tags=["wm-snapshot"])
         
         for memory in memories:
-            metadata = memory.get("metadata", {})
-            snapshot_data = metadata.get("wm_snapshot")
+            # recall() returns MemoryItem dataclass, use .trace attribute
+            trace_data = getattr(memory, 'trace', {}) or {}
+            snapshot_data = trace_data.get("wm_snapshot")
             
             if not snapshot_data:
                 continue
@@ -761,19 +777,21 @@ def episodic_list(
         if module:
             tags.append(f"module:{module}")
         
-        memories = memory_manager.recall(type="episodic", tags=tags)
+        # PATCHED v0.11.0-fix4: Changed type= to mem_type=, access .trace attribute
+        memories = memory_manager.recall(mem_type="episodic", tags=tags)
         
         for memory in memories[:limit]:
-            metadata = memory.get("metadata", {})
-            snapshot_data = metadata.get("wm_snapshot", {})
+            # recall() returns MemoryItem dataclass, use attributes not .get()
+            trace_data = getattr(memory, 'trace', {}) or {}
+            snapshot_data = trace_data.get("wm_snapshot", {})
             
             results.append({
-                "id": memory.get("id"),
+                "id": getattr(memory, 'id', None),
                 "topic": snapshot_data.get("topic", "Unknown"),
                 "participants": snapshot_data.get("participants", []),
                 "module": snapshot_data.get("module"),
                 "timestamp": snapshot_data.get("timestamp", ""),
-                "tags": memory.get("tags", []),
+                "tags": getattr(memory, 'tags', []),
             })
     
     except Exception:

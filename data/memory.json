@@ -1,56 +1,5 @@
 {
   "version": "0.5.4",
-  "next_id": 16,
-  "items": [
-    {
-      "id": 13,
-      "type": "semantic",
-      "tags": [
-        "test",
-        "2025-12"
-      ],
-      "payload": "This is a test memory",
-      "timestamp": "2025-12-03T22:15:25.428047+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default",
-        "policy_version": "0.5.7",
-        "store_mode": "normal",
-        "store_timestamp": "2025-12-03T22:15:25.428087+00:00"
-      },
-      "cluster_id": 2,
-      "source": "user",
-      "salience": 0.8,
-      "status": "active",
-      "confidence": 1.0,
-      "last_used_at": "2025-12-11T03:56:41.973139+00:00",
-      "module_tag": null,
-      "version": 19
-    },
-    {
-      "id": 15,
-      "type": "semantic",
-      "tags": [
-        "bindtest",
-        "2025-12"
-      ],
-      "payload": "Memory for bind test",
-      "timestamp": "2025-12-03T22:53:17.621843+00:00",
-      "trace": {
-        "source": "syscommand:store",
-        "session_id": "default",
-        "policy_version": "0.5.7",
-        "store_mode": "normal",
-        "store_timestamp": "2025-12-03T22:53:17.621886+00:00"
-      },
-      "cluster_id": null,
-      "source": "user",
-      "salience": 0.6,
-      "status": "active",
-      "confidence": 1.0,
-      "last_used_at": "2025-12-11T03:56:41.974821+00:00",
-      "module_tag": null,
-      "version": 4
-    }
-  ]
+  "next_id": 36,
+  "items": []
 }

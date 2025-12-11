@@ -38,6 +38,10 @@ class MemoryItem:
     """
     v0.3-compatible MemoryItem dataclass.
     
+    PATCHED v0.11.0-fix1:
+    - Added all v0.5.4 fields with defaults for backward compatibility
+    - from_engine_item() now copies ALL fields
+    
     The internal MemoryEngine uses an enhanced version with more fields.
     This class provides backward compatibility for code that imports
     MemoryItem directly from memory_manager.
@@ -49,10 +53,23 @@ class MemoryItem:
     timestamp: str
     trace: Dict[str, Any]
     cluster_id: Optional[int] = None
+    
+    # v0.5.4 fields — ADDED in v0.11.0-fix1
+    source: str = "user"
+    salience: float = 0.5
+    status: MemoryStatus = "active"
+    confidence: float = 1.0
+    last_used_at: Optional[str] = None
+    module_tag: Optional[str] = None
+    version: int = 1
 
     @classmethod
     def from_engine_item(cls, item: EngineMemoryItem) -> "MemoryItem":
-        """Convert from EngineMemoryItem to legacy MemoryItem."""
+        """
+        Convert from EngineMemoryItem to legacy MemoryItem.
+        
+        PATCHED v0.11.0-fix1: Now copies ALL fields from engine item.
+        """
         return cls(
             id=item.id,
             type=item.type,
@@ -61,6 +78,14 @@ class MemoryItem:
             timestamp=item.timestamp,
             trace=item.trace,
             cluster_id=item.cluster_id,
+            # v0.5.4 fields — ADDED in v0.11.0-fix1
+            source=getattr(item, 'source', 'user'),
+            salience=getattr(item, 'salience', 0.5),
+            status=getattr(item, 'status', 'active'),
+            confidence=getattr(item, 'confidence', 1.0),
+            last_used_at=getattr(item, 'last_used_at', None),
+            module_tag=getattr(item, 'module_tag', None),
+            version=getattr(item, 'version', 1),
         )
 
 
@@ -239,6 +264,24 @@ class MemoryManager:
         Returns count deleted.
         """
         return self._engine.forget(ids=ids, tags=tags, mem_type=mem_type)
+
+    def get(self, mem_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get a single memory item by ID as a dict.
+        
+        ADDED v0.11.0-fix4: Required by nova_wm_episodic.py for restore functionality.
+        
+        Returns:
+            Dict with memory fields including 'trace' for metadata, or None if not found.
+        """
+        # Get trace info which includes the item data
+        trace_info = self._engine.trace(mem_id)
+        if trace_info is None:
+            return None
+        
+        # trace() returns a dict with the memory fields
+        # We need to ensure it has the expected structure
+        return trace_info
 
     def trace(self, mem_id: int) -> Optional[Dict[str, Any]]:
         """Get trace/metadata for a memory item."""

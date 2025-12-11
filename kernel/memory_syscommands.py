@@ -3,7 +3,7 @@
 NovaOS v0.11.0 — Memory Management Syscommand Handlers
 
 New commands for ChatGPT-style memory management:
-- #profile — View/edit/delete profile memories (identity + preferences)
+- #profile — View/add/edit/delete profile memories (identity + preferences)
 - #memories — Full memory management UI
 - #search-mem — Keyword-based memory search
 - #memory-maintain — Run decay/archiving
@@ -20,24 +20,91 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from kernel.nova_kernel import NovaKernel
-    from kernel.command_types import CommandResponse
-
-from kernel.command_types import CommandResponse
-
-# Import memory helpers
-from kernel.memory_helpers import (
-    get_profile_memories,
-    search_by_keywords,
-    run_memory_decay,
-)
-
-# Import WM functions for session-end
-from kernel.nova_wm import get_wm, wm_clear
-
-# Import episodic snapshot
-from kernel.nova_wm_episodic import episodic_snapshot
 
 logger = logging.getLogger("nova.memory.syscommands")
+
+# =============================================================================
+# SAFE IMPORTS WITH FALLBACKS
+# =============================================================================
+
+# Import CommandResponse
+try:
+    from kernel.command_types import CommandResponse
+except ImportError:
+    try:
+        from .command_types import CommandResponse
+    except ImportError:
+        # Fallback: define a minimal CommandResponse matching actual NovaOS signature
+        from dataclasses import dataclass, field
+        
+        @dataclass
+        class CommandResponse:
+            ok: bool = True
+            command: str = ""
+            summary: str = ""
+            data: Dict[str, Any] = field(default_factory=dict)
+            error_code: Optional[str] = None
+            error_message: Optional[str] = None
+            type: str = "syscommand"
+            
+            def to_dict(self):
+                if self.ok:
+                    content = {"command": self.command, "summary": self.summary}
+                    if self.data:
+                        content.update(self.data)
+                    return {"ok": True, "type": self.type, "content": content}
+                else:
+                    return {"ok": False, "error": {"code": self.error_code or "ERROR", "message": self.error_message or self.summary}}
+
+# Import memory helpers
+_HAS_MEMORY_HELPERS = False
+try:
+    from kernel.memory_helpers import (
+        get_profile_memories,
+        search_by_keywords,
+        run_memory_decay,
+    )
+    _HAS_MEMORY_HELPERS = True
+except ImportError:
+    try:
+        from .memory_helpers import (
+            get_profile_memories,
+            search_by_keywords,
+            run_memory_decay,
+        )
+        _HAS_MEMORY_HELPERS = True
+    except ImportError:
+        logger.warning("memory_helpers not available - some commands may fail")
+        def get_profile_memories(*args, **kwargs): return []
+        def search_by_keywords(*args, **kwargs): return []
+        def run_memory_decay(*args, **kwargs): return {"decayed_salience": 0, "marked_stale": 0, "archived": 0, "errors": 0}
+
+# Import WM functions for session-end
+_HAS_WM = False
+try:
+    from kernel.nova_wm import get_wm, wm_clear
+    _HAS_WM = True
+except ImportError:
+    try:
+        from .nova_wm import get_wm, wm_clear
+        _HAS_WM = True
+    except ImportError:
+        logger.warning("nova_wm not available - #session-end may fail")
+        def get_wm(*args, **kwargs): return None
+        def wm_clear(*args, **kwargs): pass
+
+# Import episodic snapshot
+_HAS_EPISODIC = False
+try:
+    from kernel.nova_wm_episodic import episodic_snapshot
+    _HAS_EPISODIC = True
+except ImportError:
+    try:
+        from .nova_wm_episodic import episodic_snapshot
+        _HAS_EPISODIC = True
+    except ImportError:
+        logger.warning("nova_wm_episodic not available - #session-end snapshot may fail")
+        def episodic_snapshot(*args, **kwargs): return (False, "episodic_snapshot not available", None)
 
 
 # =============================================================================
@@ -47,20 +114,23 @@ logger = logging.getLogger("nova.memory.syscommands")
 def _base_response(cmd_name: str, summary: str, extra: Optional[Dict[str, Any]] = None) -> CommandResponse:
     """Build a standard CommandResponse."""
     return CommandResponse(
+        ok=True,
         command=cmd_name,
-        success=extra.get("ok", True) if extra else True,
         summary=summary,
-        extra=extra or {},
+        data=extra or {},
+        type=cmd_name,
     )
 
 
 def _error_response(cmd_name: str, message: str, error_code: str = "ERROR") -> CommandResponse:
     """Build an error CommandResponse."""
     return CommandResponse(
+        ok=False,
         command=cmd_name,
-        success=False,
         summary=message,
-        extra={"ok": False, "error_code": error_code},
+        error_code=error_code,
+        error_message=message,
+        type=cmd_name,
     )
 
 
@@ -77,10 +147,12 @@ def handle_profile(
     meta: Any,
 ) -> CommandResponse:
     """
-    View, edit, or delete profile memories (identity + preferences).
+    View, add, edit, or delete profile memories (identity + preferences).
     
     Usage:
         #profile                    — List all profile memories
+        #profile add type=identity content="..." — Add a profile memory
+        #profile add type=preference content="..." — Add a preference memory
         #profile delete id=<id>     — Delete a profile memory
         #profile edit id=<id> content="..." — Edit a profile memory
     
@@ -94,17 +166,18 @@ def handle_profile(
     action = None
     mem_id = None
     new_content = None
+    profile_type = None
     
     if isinstance(args, dict):
-        action = args.get("action") or args.get("_", [None])[0] if args.get("_") else None
         mem_id = args.get("id")
         new_content = args.get("content") or args.get("payload")
+        profile_type = args.get("type")
         
-        # Handle positional: #profile delete id=5
+        # Handle positional: #profile add/delete/edit/view
         positional = args.get("_", [])
         if positional:
             first_arg = str(positional[0]).lower()
-            if first_arg in ("delete", "edit", "view"):
+            if first_arg in ("delete", "edit", "view", "add"):
                 action = first_arg
         
         # Try to parse id from string
@@ -113,6 +186,37 @@ def handle_profile(
                 mem_id = int(mem_id)
             except (ValueError, TypeError):
                 mem_id = None
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # ADD (new in v0.11.0)
+    # ─────────────────────────────────────────────────────────────────────
+    if action == "add":
+        if not new_content:
+            return _error_response(cmd_name, "Usage: #profile add type=identity content=\"...\"", "MISSING_CONTENT")
+        
+        # Determine tag based on type
+        if profile_type and profile_type.lower() == "preference":
+            tag = "profile:preference"
+        else:
+            tag = "profile:identity"  # Default to identity
+        
+        try:
+            item = mm.store(
+                payload=new_content.strip(),
+                mem_type="semantic",
+                tags=[tag],
+                salience=0.9,
+                trace={"source": "manual_profile_add"},
+            )
+            logger.info("Added profile memory #%d (%s): %s", item.id, tag, new_content[:50])
+            return _base_response(
+                cmd_name,
+                f"✓ Profile memory added (#{item.id}, {tag}): \"{new_content[:60]}{'...' if len(new_content) > 60 else ''}\"",
+                {"id": item.id, "tag": tag}
+            )
+        except Exception as e:
+            logger.warning("Error adding profile memory: %s", e, exc_info=True)
+            return _error_response(cmd_name, f"Failed to add profile memory: {e}", "ADD_FAILED")
     
     # ─────────────────────────────────────────────────────────────────────
     # DELETE
@@ -188,7 +292,11 @@ def handle_profile(
     # ─────────────────────────────────────────────────────────────────────
     # LIST (default)
     # ─────────────────────────────────────────────────────────────────────
-    profile_memories = get_profile_memories(mm, limit=50)
+    try:
+        profile_memories = get_profile_memories(mm, limit=50)
+    except Exception as e:
+        logger.warning("Error getting profile memories: %s", e, exc_info=True)
+        return _error_response(cmd_name, f"Failed to retrieve profile memories: {e}", "RETRIEVE_FAILED")
     
     if not profile_memories:
         lines = [
@@ -201,8 +309,9 @@ def handle_profile(
             "  • \"I work at Tevora\"",
             "  • \"I prefer a warm, gentle tone\"",
             "",
-            "Or manually store with:",
-            "  #store type=semantic tags=profile:identity content=\"...\"",
+            "Or manually add with:",
+            "  #profile add type=identity content=\"My name is...\"",
+            "  #profile add type=preference content=\"I prefer...\"",
         ]
     else:
         lines = [
@@ -215,7 +324,8 @@ def handle_profile(
         preference_items = []
         
         for m in profile_memories:
-            payload_preview = m.payload[:60] + "..." if len(m.payload) > 60 else m.payload
+            # PATCHED: increased from 60 to 150 for better readability
+            payload_preview = m.payload[:150] + "..." if len(m.payload) > 150 else m.payload
             entry = f"  #{m.id}: {payload_preview}"
             
             if any("profile:identity" in t for t in m.tags):
@@ -236,7 +346,7 @@ def handle_profile(
         lines.append("─────────────────────────")
         lines.append(f"Total: {len(profile_memories)} profile memories")
         lines.append("")
-        lines.append("Manage with: #profile delete id=<id> | #profile edit id=<id> content=\"...\"")
+        lines.append("Commands: #profile add | delete id=N | edit id=N content=\"...\"")
     
     return _base_response(cmd_name, "\n".join(lines), {
         "count": len(profile_memories),
@@ -402,11 +512,15 @@ def handle_memories(
     # LIST (default)
     # ─────────────────────────────────────────────────────────────────────
     
-    # Build filter
-    if filter_profile:
-        memories = get_profile_memories(mm, limit=limit)
-    else:
-        memories = mm.recall(mem_type=mem_type, status="active", limit=limit)
+    try:
+        # Build filter
+        if filter_profile:
+            memories = get_profile_memories(mm, limit=limit)
+        else:
+            memories = mm.recall(mem_type=mem_type, status="active", limit=limit)
+    except Exception as e:
+        logger.warning("Error retrieving memories: %s", e, exc_info=True)
+        return _error_response(cmd_name, f"Failed to retrieve memories: {e}", "RETRIEVE_FAILED")
     
     if not memories:
         lines = [
@@ -430,7 +544,8 @@ def handle_memories(
             if len(m.tags) > 3:
                 tags_str += f" +{len(m.tags) - 3}"
             
-            payload_preview = m.payload[:50] + "..." if len(m.payload) > 50 else m.payload
+            # PATCHED: increased from 50 to 150 for better readability
+            payload_preview = m.payload[:150] + "..." if len(m.payload) > 150 else m.payload
             salience = getattr(m, 'salience', 0.5) or 0.5
             
             lines.append(f"#{m.id} [{m.type}] sal={salience:.1f} ({tags_str})")
@@ -468,61 +583,66 @@ def handle_search_mem(
         #search-mem query="API security" type=procedural
         #search-mem query="completed" limit=10
     """
-    mm = kernel.memory_manager
-    
-    # Parse arguments
-    query = None
-    mem_type = None
-    limit = 10
-    
-    if isinstance(args, dict):
-        query = args.get("query") or args.get("q")
-        mem_type = args.get("type")
+    try:
+        mm = kernel.memory_manager
         
-        # Check positional
-        positional = args.get("_", [])
-        if positional and not query:
-            query = " ".join(str(p) for p in positional)
+        # Parse arguments
+        query = None
+        mem_type = None
+        limit = 10
         
-        raw_limit = args.get("limit")
-        if raw_limit:
-            try:
-                limit = int(raw_limit)
-            except ValueError:
-                pass
-    
-    if not query:
-        return _error_response(cmd_name, "Usage: #search-mem query=\"your search terms\"", "MISSING_QUERY")
-    
-    # Search
-    results = search_by_keywords(mm, query, mem_type=mem_type, limit=limit)
-    
-    if not results:
-        return _base_response(
-            cmd_name,
-            f"No memories found matching \"{query}\".",
-            {"query": query, "count": 0}
-        )
-    
-    lines = [
-        f"═══ SEARCH: \"{query}\" ═══",
-        "",
-    ]
-    
-    for item, score in results:
-        tags_str = ", ".join(item.tags[:2])
-        payload_preview = item.payload[:60] + "..." if len(item.payload) > 60 else item.payload
-        lines.append(f"#{item.id} [{item.type}] score={score:.1f} ({tags_str})")
-        lines.append(f"    \"{payload_preview}\"")
-    
-    lines.append("")
-    lines.append(f"Found {len(results)} matching memories.")
-    
-    return _base_response(cmd_name, "\n".join(lines), {
-        "query": query,
-        "count": len(results),
-        "ids": [item.id for item, _ in results],
-    })
+        if isinstance(args, dict):
+            query = args.get("query") or args.get("q")
+            mem_type = args.get("type")
+            
+            # Check positional
+            positional = args.get("_", [])
+            if positional and not query:
+                query = " ".join(str(p) for p in positional)
+            
+            raw_limit = args.get("limit")
+            if raw_limit:
+                try:
+                    limit = int(raw_limit)
+                except ValueError:
+                    pass
+        
+        if not query:
+            return _error_response(cmd_name, "Usage: #search-mem query=\"your search terms\"", "MISSING_QUERY")
+        
+        # Search
+        results = search_by_keywords(mm, query, mem_type=mem_type, limit=limit)
+        
+        if not results:
+            return _base_response(
+                cmd_name,
+                f"No memories found matching \"{query}\".",
+                {"query": query, "count": 0}
+            )
+        
+        lines = [
+            f"═══ SEARCH: \"{query}\" ═══",
+            "",
+        ]
+        
+        for item, score in results:
+            tags_str = ", ".join(item.tags[:2]) if item.tags else ""
+            # PATCHED: increased from 60 to 150 for better readability
+            payload_preview = item.payload[:150] + "..." if len(item.payload) > 150 else item.payload
+            lines.append(f"#{item.id} [{item.type}] score={score:.1f} ({tags_str})")
+            lines.append(f"    \"{payload_preview}\"")
+        
+        lines.append("")
+        lines.append(f"Found {len(results)} matching memories.")
+        
+        return _base_response(cmd_name, "\n".join(lines), {
+            "query": query,
+            "count": len(results),
+            "ids": [item.id for item, _ in results],
+        })
+    except Exception as e:
+        logger.warning("Error in search-mem: %s", e, exc_info=True)
+        return _error_response(cmd_name, f"Search failed: {e}", "SEARCH_ERROR")
 
 
 # =============================================================================
@@ -548,25 +668,29 @@ def handle_memory_maintain(
     - Very old memories marked stale
     - Low-salience stale memories archived
     """
-    mm = kernel.memory_manager
-    
-    results = run_memory_decay(mm)
-    
-    lines = [
-        "═══ MEMORY MAINTENANCE ═══",
-        "",
-        f"✓ Salience decayed: {results['decayed_salience']} memories",
-        f"✓ Marked stale: {results['marked_stale']} memories",
-        f"✓ Archived: {results['archived']} memories",
-    ]
-    
-    if results['errors'] > 0:
-        lines.append(f"⚠ Errors encountered: {results['errors']}")
-    
-    lines.append("")
-    lines.append("Memory store is now optimized.")
-    
-    return _base_response(cmd_name, "\n".join(lines), results)
+    try:
+        mm = kernel.memory_manager
+        
+        results = run_memory_decay(mm)
+        
+        lines = [
+            "═══ MEMORY MAINTENANCE ═══",
+            "",
+            f"✓ Salience decayed: {results.get('decayed_salience', 0)} memories",
+            f"✓ Marked stale: {results.get('marked_stale', 0)} memories",
+            f"✓ Archived: {results.get('archived', 0)} memories",
+        ]
+        
+        if results.get('errors', 0) > 0:
+            lines.append(f"⚠ Errors encountered: {results['errors']}")
+        
+        lines.append("")
+        lines.append("Memory store is now optimized.")
+        
+        return _base_response(cmd_name, "\n".join(lines), results)
+    except Exception as e:
+        logger.warning("Error in memory-maintain: %s", e, exc_info=True)
+        return _error_response(cmd_name, f"Maintenance failed: {e}", "MAINTAIN_ERROR")
 
 
 # =============================================================================
