@@ -1,9 +1,13 @@
 # kernel/wizard_mode.py
 """
-v0.6 — Wizard Mode Commands (Updated v0.11.0)
+v0.6 — Wizard Mode Commands (Updated v1.0.0)
 
 Interactive wizards for commands called with no arguments.
 Prompts user step-by-step for required fields.
+
+v1.0.0 CHANGES:
+- Updated #identity-set wizard for new Identity Section system
+- New wizard options: name, theme, vibe, goal, title, equip
 
 v0.11.0 CHANGES:
 - Removed #mode wizard (mode command removed from system)
@@ -12,7 +16,7 @@ Wizard-enabled commands (using THIS system):
 - #flow (workflow start)
 - #remind-add (reminders)
 - #store (memory)
-- #identity-set
+- #identity-set (updated v1.0.0)
 - #compose
 - #log-state
 
@@ -93,21 +97,23 @@ class WizardManager:
         if not session:
             return None
         
-        # Store value (get key from wizard def)
         wizard_def = WIZARD_DEFINITIONS.get(session.command)
-        if wizard_def and session.current_step < len(wizard_def.steps):
-            step = wizard_def.steps[session.current_step]
-            session.collected[step.key] = value
-            session.current_step += 1
+        if not wizard_def:
+            return None
         
+        step = session.get_current_step(wizard_def)
+        if step:
+            session.collected[step.key] = value
+        
+        session.current_step += 1
         return session
     
     def is_active(self, session_id: str) -> bool:
-        """Check if wizard is active."""
+        """Check if a wizard is active for this session."""
         return session_id in self._sessions
 
 
-# Global wizard manager
+# Global manager instance
 _wizard_manager = WizardManager()
 
 
@@ -119,11 +125,11 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
     "flow": WizardDefinition(
         command="flow",
         title="Start Workflow",
-        description="Start or resume a workflow.",
+        description="Start a workflow by name.",
         steps=[
             WizardStep(
                 key="name",
-                prompt="What is the name of the workflow you want to start?\n(Type the workflow name, or 'list' to see available workflows)",
+                prompt="Which workflow would you like to start?",
                 required=True,
             ),
         ],
@@ -170,20 +176,30 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
             ),
         ],
     ),
+    # v1.0.0: Updated identity-set wizard for new Identity Section
     "identity-set": WizardDefinition(
         command="identity-set",
         title="Set Identity",
-        description="Update identity traits.",
+        description="Update your character profile. Choose what to set:",
         steps=[
             WizardStep(
-                key="trait",
-                prompt="Which trait would you like to set?\n(Options: name, goals, values, context, roles, strengths, growth_areas)",
+                key="field",
+                prompt=(
+                    "What would you like to update?\n\n"
+                    "• **name** — Your display name\n"
+                    "• **theme** — Your archetype base theme (e.g., 'Cloud Rogue', 'Shadow Sentinel')\n"
+                    "• **vibe** — Your vibe tags (comma-separated, e.g., 'analytical, calm, cyber-ethereal')\n"
+                    "• **goal** — Add a new goal\n"
+                    "• **title** — Add a custom title\n"
+                    "• **equip** — Equip an existing title\n\n"
+                    "(Options: name, theme, vibe, goal, title, equip)"
+                ),
                 required=True,
-                options=["name", "goals", "values", "context", "roles", "strengths", "growth_areas"],
+                options=["name", "theme", "vibe", "goal", "title", "equip"],
             ),
             WizardStep(
                 key="value",
-                prompt="What value should this trait have?\n(For lists like goals/values, separate with commas)",
+                prompt="Enter the value:",
                 required=True,
             ),
         ],
@@ -213,41 +229,38 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
         steps=[
             WizardStep(
                 key="energy",
-                prompt="How is your energy level?\n(Options: depleted, low, moderate, good, high)",
+                prompt="How's your energy level?\n(Options: high, medium, low)\n[Press Enter to skip]",
                 required=False,
-                options=["depleted", "low", "moderate", "good", "high"],
+                options=["high", "medium", "low"],
             ),
             WizardStep(
                 key="stress",
-                prompt="What is your stress level?\n(Options: overwhelmed, high, moderate, low, calm)",
+                prompt="How's your stress level?\n(Options: high, medium, low)\n[Press Enter to skip]",
                 required=False,
-                options=["overwhelmed", "high", "moderate", "low", "calm"],
+                options=["high", "medium", "low"],
             ),
             WizardStep(
                 key="momentum",
-                prompt="How is your momentum?\n(Options: stalled, slow, steady, building, flowing)",
+                prompt="How's your momentum?\n(Options: high, medium, low)\n[Press Enter to skip]",
                 required=False,
-                options=["stalled", "slow", "steady", "building", "flowing"],
+                options=["high", "medium", "low"],
             ),
         ],
     ),
 }
 
 
-# -----------------------------------------------------------------------------
-# Wizard Helpers
-# -----------------------------------------------------------------------------
+# Commands that use separate wizard implementations (not this system)
+_EXCLUDED_FROM_OLD_WIZARD = {"command-add"}
 
-# v0.7.17: Commands that have their own wizard implementation (not using this system)
-# These commands should NOT be routed through the old wizard_mode system
-_EXCLUDED_FROM_OLD_WIZARD = {
-    "command-add",  # Uses new 9-step v2 wizard in custom_command_handlers.py
-}
 
+# -----------------------------------------------------------------------------
+# Public API
+# -----------------------------------------------------------------------------
 
 def is_wizard_command(command: str) -> bool:
     """
-    Check if a command has wizard mode in the OLD wizard system.
+    Check if a command should use wizard mode when called with no args.
     
     Note: command-add is explicitly excluded because it uses the new
     9-step v2 wizard in custom_command_handlers.py instead.
@@ -447,11 +460,19 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
         }
     
     elif command == "identity-set":
-        trait = collected.get("trait", "")
+        # v1.0.0: Updated for new Identity Section format
+        # Wizard collects: field (name/theme/vibe/goal/title/equip), value
+        # Handler expects: name="...", theme="...", vibe="...", goal="...", title="...", equip="..."
+        field = collected.get("field", "").lower()
         value = collected.get("value", "")
-        return {
-            trait: value,
-        }
+        
+        # Map the field to the correct argument name
+        if field in ("name", "theme", "vibe", "goal", "title", "equip"):
+            return {field: value}
+        
+        # Legacy fallback for old trait names
+        trait = collected.get("trait", field)
+        return {trait: value}
     
     # v0.11.0: mode case removed
     

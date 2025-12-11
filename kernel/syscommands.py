@@ -96,6 +96,14 @@ except ImportError:
     _HAS_MEMORY_SYSCOMMANDS = False
     def get_memory_syscommand_handlers(): return {}
 
+# v1.0.0: Identity Section Handlers (new comprehensive identity system)
+try:
+    from .identity_handlers import get_identity_handlers
+    _HAS_IDENTITY_SECTION = True
+except ImportError:
+    _HAS_IDENTITY_SECTION = False
+    def get_identity_handlers(): return {}
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -1507,3 +1515,8 @@ if _HAS_TIME_RHYTHM:
 # v0.11.0: Memory Syscommand handlers
 if _HAS_MEMORY_SYSCOMMANDS:
     SYS_HANDLERS.update(get_memory_syscommand_handlers())
+
+# v1.0.0: Identity Section handlers (takes precedence over player_profile handlers)
+# These provide the new comprehensive identity system with XP ledger, archetype, goals, etc.
+if _HAS_IDENTITY_SECTION:
+    SYS_HANDLERS.update(get_identity_handlers())

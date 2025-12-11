@@ -222,17 +222,17 @@
   "identity-show": {
     "handler": "handle_identity_show",
     "category": "identity",
-    "description": "Show player profile (level, XP, titles, domains)."
+    "description": "Show character sheet (name, archetype, goals, level, XP, titles, domains)."
   },
   "identity-set": {
     "handler": "handle_identity_set",
     "category": "identity",
-    "description": "Set an identity trait (e.g., title)."
+    "description": "Set profile values: name, theme, vibe, goals, titles. Does NOT modify XP."
   },
   "identity-clear": {
     "handler": "handle_identity_clear",
     "category": "identity",
-    "description": "Clear/reset player profile (requires confirmation)."
+    "description": "Reset progression (soft=keep profile, hard=clear all). Requires confirm=yes."
   },
 
   "modules": {

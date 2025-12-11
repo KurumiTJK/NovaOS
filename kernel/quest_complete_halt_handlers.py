@@ -29,6 +29,14 @@ except ImportError:
     _HAS_MEMORY_HELPERS = False
     def store_quest_completion_memory(*args, **kwargs): pass
 
+# v1.0.0: Identity Section Integration (XP awarding)
+try:
+    from .identity_integration import award_quest_xp
+    _HAS_IDENTITY_INTEGRATION = True
+except ImportError:
+    _HAS_IDENTITY_INTEGRATION = False
+    def award_quest_xp(*args, **kwargs): return {"level_up": False, "titles_added": []}
+
 
 # =============================================================================
 # RESPONSE HELPERS
@@ -212,12 +220,48 @@ def handle_complete(
         lines.append("")
         lines.append("🎉 **Quest Complete!**")
         lines.append("")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # v1.0.0: Award XP through Identity Section
+        # ─────────────────────────────────────────────────────────────────
+        identity_result = None
+        if _HAS_IDENTITY_INTEGRATION and quest.rewards:
+            try:
+                identity_result = award_quest_xp(
+                    kernel=kernel,
+                    quest_id=quest.id,
+                    quest_title=quest.title,
+                    xp_amount=quest.rewards.xp if quest.rewards else 0,
+                    module=getattr(quest, "module_id", None) or getattr(quest, "category", None),
+                    difficulty=getattr(quest, "difficulty", None),
+                    titles=getattr(quest.rewards, "titles", None),
+                    visual_unlock=getattr(quest.rewards, "visual_unlock", None),
+                    shortcuts=getattr(quest.rewards, "shortcuts", None),
+                )
+            except Exception as e:
+                print(f"[QuestComplete] Identity XP award failed (non-fatal): {e}", flush=True)
+        
+        # Show rewards
         if quest.rewards:
             lines.append(f"**Rewards:** +{quest.rewards.xp} XP")
             if quest.rewards.visual_unlock:
                 lines.append(f"**Unlocked:** {quest.rewards.visual_unlock}")
+        
+        # v1.0.0: Show level-up and archetype evolution
+        if identity_result:
+            if identity_result.get("level_up"):
+                lines.append("")
+                lines.append(f"🎊 **LEVEL UP!** You are now level {identity_result.get('new_level', '?')}!")
+            
+            if identity_result.get("archetype_evolved"):
+                lines.append(f"✨ Archetype evolved: **{identity_result.get('new_archetype')}**")
+            
+            if identity_result.get("titles_added"):
+                for title in identity_result["titles_added"]:
+                    lines.append(f"🏆 New title earned: **{title}**")
+        
         lines.append("")
-        lines.append("View your progress with **#quest-log**.")
+        lines.append("View your progress with **#quest-log** or **#identity-show**.")
         
         # ─────────────────────────────────────────────────────────────────
         # v0.11.0: Store quest completion in episodic memory

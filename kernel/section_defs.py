@@ -17,7 +17,7 @@ Sections:
 2. memory        — Lore / knowledge store
 3. human_state   — HP / stamina / stress / mood
 4. modules       — Regions/domains on the world map
-5. identity      — Player Profile: level, XP, domains, titles
+5. identity      — Character sheet: name, archetype, goals, level, XP, domains, titles
 6. system        — Environment, snapshots, runtime config
 7. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
 8. timerhythm    — Daily/weekly reviews and rhythm
@@ -104,11 +104,11 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "identity": Section(
         title="Identity",
-        description="Player Profile: level, XP, domains, titles, unlocks.",
+        description="Character sheet: name, archetype, goals, level, XP, domains, titles. Your player profile in the Life RPG.",
         commands=[
-            CommandInfo("identity-show", "Show player profile (level, XP, titles)", "#identity-show"),
-            CommandInfo("identity-set", "Set an identity trait", "#identity-set trait=value"),
-            CommandInfo("identity-clear", "Clear identity configuration", "#identity-clear"),
+            CommandInfo("identity-show", "Show character sheet (name, archetype, goals, level, XP, titles, domains)", "#identity-show"),
+            CommandInfo("identity-set", "Set profile values: name, theme, vibe, goals, titles", '#identity-set name="Vant" theme="Cloud Rogue"'),
+            CommandInfo("identity-clear", "Reset progression (soft keeps profile, hard clears all)", "#identity-clear confirm=yes"),
         ]
     ),
     "system": Section(

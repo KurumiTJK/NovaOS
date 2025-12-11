@@ -34,6 +34,14 @@ from .policy_engine import PolicyEngine
 from .logger import KernelLogger
 from .identity_manager import IdentityManager
 from .memory_policy import MemoryPolicy
+
+# v1.0.0: Identity Section Manager (new comprehensive identity system)
+try:
+    from .identity_section import IdentitySectionManager
+    _HAS_IDENTITY_SECTION = True
+except ImportError:
+    _HAS_IDENTITY_SECTION = False
+    IdentitySectionManager = None
 # v0.11.0: ContinuityHelpers removed
 from .human_state import HumanStateManager
 # v0.6 imports
@@ -185,6 +193,18 @@ class NovaKernel:
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)
+
+        # ---------------- v1.0.0 Identity Section Manager ----------------
+        # New comprehensive identity system with XP ledger, archetype, goals, etc.
+        # Preferred over player_profile_manager for identity operations
+        if _HAS_IDENTITY_SECTION:
+            try:
+                self.identity_section_manager = IdentitySectionManager(self.config.data_dir)
+            except Exception as e:
+                print(f"[NovaKernel] Failed to init IdentitySectionManager: {e}", flush=True)
+                self.identity_section_manager = None
+        else:
+            self.identity_section_manager = None
 
         # ---------------- v0.5.7 Memory Policy ----------------
         self.memory_policy = MemoryPolicy()
