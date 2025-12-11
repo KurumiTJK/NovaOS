@@ -758,6 +758,8 @@ def format_ltm_context(
     """
     Format LTM memories into a context string for injection into persona prompts.
     
+    v0.11.0-fix9: Added instructions for subtle, contextual memory usage.
+    
     Args:
         profile_memories: List of profile MemoryItem objects
         semantic_memories: List of non-profile semantic MemoryItem objects
@@ -769,6 +771,7 @@ def format_ltm_context(
         Formatted context string, or empty string if no memories
     """
     lines = []
+    has_memories = False
     
     # Profile section
     if profile_memories:
@@ -786,7 +789,8 @@ def format_ltm_context(
                 preference_items.append(f"- {payload}")
         
         if identity_items or preference_items:
-            lines.append("[LONG-TERM MEMORY — USER PROFILE]")
+            has_memories = True
+            lines.append("[BACKGROUND CONTEXT — USER PROFILE]")
             lines.append("")
             
             if identity_items:
@@ -803,7 +807,8 @@ def format_ltm_context(
     
     # Relevant knowledge section
     if semantic_memories:
-        lines.append("[RELEVANT KNOWLEDGE]")
+        has_memories = True
+        lines.append("[BACKGROUND CONTEXT — RELEVANT KNOWLEDGE]")
         lines.append("")
         
         for m in semantic_memories[:max_semantic]:
@@ -814,10 +819,30 @@ def format_ltm_context(
         
         lines.append("")
     
-    if not lines:
+    if not has_memories:
         return ""
     
-    return "\n".join(lines)
+    # v0.11.0-fix9: Add instructions for subtle memory usage
+    memory_usage_instructions = """[MEMORY USAGE GUIDELINES]
+This is background context you know about the user. Use it SUBTLY:
+
+RULES:
+1. DO NOT mention memories unless directly relevant to the user's current message.
+2. DO NOT redirect conversations toward stored facts (e.g., "Since you work at X...")
+3. DO NOT reference memories every few messages - most responses need no memory reference.
+4. DO treat memories as quiet background knowledge, not conversation anchors.
+5. If referencing a memory, integrate it naturally - never say "I recall" or "According to my memory."
+
+RELEVANCE TEST (apply before mentioning ANY memory):
+"Would mentioning this make my answer clearer, more accurate, or solve a problem the user explicitly raised?"
+If not a strong YES → do NOT mention it.
+
+CORRECT: User asks about interview prep → mention their career context naturally.
+INCORRECT: User asks about organizing notes → force in their job/goals.
+
+Be warm, present, and quietly aware - not pushy or scripted."""
+
+    return "\n".join(lines) + "\n" + memory_usage_instructions
 
 
 def build_ltm_context_for_persona(
