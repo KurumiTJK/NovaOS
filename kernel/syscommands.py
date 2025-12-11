@@ -1,8 +1,11 @@
 # kernel/syscommands.py
 """
-NovaOS v0.9.0 — System Command Handlers
+NovaOS v0.11.0 — System Command Handlers
 
 This module contains all syscommand handlers for NovaOS.
+
+v0.11.0: Removed inbox, continuity sections; updated timerhythm (removed pulse/presence/align, added daily-review)
+         Removed mode and assistant-mode from system section
 v0.9.0: Added handle_shutdown for dual-mode architecture.
 
 Handler signature:
@@ -57,13 +60,7 @@ except ImportError:
     _HAS_QUEST_ENGINE = False
     def get_quest_handlers(): return {}
 
-# Inbox
-try:
-    from .inbox_handlers import get_inbox_handlers
-    _HAS_INBOX = True
-except ImportError:
-    _HAS_INBOX = False
-    def get_inbox_handlers(): return {}
+# v0.11.0: Inbox removed
 
 # Player Profile
 try:
@@ -81,13 +78,7 @@ except ImportError:
     _HAS_MODULE_MANAGER = False
     def get_module_handlers(): return {}
 
-# Assistant Mode
-try:
-    from .assistant_mode_handlers import get_assistant_mode_handlers
-    _HAS_ASSISTANT_MODE = True
-except ImportError:
-    _HAS_ASSISTANT_MODE = False
-    def get_assistant_mode_handlers(): return {}
+# v0.11.0: Assistant Mode removed
 
 # Time Rhythm
 try:
@@ -256,12 +247,10 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         #help              — Show section overview
         #help memory       — Show commands in the MEMORY section
     """
-    # Canonical section order for display
+    # Canonical section order for display (v0.11.0: 11 sections)
     SECTION_ORDER = [
         "core",
-        "inbox",
         "memory",
-        "continuity",
         "human_state",
         "modules",
         "identity",
@@ -276,15 +265,13 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
     # RPG-style section descriptions
     SECTION_DESCRIPTIONS = {
         "core": "Nova's heart & OS control center",
-        "inbox": "Quick capture layer for thoughts, ideas, tasks",
         "memory": "Lore & knowledge store (semantic/procedural/episodic)",
-        "continuity": "Long-term arcs, projects, and session state",
         "human_state": "HP / stamina / stress / mood tracking",
         "modules": "World map: regions & domains you create",
         "identity": "Player Profile: level, XP, domains, titles",
-        "system": "Environment, modes, snapshots, config",
+        "system": "Environment, snapshots, and runtime config",
         "workflow": "Quest Engine: quests, XP, skills, streaks",
-        "timerhythm": "Time rhythm: daily/weekly presence, seasons",
+        "timerhythm": "Daily and weekly reviews",
         "reminders": "Time-based reminders & pins",
         "commands": "Custom commands & macros (abilities)",
         "debug": "Diagnostics & dev tools",
@@ -353,7 +340,7 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         "║           NovaOS Help — Section Overview               ║",
         "╚════════════════════════════════════════════════════════╝",
         "",
-        "NovaOS is organized into 13 sections. Type the section",
+        "NovaOS is organized into 11 sections. Type the section",
         "name to enter its menu, or use #help <section> for details.",
         "",
     ]
@@ -657,46 +644,7 @@ def handle_setenv(cmd_name, args, session_id, context, kernel, meta) -> CommandR
     return _base_response(cmd_name, summary, {"updated": updates})
 
 
-def handle_mode(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Set the current NovaOS mode."""
-    allowed = {"normal", "deep_work", "reflection", "debug"}
-    desired = None
-
-    if isinstance(args, dict):
-        raw = args.get("mode")
-        if isinstance(raw, str):
-            desired = raw.strip().lower()
-        if not desired:
-            positional = args.get("_")
-            if isinstance(positional, list) and positional:
-                desired = str(positional[0]).strip().lower()
-
-    if not desired:
-        return _base_response(
-            cmd_name,
-            f"Usage: mode <name> where name is one of {', '.join(sorted(allowed))}.",
-            {"ok": False},
-        )
-
-    if desired not in allowed:
-        return _base_response(
-            cmd_name,
-            f"Invalid mode '{desired}'. Allowed: {', '.join(sorted(allowed))}.",
-            {"ok": False, "requested": desired},
-        )
-
-    if hasattr(kernel, "set_env"):
-        kernel.set_env("mode", desired)
-    else:
-        if not hasattr(kernel, "env_state") or not isinstance(kernel.env_state, dict):
-            kernel.env_state = {}
-        kernel.env_state["mode"] = desired
-
-    if hasattr(kernel, "memory_policy"):
-        kernel.memory_policy.set_mode(desired)
-
-    summary = F.header("Mode updated") + F.key_value("mode", desired)
-    return _base_response(cmd_name, summary, {"mode": desired})
+# v0.11.0: handle_mode removed - mode command no longer supported
 
 
 # =============================================================================
@@ -1068,8 +1016,7 @@ def handle_section_core(cmd_name, args, session_id, context, kernel, meta) -> Co
 def handle_section_memory(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("memory", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_continuity(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _handle_section_menu("continuity", cmd_name, args, session_id, context, kernel, meta)
+# v0.11.0: handle_section_continuity removed
 
 def handle_section_human_state(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("human_state", cmd_name, args, session_id, context, kernel, meta)
@@ -1098,8 +1045,131 @@ def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -
 def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("debug", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_inbox(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _handle_section_menu("inbox", cmd_name, args, session_id, context, kernel, meta)
+# v0.11.0: handle_section_inbox removed
+
+
+# =============================================================================
+# TIME RHYTHM HANDLERS (v0.11.0)
+# =============================================================================
+
+def handle_daily_review(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
+    """
+    Start or complete daily review.
+    
+    v0.11.0: Added as part of simplified timerhythm section.
+    
+    Daily review prompts reflection on:
+    - What did I accomplish today?
+    - What's still on my mind?
+    - What's my intention for tomorrow?
+    
+    Usage:
+        #daily-review         — Start daily review wizard
+        #daily-review start   — Same as above
+        #daily-review done    — Mark today's review as complete
+    """
+    from datetime import datetime, timezone
+    
+    action = None
+    if isinstance(args, dict):
+        action = args.get("action")
+        positional = args.get("_", [])
+        if not action and positional:
+            action = str(positional[0]).lower()
+    elif isinstance(args, str) and args.strip():
+        action = args.strip().lower()
+    
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    
+    if action == "done":
+        # Mark review as complete
+        if hasattr(kernel, "set_env"):
+            kernel.set_env("last_daily_review", today)
+        
+        summary = (
+            "✓ Daily review complete!\n\n"
+            f"Logged for {today}.\n"
+            "See you tomorrow."
+        )
+        return _base_response(cmd_name, summary, {"date": today, "status": "complete"})
+    
+    # Start review (default)
+    lines = [
+        "╔══ Daily Review ══╗",
+        "",
+        "Take a moment to reflect on your day.",
+        "",
+        "1) What did you accomplish today?",
+        "2) What's still on your mind?",
+        "3) What's your intention for tomorrow?",
+        "",
+        "When you're done reflecting, run: #daily-review done",
+    ]
+    
+    return _base_response(cmd_name, "\n".join(lines), {
+        "date": today,
+        "status": "started",
+    })
+
+
+def handle_weekly_review(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
+    """
+    Start or complete weekly review.
+    
+    Weekly review prompts reflection on:
+    - What were this week's wins?
+    - What challenges did I face?
+    - What do I want to focus on next week?
+    
+    Usage:
+        #weekly-review         — Start weekly review wizard
+        #weekly-review start   — Same as above
+        #weekly-review done    — Mark this week's review as complete
+    """
+    from datetime import datetime, timezone
+    
+    action = None
+    if isinstance(args, dict):
+        action = args.get("action")
+        positional = args.get("_", [])
+        if not action and positional:
+            action = str(positional[0]).lower()
+    elif isinstance(args, str) and args.strip():
+        action = args.strip().lower()
+    
+    now = datetime.now(timezone.utc)
+    week = now.strftime("%Y-W%W")
+    
+    if action == "done":
+        # Mark review as complete
+        if hasattr(kernel, "set_env"):
+            kernel.set_env("last_weekly_review", week)
+        
+        summary = (
+            "✓ Weekly review complete!\n\n"
+            f"Logged for {week}.\n"
+            "Have a great week ahead!"
+        )
+        return _base_response(cmd_name, summary, {"week": week, "status": "complete"})
+    
+    # Start review (default)
+    lines = [
+        "╔══ Weekly Review ══╗",
+        "",
+        "Take time to reflect on your week.",
+        "",
+        "1) What were this week's wins?",
+        "2) What challenges did you face?",
+        "3) What do you want to focus on next week?",
+        "",
+        "When you're done reflecting, run: #weekly-review done",
+    ]
+    
+    return _base_response(cmd_name, "\n".join(lines), {
+        "week": week,
+        "status": "started",
+    })
 
 
 # =============================================================================
@@ -1208,14 +1278,7 @@ def handle_memory_policy_test(cmd_name, args, session_id, context, kernel, meta)
 def handle_memory_mode_filter(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Memory mode filter not yet implemented.", {"ok": False})
 
-def handle_preferences(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "Preferences not yet implemented.", {"ok": False})
-
-def handle_projects(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "Projects not yet implemented.", {"ok": False})
-
-def handle_continuity_context(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "Continuity context not yet implemented.", {"ok": False})
+# v0.11.0: handle_preferences, handle_projects, handle_continuity_context removed (continuity section removed)
 
 def handle_reconfirm_prompts(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Reconfirm prompts not yet implemented.", {"ok": False})
@@ -1278,10 +1341,9 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_episodic_list": handle_episodic_list,
     "handle_episodic_debug": handle_episodic_debug,
     
-    # Environment / Mode
+    # Environment (v0.11.0: handle_mode removed)
     "handle_env": handle_env,
     "handle_setenv": handle_setenv,
-    "handle_mode": handle_mode,
     
     # Model
     "handle_model_info": handle_model_info,
@@ -1309,11 +1371,12 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_identity_restore": handle_identity_restore,
     "handle_identity_clear_history": handle_identity_clear_history,
     
-    # Continuity
-    "handle_preferences": handle_preferences,
-    "handle_projects": handle_projects,
-    "handle_continuity_context": handle_continuity_context,
+    # v0.11.0: Continuity handlers removed (preferences, projects, continuity_context)
     "handle_reconfirm_prompts": handle_reconfirm_prompts,
+    
+    # Time Rhythm (v0.11.0)
+    "handle_daily_review": handle_daily_review,
+    "handle_weekly_review": handle_weekly_review,
     
     # Human State
     "handle_evolution_status": handle_evolution_status,
@@ -1348,10 +1411,9 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_self_test": handle_self_test,
     "handle_diagnostics": handle_diagnostics,
     
-    # Section Menus
+    # Section Menus (v0.11.0: removed continuity, inbox)
     "handle_section_core": handle_section_core,
     "handle_section_memory": handle_section_memory,
-    "handle_section_continuity": handle_section_continuity,
     "handle_section_human_state": handle_section_human_state,
     "handle_section_modules": handle_section_modules,
     "handle_section_identity": handle_section_identity,
@@ -1361,21 +1423,18 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_section_reminders": handle_section_reminders,
     "handle_section_commands": handle_section_commands,
     "handle_section_debug": handle_section_debug,
-    "handle_section_inbox": handle_section_inbox,
 }
 
 
 # =============================================================================
-# v0.8.0: FEATURE MODULE INTEGRATION
+# v0.8.0: FEATURE MODULE INTEGRATION (v0.11.0: removed inbox, assistant mode)
 # =============================================================================
 
 # Quest Engine handlers
 if _HAS_QUEST_ENGINE:
     SYS_HANDLERS.update(get_quest_handlers())
 
-# Inbox handlers
-if _HAS_INBOX:
-    SYS_HANDLERS.update(get_inbox_handlers())
+# v0.11.0: Inbox handlers removed
 
 # Player Profile handlers
 if _HAS_PLAYER_PROFILE:
@@ -1385,9 +1444,7 @@ if _HAS_PLAYER_PROFILE:
 if _HAS_MODULE_MANAGER:
     SYS_HANDLERS.update(get_module_handlers())
 
-# Assistant Mode handlers
-if _HAS_ASSISTANT_MODE:
-    SYS_HANDLERS.update(get_assistant_mode_handlers())
+# v0.11.0: Assistant Mode handlers removed
 
 # Time Rhythm handlers
 if _HAS_TIME_RHYTHM:

@@ -1,16 +1,18 @@
 # kernel/wizard_mode.py
 """
-v0.6 — Wizard Mode Commands (Updated v0.7.17)
+v0.6 — Wizard Mode Commands (Updated v0.11.0)
 
 Interactive wizards for commands called with no arguments.
 Prompts user step-by-step for required fields.
+
+v0.11.0 CHANGES:
+- Removed #mode wizard (mode command removed from system)
 
 Wizard-enabled commands (using THIS system):
 - #flow (workflow start)
 - #remind-add (reminders)
 - #store (memory)
 - #identity-set
-- #mode
 - #compose
 - #log-state
 
@@ -186,19 +188,7 @@ WIZARD_DEFINITIONS: Dict[str, WizardDefinition] = {
             ),
         ],
     ),
-    "mode": WizardDefinition(
-        command="mode",
-        title="Set Mode",
-        description="Change NovaOS operating mode.",
-        steps=[
-            WizardStep(
-                key="mode",
-                prompt="Which mode would you like to switch to?\n(Options: normal, deep_work, reflection, debug)",
-                required=True,
-                options=["normal", "deep_work", "reflection", "debug"],
-            ),
-        ],
-    ),
+    # v0.11.0: mode wizard removed
     "compose": WizardDefinition(
         command="compose",
         title="Compose Workflow",
@@ -463,10 +453,7 @@ def build_command_args_from_wizard(command: str, collected: Dict[str, str]) -> D
             trait: value,
         }
     
-    elif command == "mode":
-        return {
-            "mode": collected.get("mode", "normal"),
-        }
+    # v0.11.0: mode case removed
     
     elif command == "compose":
         return {

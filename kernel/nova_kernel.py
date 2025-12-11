@@ -1,8 +1,14 @@
 # kernel/nova_kernel.py
 """
-v0.10.0 — NovaKernel with Quest Lock Mode
+v0.11.0 — NovaKernel (Simplified)
 
-🔥 v0.10.0 CHANGES:
+🔥 v0.11.0 CHANGES:
+- Removed assistant_mode (AssistantModeManager)
+- Removed inbox (InboxStore)
+- Removed continuity helpers (ContinuityHelpers)
+- Continuity convenience methods removed
+
+v0.10.0 CHANGES:
 - Added quest v0.10.0 integration (wizard, lock mode, #complete, #halt)
 - Quest mode allows conversation during active quests
 - #complete replaces #next as primary command
@@ -28,7 +34,7 @@ from .policy_engine import PolicyEngine
 from .logger import KernelLogger
 from .identity_manager import IdentityManager
 from .memory_policy import MemoryPolicy
-from .continuity_helpers import ContinuityHelpers
+# v0.11.0: ContinuityHelpers removed
 from .human_state import HumanStateManager
 # v0.6 imports
 from .nl_router import route_natural_language
@@ -157,20 +163,11 @@ class NovaKernel:
         except ImportError:
             self.module_store = None
         
-        # v0.8.0: Assistant Mode (story vs utility)
-        try:
-            from kernel.assistant_mode import AssistantModeManager
-            initial_mode = self.env_state.get("assistant_mode", "story")
-            self.assistant_mode_manager = AssistantModeManager(initial_mode)
-        except ImportError:
-            self.assistant_mode_manager = None
+        # v0.11.0: Assistant Mode removed
+        self.assistant_mode_manager = None
         
-        # v0.8.0: Inbox Store (quick capture)
-        try:
-            from kernel.inbox_manager import InboxStore
-            self.inbox_store = InboxStore(self.config.data_dir)
-        except ImportError:
-            self.inbox_store = None
+        # v0.11.0: Inbox Store removed
+        self.inbox_store = None
 
         # ---------------- v0.5.5 Identity Manager ----------------
         self.identity_manager = IdentityManager(self.config.data_dir)
@@ -188,11 +185,8 @@ class NovaKernel:
                 self.memory_policy.create_post_recall_hook()
             )
 
-        # ---------------- v0.5.8 Continuity Helpers ----------------
-        self.continuity = ContinuityHelpers(
-            memory_manager=self.memory_manager,
-            identity_manager=self.identity_manager,
-        )
+        # v0.11.0: Continuity Helpers removed
+        self.continuity = None
 
         # ---------------- v0.5.9 Human State ----------------
         self.human_state = HumanStateManager(self.config.data_dir)
@@ -853,34 +847,10 @@ class NovaKernel:
         }
 
     # ------------------------------------------------------------------
-    # v0.5.8 Continuity Helpers
+    # v0.11.0: Continuity methods removed (get_user_preferences, 
+    #          get_active_projects, get_continuity_context, 
+    #          get_reconfirmation_prompts)
     # ------------------------------------------------------------------
-
-    def get_user_preferences(self, limit: int = 10) -> list:
-        """
-        Get user preferences from memory and identity.
-        Convenience method wrapping ContinuityHelpers.
-        """
-        return [p.to_dict() for p in self.continuity.get_user_preferences(limit=limit)]
-
-    def get_active_projects(self, limit: int = 5) -> list:
-        """
-        Get active projects/goals from memory and identity.
-        Convenience method wrapping ContinuityHelpers.
-        """
-        return [p.to_dict() for p in self.continuity.get_active_projects(limit=limit)]
-
-    def get_continuity_context(self) -> dict:
-        """
-        Get full continuity context for interpretation framing.
-        """
-        return self.continuity.get_continuity_context().to_dict()
-
-    def get_reconfirmation_prompts(self, limit: int = 3) -> list:
-        """
-        Get gentle re-confirmation prompts for stale items.
-        """
-        return self.continuity.generate_reconfirmation_prompts(limit=limit)
 
     # ------------------------------------------------------------------
     # v0.4 kernel state export (for snapshots)

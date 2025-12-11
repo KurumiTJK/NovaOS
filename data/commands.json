@@ -40,11 +40,6 @@
     "category": "section",
     "description": "Open the MEMORY section menu"
   },
-  "continuity": {
-    "handler": "handle_section_continuity",
-    "category": "section",
-    "description": "Open the CONTINUITY section menu"
-  },
   "human_state": {
     "handler": "handle_section_human_state",
     "category": "section",
@@ -90,11 +85,6 @@
     "category": "section",
     "description": "Open the DEBUG section menu"
   },
-  "inbox-section": {
-    "handler": "handle_section_inbox",
-    "category": "section",
-    "description": "Open the INBOX section menu"
-  },
 
   "store": {
     "handler": "handle_store",
@@ -110,6 +100,16 @@
     "handler": "handle_forget",
     "category": "memory",
     "description": "Forget memory items by id, tag, or type."
+  },
+  "trace": {
+    "handler": "handle_trace",
+    "category": "memory",
+    "description": "Show lineage/trace info for a memory item."
+  },
+  "bind": {
+    "handler": "handle_bind",
+    "category": "memory",
+    "description": "Bind multiple memory items into a cluster."
   },
 
   "quest": {
@@ -173,52 +173,6 @@
     "description": "Show raw quest engine state for debugging."
   },
 
-  "capture": {
-    "handler": "handle_capture",
-    "category": "inbox",
-    "description": "Quick-capture text to the inbox for later processing."
-  },
-  "in": {
-    "handler": "handle_capture",
-    "category": "inbox",
-    "description": "Alias for #capture - quick inbox capture."
-  },
-  "inbox": {
-    "handler": "handle_inbox",
-    "category": "inbox",
-    "description": "List inbox items with smart formatting."
-  },
-  "inbox-list": {
-    "handler": "handle_inbox_list",
-    "category": "inbox",
-    "description": "Simple list of inbox items."
-  },
-  "inbox-process": {
-    "handler": "handle_inbox_process",
-    "category": "inbox",
-    "description": "Process an inbox item (quest/reminder/archive)."
-  },
-  "inbox-to-quest": {
-    "handler": "handle_inbox_to_quest",
-    "category": "inbox",
-    "description": "Convert an inbox item to a quest."
-  },
-  "inbox-to-reminder": {
-    "handler": "handle_inbox_to_reminder",
-    "category": "inbox",
-    "description": "Convert an inbox item to a reminder."
-  },
-  "inbox-delete": {
-    "handler": "handle_inbox_delete",
-    "category": "inbox",
-    "description": "Delete an inbox item."
-  },
-  "inbox-clear": {
-    "handler": "handle_inbox_clear",
-    "category": "inbox",
-    "description": "Clear processed inbox items."
-  },
-
   "remind-add": {
     "handler": "handle_remind_add",
     "category": "reminders",
@@ -277,16 +231,6 @@
     "description": "Delete a module/region."
   },
 
-  "assistant-mode": {
-    "handler": "handle_assistant_mode",
-    "category": "system",
-    "description": "Set assistant mode (story/utility)."
-  },
-  "mode": {
-    "handler": "handle_mode",
-    "category": "system",
-    "description": "Set system mode (normal/deep_work/reflection)."
-  },
   "env": {
     "handler": "handle_env",
     "category": "system",
@@ -297,21 +241,26 @@
     "category": "system",
     "description": "Set an environment variable."
   },
+  "snapshot": {
+    "handler": "handle_snapshot",
+    "category": "system",
+    "description": "Create a state snapshot."
+  },
+  "restore": {
+    "handler": "handle_restore",
+    "category": "system",
+    "description": "Restore from a saved snapshot."
+  },
 
-  "presence": {
-    "handler": "handle_presence",
+  "daily-review": {
+    "handler": "handle_daily_review",
     "category": "timerhythm",
-    "description": "Show current time presence and context."
+    "description": "Start or complete daily review."
   },
-  "pulse": {
-    "handler": "handle_pulse",
+  "weekly-review": {
+    "handler": "handle_weekly_review",
     "category": "timerhythm",
-    "description": "Check the system pulse."
-  },
-  "align": {
-    "handler": "handle_align",
-    "category": "timerhythm",
-    "description": "Get alignment suggestions for what to focus on."
+    "description": "Start or complete weekly review."
   },
 
   "command-add": {
@@ -340,17 +289,6 @@
     "description": "Enable or disable a custom command."
   },
 
-  "trace": {
-    "handler": "handle_trace",
-    "category": "memory",
-    "description": "Show lineage/trace info for a memory item."
-  },
-  "bind": {
-    "handler": "handle_bind",
-    "category": "memory",
-    "description": "Bind multiple memory items into a cluster."
-  },
-
   "wm-debug": {
     "handler": "handle_wm_debug",
     "category": "debug",
@@ -375,32 +313,6 @@
     "handler": "handle_diagnostics",
     "category": "debug",
     "description": "Alias for #self-test."
-  },
-
-  "snapshot": {
-    "handler": "handle_snapshot",
-    "category": "continuity",
-    "description": "Create a state snapshot."
-  },
-  "restore": {
-    "handler": "handle_restore",
-    "category": "continuity",
-    "description": "Restore from a saved snapshot."
-  },
-  "preferences": {
-    "handler": "handle_preferences",
-    "category": "continuity",
-    "description": "Show or set user preferences."
-  },
-  "projects": {
-    "handler": "handle_projects",
-    "category": "continuity",
-    "description": "List active projects."
-  },
-  "context": {
-    "handler": "handle_continuity_context",
-    "category": "continuity",
-    "description": "Show current session context."
   },
 
   "log-state": {

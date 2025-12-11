@@ -1,30 +1,29 @@
 # kernel/section_defs.py
 """
-v0.10.0 — Section Definitions for NovaOS Life RPG
+v0.11.0 — Section Definitions for NovaOS Life RPG
 
-Defines the 13 canonical sections and their associated commands.
-Updated for Quest Engine with quest lock mode.
+Defines the 11 canonical sections and their associated commands.
 
-v0.10.0 CHANGES:
-- Added #complete command (finish lesson, save progress, preview tomorrow)
-- Added #halt command (pause quest mode, return to normal NovaOS)
-- Updated #quest description (now opens wizard)
-- Updated #next description (now alias for #complete)
+v0.11.0 CHANGES:
+- Removed inbox section (all inbox commands removed)
+- Removed continuity section (preferences, projects, context removed)
+- Moved snapshot/restore to system section
+- Removed mode and assistant-mode from system section
+- Updated timerhythm: removed pulse, presence, align; added daily-review
+- Section count: 13 -> 11
 
 Sections:
 1. core          — Nova's heart & OS control center
-2. inbox         — Quick capture for thoughts/ideas/tasks
-3. memory        — Lore / knowledge store
-4. continuity    — Long-term arcs & projects
-5. human_state   — HP / stamina / stress / mood
-6. modules       — Regions/domains on the world map
-7. identity      — Player Profile: level, XP, domains, titles
-8. system        — Environment, modes, snapshots
-9. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
-10. timerhythm   — Time model, daily/weekly rhythm
-11. reminders    — Time-based reminders / quest pins
-12. commands     — Abilities/macros
-13. debug        — Diagnostics & dev tools
+2. memory        — Lore / knowledge store
+3. human_state   — HP / stamina / stress / mood
+4. modules       — Regions/domains on the world map
+5. identity      — Player Profile: level, XP, domains, titles
+6. system        — Environment, snapshots, runtime config
+7. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
+8. timerhythm    — Daily/weekly reviews and rhythm
+9. reminders     — Time-based reminders / quest pins
+10. commands     — Abilities/macros
+11. debug        — Diagnostics & dev tools
 """
 
 from dataclasses import dataclass, field
@@ -68,21 +67,6 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("help", "Show command sections and help", "#help"),
         ]
     ),
-    "inbox": Section(
-        title="Inbox",
-        description="Quick capture for thoughts, ideas, and tasks (GTD-style).",
-        commands=[
-            CommandInfo("capture", "Quick capture to inbox", "#capture Buy milk"),
-            CommandInfo("in", "Quick capture (alias)", "#in Learn about JWT"),
-            CommandInfo("inbox", "List inbox items", "#inbox"),
-            CommandInfo("inbox-list", "Simple list of inbox items", "#inbox-list"),
-            CommandInfo("inbox-process", "Process item (quest/reminder/archive)", "#inbox-process abc123 quest"),
-            CommandInfo("inbox-to-quest", "Convert inbox item to quest", "#inbox-to-quest id=abc123"),
-            CommandInfo("inbox-to-reminder", "Convert inbox item to reminder", "#inbox-to-reminder id=abc123"),
-            CommandInfo("inbox-delete", "Delete an inbox item", "#inbox-delete abc123"),
-            CommandInfo("inbox-clear", "Clear processed items", "#inbox-clear confirm=yes"),
-        ]
-    ),
     "memory": Section(
         title="Memory",
         description="Lore & knowledge store (semantic/procedural/episodic).",
@@ -92,15 +76,6 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("forget", "Forget memory items by id, tag, or type", "#forget id=123"),
             CommandInfo("trace", "Show lineage/trace info for a memory item", "#trace id=123"),
             CommandInfo("bind", "Bind multiple memory items into a cluster", "#bind ids=1,2,3"),
-        ]
-    ),
-    "continuity": Section(
-        title="Continuity",
-        description="Long-term arcs, projects, and session state.",
-        commands=[
-            CommandInfo("preferences", "Show or set user preferences", "#preferences"),
-            CommandInfo("projects", "List active projects", "#projects"),
-            CommandInfo("context", "Show current session context", "#context"),
         ]
     ),
     "human_state": Section(
@@ -133,12 +108,10 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "system": Section(
         title="System",
-        description="Environment, modes, snapshots, and runtime config.",
+        description="Environment, snapshots, and runtime config.",
         commands=[
             CommandInfo("env", "Show current environment state", "#env"),
             CommandInfo("setenv", "Set environment keys", "#setenv debug=true"),
-            CommandInfo("mode", "Set workflow mode (normal/deep_work/reflection/debug)", "#mode normal"),
-            CommandInfo("assistant-mode", "Set presentation style (story/utility)", "#assistant-mode story"),
             CommandInfo("snapshot", "Create a snapshot of core OS state", "#snapshot"),
             CommandInfo("restore", "Restore OS state from a snapshot", "#restore id=123"),
         ]
@@ -163,12 +136,10 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "timerhythm": Section(
         title="Time Rhythm",
-        description="Time model, daily/weekly rhythm, and seasons.",
+        description="Daily and weekly reviews for reflection and planning.",
         commands=[
-            CommandInfo("presence", "Show time rhythm presence snapshot", "#presence"),
-            CommandInfo("pulse", "Quest pulse diagnostics", "#pulse"),
-            CommandInfo("align", "Alignment suggestions based on time + quests", "#align"),
-            CommandInfo("weekly-review", "Start or complete weekly review", "#weekly-review start"),
+            CommandInfo("daily-review", "Start or complete daily review", "#daily-review"),
+            CommandInfo("weekly-review", "Start or complete weekly review", "#weekly-review"),
         ]
     ),
     "reminders": Section(
