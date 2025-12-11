@@ -162,6 +162,72 @@ def _check_duplicate_profile_memory(
     return result["is_duplicate"]
 
 
+def _extract_semantic_category(payload: str) -> Optional[Tuple[str, str]]:
+    """
+    Extract the semantic category and key value from a payload.
+    
+    v0.11.0-fix8: Smart contradiction detection based on semantic meaning.
+    
+    Returns:
+        Tuple of (category, extracted_value) or None if no category detected.
+        
+    Categories:
+        - employer: Company/organization name
+        - role: Job title/position
+        - name: Person's name
+        - location: Where they live
+        - origin: Where they're from
+    """
+    payload_lower = payload.lower().strip()
+    
+    # Employer patterns - extract company name
+    employer_patterns = [
+        r"(?:work(?:s|ing|ed)?|job|position|role)\s+(?:at|for|with)\s+([A-Za-z][\w\s&.-]+?)(?:\s+as|\s*$|\.|,)",
+        r"(?:joined|joining|started at|moving to|got (?:a )?(?:new )?(?:job|position|role) (?:at|with))\s+([A-Za-z][\w\s&.-]+?)(?:\s*$|\.|,)",
+        r"(?:i'm|i am|i'm now|currently)\s+(?:at|with)\s+([A-Za-z][\w\s&.-]+?)(?:\s*$|\.|,)",
+        r"(?:consultant|engineer|developer|manager|director|analyst|designer|architect)\s+at\s+([A-Za-z][\w\s&.-]+?)(?:\s*$|\.|,)",
+        r"(?:my )?(?:company|employer|workplace)\s+is\s+([A-Za-z][\w\s&.-]+?)(?:\s*$|\.|,)",
+    ]
+    
+    for pattern in employer_patterns:
+        match = re.search(pattern, payload_lower, re.IGNORECASE)
+        if match:
+            return ("employer", match.group(1).strip())
+    
+    # Name patterns
+    name_patterns = [
+        r"(?:my name is|i'm|i am|call me)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)",
+    ]
+    
+    for pattern in name_patterns:
+        match = re.search(pattern, payload, re.IGNORECASE)  # Case-sensitive for names
+        if match:
+            return ("name", match.group(1).strip())
+    
+    # Location patterns (where they live now)
+    location_patterns = [
+        r"(?:live|living|based|located)\s+(?:in|at|out of)\s+([A-Za-z][\w\s,.-]+?)(?:\s*$|\.|,)",
+    ]
+    
+    for pattern in location_patterns:
+        match = re.search(pattern, payload_lower, re.IGNORECASE)
+        if match:
+            return ("location", match.group(1).strip())
+    
+    # Origin patterns (where they're from)
+    origin_patterns = [
+        r"(?:i'm|i am)\s+from\s+([A-Za-z][\w\s,.-]+?)(?:\s*$|\.|,)",
+        r"grew up in\s+([A-Za-z][\w\s,.-]+?)(?:\s*$|\.|,)",
+    ]
+    
+    for pattern in origin_patterns:
+        match = re.search(pattern, payload_lower, re.IGNORECASE)
+        if match:
+            return ("origin", match.group(1).strip())
+    
+    return None
+
+
 def _check_duplicate_or_contradiction(
     memory_manager: "MemoryManager",
     payload: str,
@@ -171,6 +237,8 @@ def _check_duplicate_or_contradiction(
     Check if a similar profile memory exists OR if it contradicts existing ones.
     
     v0.11.0-fix6: Enhanced to detect contradictions and handle updates.
+    v0.11.0-fix8: Smarter semantic-based contradiction detection.
+                  Any employer statement contradicts another employer statement, etc.
     
     Returns:
         {
@@ -199,22 +267,8 @@ def _check_duplicate_or_contradiction(
         payload_normalized = payload.lower().strip()
         payload_words = set(payload_normalized.split())
         
-        # Contradiction detection patterns for identity
-        # e.g., "I work at X" contradicts "I work at Y"
-        CONTRADICTION_PREFIXES = {
-            "profile:identity": [
-                r"(?:i\s+)?work(?:s|ed)?\s+(?:at|for)\s+",
-                r"(?:i\s+)?(?:am|'m)\s+(?:a|an)\s+",
-                r"my\s+name\s+is\s+",
-                r"(?:i\s+)?live(?:s|d)?\s+(?:in|at)\s+",
-                r"(?:i\s+)?(?:am|'m)\s+from\s+",
-            ],
-            "profile:preference": [
-                r"(?:i\s+)?prefer\s+",
-                r"(?:i\s+)?(?:don'?t\s+)?like\s+",
-                r"(?:i\s+)?(?:love|hate)\s+",
-            ],
-        }
+        # Extract semantic category from new payload
+        new_category = _extract_semantic_category(payload)
         
         for item in existing:
             item_payload = item.payload.lower().strip()
@@ -232,33 +286,30 @@ def _check_duplicate_or_contradiction(
                     result["is_duplicate"] = True
                     return result
             
-            # Check for contradictions based on tag type
-            prefixes = CONTRADICTION_PREFIXES.get(tag, [])
-            for prefix_pattern in prefixes:
-                # Check if both old and new memory match the same prefix pattern
-                old_match = re.match(prefix_pattern, item_payload, re.IGNORECASE)
-                new_match = re.match(prefix_pattern, payload_normalized, re.IGNORECASE)
-                
-                if old_match and new_match:
-                    # Same type of statement but different content = contradiction
-                    # e.g., "I work at Google" vs "I work at Microsoft"
-                    old_suffix = item_payload[old_match.end():].strip()
-                    new_suffix = payload_normalized[new_match.end():].strip()
+            # v0.11.0-fix8: Semantic category contradiction
+            # If both memories are about the same category (e.g., employer),
+            # but have different values, it's a contradiction
+            if new_category:
+                old_category = _extract_semantic_category(item.payload)
+                if old_category and old_category[0] == new_category[0]:
+                    # Same category - check if values are different
+                    old_value = old_category[1].lower()
+                    new_value = new_category[1].lower()
                     
-                    if old_suffix != new_suffix and old_suffix and new_suffix:
+                    if old_value != new_value:
                         result["is_contradiction"] = True
                         result["conflicting_memory_id"] = item.id
                         result["conflicting_payload"] = item.payload
                         logger.info(
-                            "Detected contradiction: '%s' vs '%s'",
-                            item.payload[:50], payload[:50]
+                            "Semantic contradiction detected [%s]: '%s' vs '%s'",
+                            new_category[0], old_value, new_value
                         )
                         return result
         
         return result
     except Exception as e:
         logger.warning("Error checking duplicate/contradiction: %s", e, exc_info=True)
-        return result  # Return empty result on errors
+        return result
 
 
 def _handle_contradiction(
