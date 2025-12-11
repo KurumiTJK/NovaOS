@@ -54,7 +54,12 @@ IDENTITY_PATTERNS = [
     (r"\bi work (?:at|for)\s+(.+?)(?:\.|$)", "employer"),
     (r"\bi(?:'m| am) (?:employed|working) (?:at|for|with)\s+(.+?)(?:\.|$)", "employer"),
     (r"\bi(?:'ve| have) been working (?:at|for)\s+(.+?)(?:\.|$)", "employer"),
-    (r"\bi just (?:started|joined|got a job) (?:at|for|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi just (?:started|joined|got a (?:new )?job) (?:at|for|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'ve| have) (?:just )?(?:started|joined|accepted a (?:job|position|role)) (?:at|for|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'m| am) (?:now|starting) (?:at|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi got (?:a |an )?(?:new )?(?:job|position|role|offer) (?:at|from|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'m| am) joining\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'m| am) moving to\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)(?:\.|$)", "employer"),
     (r"\bmy (?:company|employer|workplace) is\s+(.+?)(?:\.|$)", "employer"),
     (r"\bi(?:'m| am) with\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)(?:\.|$)", "employer"),
     
