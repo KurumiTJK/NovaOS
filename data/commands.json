@@ -111,6 +111,31 @@
     "category": "memory",
     "description": "Bind multiple memory items into a cluster."
   },
+  "profile": {
+    "handler": "handle_profile",
+    "category": "memory",
+    "description": "View, edit, or delete profile memories (identity & preferences)."
+  },
+  "memories": {
+    "handler": "handle_memories",
+    "category": "memory",
+    "description": "Full memory management UI - list, view, edit, delete memories."
+  },
+  "search-mem": {
+    "handler": "handle_search_mem",
+    "category": "memory",
+    "description": "Search memories by keywords."
+  },
+  "memory-maintain": {
+    "handler": "handle_memory_maintain",
+    "category": "memory",
+    "description": "Run memory decay and archiving maintenance."
+  },
+  "session-end": {
+    "handler": "handle_session_end",
+    "category": "memory",
+    "description": "End session: snapshot Working Memory to LTM and clear WM."
+  },
 
   "quest": {
     "handler": "handle_quest",

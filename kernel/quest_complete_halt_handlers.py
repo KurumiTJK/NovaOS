@@ -21,6 +21,14 @@ from .quest_lock_mode import (
     update_quest_lock_step,
 )
 
+# v0.11.0: Quest Completion Memory
+try:
+    from .memory_helpers import store_quest_completion_memory
+    _HAS_MEMORY_HELPERS = True
+except ImportError:
+    _HAS_MEMORY_HELPERS = False
+    def store_quest_completion_memory(*args, **kwargs): pass
+
 
 # =============================================================================
 # RESPONSE HELPERS
@@ -210,6 +218,21 @@ def handle_complete(
                 lines.append(f"**Unlocked:** {quest.rewards.visual_unlock}")
         lines.append("")
         lines.append("View your progress with **#quest-log**.")
+        
+        # ─────────────────────────────────────────────────────────────────
+        # v0.11.0: Store quest completion in episodic memory
+        # ─────────────────────────────────────────────────────────────────
+        if _HAS_MEMORY_HELPERS:
+            try:
+                store_quest_completion_memory(
+                    memory_manager=kernel.memory_manager,
+                    quest_id=lock_state.quest_id,
+                    quest_title=quest.title,
+                    xp_gained=quest.rewards.xp if quest.rewards else 0,
+                    quest_category=getattr(quest, "category", None),
+                )
+            except Exception as e:
+                print(f"[QuestComplete] Memory store failed (non-fatal): {e}", flush=True)
         
         # Deactivate quest lock
         deactivate_quest_lock(session_id)

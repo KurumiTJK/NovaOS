@@ -1953,9 +1953,12 @@ class NovaPersona:
         self._last_style = s
         return self.engine.build_system_prompt(s)
     
-    def generate_response(self, text, session_id, wm_context=None, wm_context_string=None, direct_answer=None, assistant_mode=None):
+    def generate_response(self, text, session_id, wm_context=None, wm_context_string=None, ltm_context_string=None, direct_answer=None, assistant_mode=None):
         """
         Generate a response using the LLM.
+        
+        v0.11.0:
+        - Added ltm_context_string parameter for Long-Term Memory injection
         
         v0.9.0: 
         - ALWAYS uses gpt-5.1 (PERSONA_MODEL) — NO FALLBACK
@@ -1972,6 +1975,10 @@ class NovaPersona:
         system = self.build_system_prompt(assistant_mode=assistant_mode, user_text=text)
         if wm_context_string:
             system = system + "\n\n" + wm_context_string
+        
+        # v0.11.0: Append LTM context (profile memories + relevant semantic memories)
+        if ltm_context_string:
+            system = system + "\n\n" + ltm_context_string
         
         # v0.9.0: Import PERSONA_MODEL and log model usage
         try:

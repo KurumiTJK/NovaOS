@@ -67,6 +67,20 @@ from .nova_wm import (
     wm_answer_reference,
     wm_clear,
 )
+
+# v0.11.0: Memory Upgrade - ChatGPT-style memory features
+try:
+    from .memory_helpers import (
+        handle_remember_intent,
+        build_ltm_context_for_persona,
+        run_auto_extraction,
+    )
+    _HAS_MEMORY_HELPERS = True
+except ImportError:
+    _HAS_MEMORY_HELPERS = False
+    def handle_remember_intent(*args, **kwargs): return None
+    def build_ltm_context_for_persona(*args, **kwargs): return ""
+    def run_auto_extraction(*args, **kwargs): return {}
 # v0.8.0: InterpretationEngine removed - wizard logic handled by wizard_mode.py
 # NL routing handled by nl_router.py
 
@@ -436,9 +450,47 @@ class NovaKernel:
             }
         
         # -------------------------------------------------------------
-        # 7) Persona Fallback (normal chat) with NovaWM v0.7
+        # 7) Persona Fallback (normal chat) with NovaWM v0.7 + v0.11.0 Memory
         # -------------------------------------------------------------
         self.logger.log_input(session_id, "[ROUTER] No syscommand match. Falling back to persona.")
+
+        # ─────────────────────────────────────────────────────────────────
+        # v0.11.0: "REMEMBER THIS" CHECK (short-circuit if detected)
+        # ─────────────────────────────────────────────────────────────────
+        if _HAS_MEMORY_HELPERS:
+            try:
+                remember_response = handle_remember_intent(
+                    user_text=stripped,
+                    memory_manager=self.memory_manager,
+                    session_id=session_id,
+                    wm=get_wm(session_id),
+                )
+                if remember_response:
+                    # User said "remember this/that" - return confirmation
+                    return {
+                        "ok": True,
+                        "command": "remember",
+                        "summary": remember_response,
+                        "content": {"command": "remember", "summary": remember_response},
+                        "meta": {"source": "memory_remember_intent"},
+                    }
+            except Exception as e:
+                self.logger.log_error(session_id, f"[Memory] remember_intent error: {e}")
+
+        # ─────────────────────────────────────────────────────────────────
+        # v0.11.0: AUTO-EXTRACTION (profile, procedural, episodic)
+        # ─────────────────────────────────────────────────────────────────
+        if _HAS_MEMORY_HELPERS:
+            try:
+                extraction_result = run_auto_extraction(
+                    user_text=stripped,
+                    memory_manager=self.memory_manager,
+                    session_id=session_id,
+                )
+                if extraction_result.get("profile") or extraction_result.get("procedural") or extraction_result.get("episodic"):
+                    self.logger.log_input(session_id, f"[Memory] Auto-extracted: {extraction_result}")
+            except Exception as e:
+                self.logger.log_error(session_id, f"[Memory] auto_extraction error: {e}")
 
         # v0.7: Check if Working Memory can answer directly (reference questions)
         direct_answer = wm_answer_reference(session_id, stripped)
@@ -448,6 +500,29 @@ class NovaKernel:
         
         # v0.7: Get formatted context string for persona system prompt
         wm_context_string = wm_get_context_string(session_id)
+        
+        # ─────────────────────────────────────────────────────────────────
+        # v0.11.0: BUILD LTM CONTEXT (profile + relevant semantic memories)
+        # ─────────────────────────────────────────────────────────────────
+        ltm_context_string = ""
+        if _HAS_MEMORY_HELPERS:
+            try:
+                # Get current module from context manager
+                current_module = None
+                try:
+                    if self.context_manager:
+                        ctx = self.context_manager.get_context(session_id)
+                        current_module = ctx.get("current_module") if ctx else None
+                except Exception:
+                    pass
+                
+                ltm_context_string = build_ltm_context_for_persona(
+                    memory_manager=self.memory_manager,
+                    current_module=current_module,
+                    user_text=stripped,
+                )
+            except Exception as e:
+                self.logger.log_error(session_id, f"[Memory] LTM context build error: {e}")
         
         policy_meta = {
             "session_id": session_id,
@@ -464,11 +539,12 @@ class NovaKernel:
             except Exception as e:
                 self.logger.log_error(session_id, f"policy.pre_llm error (persona): {e}")
 
-        # Persona LLM call with NovaWM context
+        # Persona LLM call with NovaWM context + v0.11.0 LTM context
         reply = self.persona.generate_response(
             safe_input,
             session_id=session_id,
             wm_context_string=wm_context_string,
+            ltm_context_string=ltm_context_string,  # v0.11.0: LTM injection
             direct_answer=direct_answer,
         )
 

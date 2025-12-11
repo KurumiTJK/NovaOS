@@ -88,6 +88,14 @@ except ImportError:
     _HAS_TIME_RHYTHM = False
     def get_time_rhythm_handlers(): return {}
 
+# v0.11.0: Memory Syscommand Handlers
+try:
+    from .memory_syscommands import get_memory_syscommand_handlers
+    _HAS_MEMORY_SYSCOMMANDS = True
+except ImportError:
+    _HAS_MEMORY_SYSCOMMANDS = False
+    def get_memory_syscommand_handlers(): return {}
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -1449,3 +1457,7 @@ if _HAS_MODULE_MANAGER:
 # Time Rhythm handlers
 if _HAS_TIME_RHYTHM:
     SYS_HANDLERS.update(get_time_rhythm_handlers())
+
+# v0.11.0: Memory Syscommand handlers
+if _HAS_MEMORY_SYSCOMMANDS:
+    SYS_HANDLERS.update(get_memory_syscommand_handlers())

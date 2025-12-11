@@ -69,13 +69,18 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "memory": Section(
         title="Memory",
-        description="Lore & knowledge store (semantic/procedural/episodic).",
+        description="Long-term memory with auto-extraction, profile memories, keyword search, and decay. Say 'remember this' to save manually.",
         commands=[
             CommandInfo("store", "Store a memory item with tags", "#store type=semantic tags=work content=\"...\""),
             CommandInfo("recall", "Recall memory items by type and/or tags", "#recall tags=work"),
             CommandInfo("forget", "Forget memory items by id, tag, or type", "#forget id=123"),
             CommandInfo("trace", "Show lineage/trace info for a memory item", "#trace id=123"),
             CommandInfo("bind", "Bind multiple memory items into a cluster", "#bind ids=1,2,3"),
+            CommandInfo("profile", "View/edit/delete profile memories (identity & preferences)", "#profile"),
+            CommandInfo("memories", "Full memory management UI (list/view/edit/delete)", "#memories"),
+            CommandInfo("search-mem", "Search memories by keywords", "#search-mem query=\"Steven project\""),
+            CommandInfo("memory-maintain", "Run decay/archiving maintenance", "#memory-maintain"),
+            CommandInfo("session-end", "End session: save WM to LTM and clear", "#session-end"),
         ]
     ),
     "human_state": Section(

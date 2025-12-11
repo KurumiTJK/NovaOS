@@ -43,7 +43,22 @@ from kernel.nova_wm import (
     wm_record_response,
     wm_get_context_string,
     wm_answer_reference,
+    get_wm,
 )
+
+# v0.11.0: Memory Helpers (ChatGPT-style memory features)
+try:
+    from kernel.memory_helpers import (
+        handle_remember_intent,
+        build_ltm_context_for_persona,
+        run_auto_extraction,
+    )
+    _HAS_MEMORY_HELPERS = True
+except ImportError:
+    _HAS_MEMORY_HELPERS = False
+    def handle_remember_intent(*args, **kwargs): return None
+    def build_ltm_context_for_persona(*args, **kwargs): return ""
+    def run_auto_extraction(*args, **kwargs): return {}
 
 if TYPE_CHECKING:
     from kernel.nova_kernel import NovaKernel
@@ -282,23 +297,72 @@ def _handle_persona_mode(
     Handle input when NovaOS is OFF (Persona mode).
     
     Only #boot is recognized. Everything else is pure persona chat.
-    This behavior is UNCHANGED.
+    
+    v0.11.0: Added memory features (remember this, auto-extraction, LTM injection)
     """
     
     # Check for #boot command
     if _is_boot_command(message):
         return _activate_novaos(state, kernel, persona)
     
+    # ─────────────────────────────────────────────────────────────────────
+    # v0.11.0: "REMEMBER THIS" CHECK (short-circuit if detected)
+    # ─────────────────────────────────────────────────────────────────────
+    if _HAS_MEMORY_HELPERS:
+        try:
+            remember_response = handle_remember_intent(
+                user_text=message,
+                memory_manager=kernel.memory_manager,
+                session_id=state.session_id,
+                wm=get_wm(state.session_id),
+            )
+            if remember_response:
+                return {
+                    "text": remember_response,
+                    "mode": state.mode_name,
+                    "handled_by": "memory_remember_intent",
+                }
+        except Exception as e:
+            print(f"[ModeRouter] remember_intent error: {e}", flush=True)
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # v0.11.0: AUTO-EXTRACTION (profile, procedural, episodic)
+    # ─────────────────────────────────────────────────────────────────────
+    if _HAS_MEMORY_HELPERS:
+        try:
+            run_auto_extraction(
+                user_text=message,
+                memory_manager=kernel.memory_manager,
+                session_id=state.session_id,
+            )
+        except Exception as e:
+            print(f"[ModeRouter] auto_extraction error: {e}", flush=True)
+    
     # Working Memory updates
     direct_answer = wm_answer_reference(state.session_id, message)
     wm_update(state.session_id, message)
     wm_context_string = wm_get_context_string(state.session_id)
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # v0.11.0: BUILD LTM CONTEXT (profile + relevant semantic memories)
+    # ─────────────────────────────────────────────────────────────────────
+    ltm_context_string = ""
+    if _HAS_MEMORY_HELPERS:
+        try:
+            ltm_context_string = build_ltm_context_for_persona(
+                memory_manager=kernel.memory_manager,
+                current_module=None,  # No module context in pure Persona mode
+                user_text=message,
+            )
+        except Exception as e:
+            print(f"[ModeRouter] LTM context build error: {e}", flush=True)
     
     # Persona chat (normal conversational fallback)
     response_text = persona.generate_response(
         text=message,
         session_id=state.session_id,
         wm_context_string=wm_context_string,
+        ltm_context_string=ltm_context_string,  # v0.11.0: LTM injection
         direct_answer=direct_answer,
     )
     
