@@ -360,6 +360,7 @@ def _handle_persona_mode(
     # ─────────────────────────────────────────────────────────────────────
     # v0.11.0: BUILD LTM CONTEXT (profile + relevant semantic memories)
     # v0.11.0-fix1: Fixed parameter name (module_tag, not current_module)
+    # v0.11.0-fix6: Added logging to verify LTM injection
     # ─────────────────────────────────────────────────────────────────────
     ltm_context_string = ""
     if _HAS_MEMORY_HELPERS:
@@ -369,6 +370,13 @@ def _handle_persona_mode(
                 module_tag=None,      # FIXED: correct parameter name
                 user_text=message,    # Now accepted by patched function
             )
+            # v0.11.0-fix6: Log LTM injection for debugging
+            if ltm_context_string:
+                # Count memories injected (rough count by looking for markers)
+                mem_count = ltm_context_string.count("•") or ltm_context_string.count("-")
+                print(f"[ModeRouter] LTM injected: {len(ltm_context_string)} chars, ~{mem_count} memories", flush=True)
+            else:
+                print("[ModeRouter] LTM context empty (no memories retrieved)", flush=True)
         except Exception as e:
             print(f"[ModeRouter] LTM context build error: {e}", flush=True)
     

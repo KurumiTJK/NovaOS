@@ -171,9 +171,24 @@ def handle_why(cmd_name, args, session_id, context, kernel, meta) -> CommandResp
 
 
 def handle_boot(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Initialize NovaOS kernel and persona."""
+    """Initialize NovaOS kernel and persona.
+    
+    v0.11.0-fix6: Added auto-run memory decay on boot.
+    """
     kernel.context_manager.mark_booted(session_id)
-    summary = "NovaOS kernel booted. Persona loaded. Modules and memory initialized."
+    
+    # v0.11.0-fix6: Auto-run memory decay on boot
+    decay_summary = ""
+    try:
+        from kernel.memory_helpers import run_memory_decay
+        results = run_memory_decay(kernel.memory_manager)
+        total_changes = results.get("decayed_salience", 0) + results.get("marked_stale", 0) + results.get("archived", 0)
+        if total_changes > 0:
+            decay_summary = f" Memory maintenance: {total_changes} items processed."
+    except Exception as e:
+        print(f"[Boot] Memory decay error (non-fatal): {e}", flush=True)
+    
+    summary = f"NovaOS kernel booted. Persona loaded. Modules and memory initialized.{decay_summary}"
     return _base_response(cmd_name, summary)
 
 

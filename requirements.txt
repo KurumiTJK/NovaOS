@@ -20,6 +20,15 @@ flask>=3.0.0,<4.0.0
 python-dotenv>=1.0.0,<2.0.0
 
 # =============================================================================
+# MEMORY SYSTEM (v0.11.0)
+# =============================================================================
+
+# Sentence Transformers - used for semantic memory search
+# Provides embedding-based retrieval for better memory matching
+# Falls back gracefully to keyword search if not installed
+sentence-transformers>=2.2.0,<4.0.0
+
+# =============================================================================
 # OPTIONAL / DEV DEPENDENCIES (uncomment if needed)
 # =============================================================================
 

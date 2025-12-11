@@ -74,6 +74,35 @@ def _check_duplicate_profile_memory(
     
     Returns True if duplicate found, False otherwise.
     """
+    result = _check_duplicate_or_contradiction(memory_manager, payload, tag)
+    return result["is_duplicate"]
+
+
+def _check_duplicate_or_contradiction(
+    memory_manager: "MemoryManager",
+    payload: str,
+    tag: str,
+) -> Dict[str, Any]:
+    """
+    Check if a similar profile memory exists OR if it contradicts existing ones.
+    
+    v0.11.0-fix6: Enhanced to detect contradictions and handle updates.
+    
+    Returns:
+        {
+            "is_duplicate": bool,
+            "is_contradiction": bool,
+            "conflicting_memory_id": Optional[int],
+            "conflicting_payload": Optional[str],
+        }
+    """
+    result = {
+        "is_duplicate": False,
+        "is_contradiction": False,
+        "conflicting_memory_id": None,
+        "conflicting_payload": None,
+    }
+    
     try:
         # Get existing profile memories with this tag
         existing = memory_manager.recall(
@@ -84,22 +113,119 @@ def _check_duplicate_profile_memory(
         
         # Normalize for comparison
         payload_normalized = payload.lower().strip()
+        payload_words = set(payload_normalized.split())
+        
+        # Contradiction detection patterns for identity
+        # e.g., "I work at X" contradicts "I work at Y"
+        CONTRADICTION_PREFIXES = {
+            "profile:identity": [
+                r"(?:i\s+)?work(?:s|ed)?\s+(?:at|for)\s+",
+                r"(?:i\s+)?(?:am|'m)\s+(?:a|an)\s+",
+                r"my\s+name\s+is\s+",
+                r"(?:i\s+)?live(?:s|d)?\s+(?:in|at)\s+",
+                r"(?:i\s+)?(?:am|'m)\s+from\s+",
+            ],
+            "profile:preference": [
+                r"(?:i\s+)?prefer\s+",
+                r"(?:i\s+)?(?:don'?t\s+)?like\s+",
+                r"(?:i\s+)?(?:love|hate)\s+",
+            ],
+        }
         
         for item in existing:
-            if item.payload.lower().strip() == payload_normalized:
-                return True
-            # Also check for very similar content (80% overlap)
-            existing_words = set(item.payload.lower().split())
-            new_words = set(payload_normalized.split())
-            if existing_words and new_words:
-                overlap = len(existing_words & new_words) / max(len(existing_words), len(new_words))
+            item_payload = item.payload.lower().strip()
+            item_words = set(item_payload.split())
+            
+            # Check for exact duplicate
+            if item_payload == payload_normalized:
+                result["is_duplicate"] = True
+                return result
+            
+            # Check for high word overlap (likely duplicate)
+            if item_words and payload_words:
+                overlap = len(item_words & payload_words) / max(len(item_words), len(payload_words))
                 if overlap > 0.8:
-                    return True
+                    result["is_duplicate"] = True
+                    return result
+            
+            # Check for contradictions based on tag type
+            prefixes = CONTRADICTION_PREFIXES.get(tag, [])
+            for prefix_pattern in prefixes:
+                # Check if both old and new memory match the same prefix pattern
+                old_match = re.match(prefix_pattern, item_payload, re.IGNORECASE)
+                new_match = re.match(prefix_pattern, payload_normalized, re.IGNORECASE)
+                
+                if old_match and new_match:
+                    # Same type of statement but different content = contradiction
+                    # e.g., "I work at Google" vs "I work at Microsoft"
+                    old_suffix = item_payload[old_match.end():].strip()
+                    new_suffix = payload_normalized[new_match.end():].strip()
+                    
+                    if old_suffix != new_suffix and old_suffix and new_suffix:
+                        result["is_contradiction"] = True
+                        result["conflicting_memory_id"] = item.id
+                        result["conflicting_payload"] = item.payload
+                        logger.info(
+                            "Detected contradiction: '%s' vs '%s'",
+                            item.payload[:50], payload[:50]
+                        )
+                        return result
         
-        return False
+        return result
     except Exception as e:
-        logger.warning("Error checking duplicate profile memory: %s", e, exc_info=True)
-        return False  # Don't block on errors
+        logger.warning("Error checking duplicate/contradiction: %s", e, exc_info=True)
+        return result  # Return empty result on errors
+
+
+def _handle_contradiction(
+    memory_manager: "MemoryManager",
+    new_payload: str,
+    conflicting_memory_id: int,
+    tag: str,
+    module_tag: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Handle a contradiction by replacing the old memory with the new one.
+    
+    v0.11.0-fix6: Auto-update for profile contradictions.
+    
+    Args:
+        memory_manager: MemoryManager instance
+        new_payload: The new payload to store
+        conflicting_memory_id: ID of the conflicting memory to replace
+        tag: The profile tag
+        module_tag: Optional module context
+    
+    Returns:
+        Info dict about the update, or None on failure
+    """
+    try:
+        # Delete the old conflicting memory
+        memory_manager.forget(ids=[conflicting_memory_id])
+        logger.info("Deleted conflicting memory #%d for update", conflicting_memory_id)
+        
+        # Store the new memory
+        item = memory_manager.store(
+            payload=new_payload.strip(),
+            mem_type="semantic",
+            tags=[tag],
+            salience=0.9,  # Profile memories are important
+            trace={"source": "auto_profile_extraction", "pattern": "updated", "replaced_id": conflicting_memory_id},
+            module_tag=module_tag,
+        )
+        
+        logger.info("Stored updated profile memory #%d (replaced #%d)", item.id, conflicting_memory_id)
+        
+        return {
+            "id": item.id,
+            "payload": new_payload,
+            "tag": tag,
+            "action": "updated",
+            "replaced_id": conflicting_memory_id,
+        }
+    except Exception as e:
+        logger.warning("Error handling contradiction: %s", e, exc_info=True)
+        return None
 
 
 def maybe_extract_profile_memory(
@@ -113,6 +239,7 @@ def maybe_extract_profile_memory(
     
     - Conservative: better to under-save than over-save.
     - Avoid exact-duplicate entries.
+    - v0.11.0-fix6: Handle contradictions by updating existing memories.
     - Log successes at INFO and failures at WARNING.
     
     Args:
@@ -148,12 +275,25 @@ def maybe_extract_profile_memory(
                 
                 tag = "profile:identity"
                 
-                # Check for duplicates
-                if _check_duplicate_profile_memory(memory_manager, payload, tag):
+                # v0.11.0-fix6: Check for duplicates AND contradictions
+                check_result = _check_duplicate_or_contradiction(memory_manager, payload, tag)
+                
+                if check_result["is_duplicate"]:
                     logger.debug("Skipping duplicate profile memory: %s", payload[:50])
                     continue
                 
-                # Store
+                if check_result["is_contradiction"]:
+                    # Handle contradiction by updating
+                    update_result = _handle_contradiction(
+                        memory_manager, payload, 
+                        check_result["conflicting_memory_id"],
+                        tag, module_tag
+                    )
+                    if update_result:
+                        stored.append(update_result)
+                    continue
+                
+                # Store new memory
                 try:
                     item = memory_manager.store(
                         payload=payload,
@@ -188,12 +328,25 @@ def maybe_extract_profile_memory(
                 
                 tag = "profile:preference"
                 
-                # Check for duplicates
-                if _check_duplicate_profile_memory(memory_manager, payload, tag):
+                # v0.11.0-fix6: Check for duplicates AND contradictions
+                check_result = _check_duplicate_or_contradiction(memory_manager, payload, tag)
+                
+                if check_result["is_duplicate"]:
                     logger.debug("Skipping duplicate profile memory: %s", payload[:50])
                     continue
                 
-                # Store
+                if check_result["is_contradiction"]:
+                    # Handle contradiction by updating
+                    update_result = _handle_contradiction(
+                        memory_manager, payload,
+                        check_result["conflicting_memory_id"],
+                        tag, module_tag
+                    )
+                    if update_result:
+                        stored.append(update_result)
+                    continue
+                
+                # Store new memory
                 try:
                     item = memory_manager.store(
                         payload=payload,
@@ -548,6 +701,9 @@ def build_ltm_context_for_persona(
     - Now accepts both `module_tag` and `current_module` parameters
     - Added `user_text` parameter for future semantic search
     
+    PATCHED v0.11.0-fix6:
+    - Touch memories on retrieval (update last_used_at)
+    
     Args:
         memory_manager: MemoryManager instance
         module_tag: Optional current module for scoped retrieval
@@ -562,24 +718,77 @@ def build_ltm_context_for_persona(
     
     try:
         profile_memories = get_profile_memories(memory_manager, limit=10)
-        semantic_memories = get_relevant_semantic_memories(
-            memory_manager, 
-            module_tag=effective_module,
-            limit=5
-        )
+        
+        # v0.11.0-fix6: Use semantic search if user_text provided and embeddings available
+        if user_text and _check_embeddings_available():
+            semantic_memories = get_relevant_semantic_memories_v2(
+                memory_manager,
+                user_text=user_text,
+                module_tag=effective_module,
+                limit=5
+            )
+        else:
+            semantic_memories = get_relevant_semantic_memories(
+                memory_manager, 
+                module_tag=effective_module,
+                limit=5
+            )
+        
+        # v0.11.0-fix6: Touch memories that are being used (update last_used_at)
+        all_used_memories = profile_memories + semantic_memories
+        _touch_memories(memory_manager, all_used_memories)
         
         context = format_ltm_context(profile_memories, semantic_memories)
         
         if context:
             logger.debug(
-                "LTM context: %d profile memories, %d semantic memories",
-                len(profile_memories), len(semantic_memories)
+                "LTM context: %d profile memories, %d semantic memories (touched, semantic=%s)",
+                len(profile_memories), len(semantic_memories), 
+                user_text is not None and _check_embeddings_available()
             )
         
         return context
     except Exception as e:
         logger.warning("Error building LTM context: %s", e, exc_info=True)
         return ""
+
+
+def _touch_memories(memory_manager: "MemoryManager", memories: List[Any]) -> int:
+    """
+    Update last_used_at for retrieved memories.
+    
+    v0.11.0-fix6: Touching memories prevents them from decaying.
+    
+    Args:
+        memory_manager: MemoryManager instance
+        memories: List of memory items to touch
+    
+    Returns:
+        Number of memories successfully touched
+    """
+    touched = 0
+    now = datetime.now(timezone.utc).isoformat()
+    
+    for item in memories:
+        try:
+            mem_id = getattr(item, 'id', None)
+            if mem_id is not None:
+                # Try to update via engine directly
+                if hasattr(memory_manager, '_engine'):
+                    engine = memory_manager._engine
+                    engine_item = engine.index.get(mem_id)
+                    if engine_item:
+                        engine_item.last_used_at = now
+                        engine.long_term.update(engine_item)
+                        engine.index.update(engine_item)
+                        touched += 1
+        except Exception as e:
+            logger.debug("Failed to touch memory #%s: %s", getattr(item, 'id', '?'), e)
+    
+    if touched > 0:
+        logger.debug("Touched %d memories (updated last_used_at)", touched)
+    
+    return touched
 
 
 # =============================================================================
@@ -706,18 +915,12 @@ def run_memory_decay(
     now: Optional[datetime] = None,
 ) -> Dict[str, int]:
     """
-    Apply simple decay rules to long-term memories.
+    Apply decay rules to long-term memories using MemoryLifecycle.
     
-    Rules:
-    - For status == "active":
-      - If last_used_at is None and created_at > 60 days ago:
-        - salience *= 0.7
-      - If last_used_at exists and last_used_at > 90 days ago:
-        - status = "stale"
-    
-    - For status == "stale":
-      - If salience < 0.2:
-        - status = "archived"
+    v0.11.0-fix6 IMPROVEMENTS:
+    - Uses MemoryLifecycle class for proper exponential decay
+    - Protects profile memories (higher min_salience)
+    - Different decay rates by memory type (episodic fastest, procedural slowest)
     
     Args:
         memory_manager: MemoryManager instance
@@ -728,6 +931,7 @@ def run_memory_decay(
             "decayed_salience": X,
             "marked_stale": Y,
             "archived": Z,
+            "profile_protected": P,
             "errors": W,
         }
     
@@ -740,10 +944,23 @@ def run_memory_decay(
         "decayed_salience": 0,
         "marked_stale": 0,
         "archived": 0,
+        "profile_protected": 0,
         "errors": 0,
     }
     
     try:
+        # Import MemoryLifecycle
+        try:
+            from kernel.memory_lifecycle import MemoryLifecycle, DecayConfig
+            
+            # Custom config with profile protection
+            config = DecayConfig()
+            lifecycle = MemoryLifecycle(config)
+            use_lifecycle = True
+        except ImportError:
+            logger.warning("MemoryLifecycle not available, using fallback decay")
+            use_lifecycle = False
+        
         # Get all memories
         all_active = memory_manager.recall(status="active", limit=1000)
         all_stale = memory_manager.recall(status="stale", limit=1000)
@@ -751,42 +968,66 @@ def run_memory_decay(
         # Process active memories
         for item in all_active:
             try:
-                # Parse timestamp
-                created_at = None
-                if hasattr(item, 'timestamp') and item.timestamp:
-                    try:
-                        created_at = datetime.fromisoformat(item.timestamp.replace('Z', '+00:00'))
-                    except ValueError:
-                        pass
-                
-                # Parse last_used_at
-                last_used_at = None
-                trace = getattr(item, 'trace', {}) or {}
-                if hasattr(item, 'last_used_at') and item.last_used_at:
-                    try:
-                        last_used_at = datetime.fromisoformat(item.last_used_at.replace('Z', '+00:00'))
-                    except ValueError:
-                        pass
-                
+                tags = getattr(item, 'tags', []) or []
                 current_salience = getattr(item, 'salience', 0.5) or 0.5
+                mem_type = getattr(item, 'type', 'semantic')
                 
-                # Rule 1: Decay salience for never-used old memories
-                if last_used_at is None and created_at:
-                    days_old = (now - created_at).days
-                    if days_old > 60:
-                        new_salience = max(0.1, current_salience * 0.7)
-                        if new_salience != current_salience:
-                            memory_manager.update_salience(item.id, new_salience)
-                            results["decayed_salience"] += 1
-                            logger.debug("Decayed salience for memory #%d: %.2f -> %.2f", item.id, current_salience, new_salience)
+                # v0.11.0-fix6: Profile memory protection
+                is_profile = any(t.startswith("profile:") for t in tags)
+                if is_profile:
+                    # Profile memories have higher minimum salience (never go below 0.5)
+                    min_salience_for_item = 0.5
+                    results["profile_protected"] += 1
+                else:
+                    min_salience_for_item = 0.01
                 
-                # Rule 2: Mark stale for long-unused memories
-                if last_used_at:
-                    days_unused = (now - last_used_at).days
-                    if days_unused > 90:
+                # Parse timestamps
+                created_at = getattr(item, 'timestamp', None)
+                last_used_at = getattr(item, 'last_used_at', None)
+                
+                if use_lifecycle:
+                    # Use MemoryLifecycle for proper exponential decay
+                    new_salience = lifecycle.calculate_decay(
+                        memory_type=mem_type,
+                        original_salience=current_salience,
+                        last_used_at=last_used_at,
+                        created_at=created_at or now.isoformat(),
+                    )
+                    
+                    # Apply profile protection floor
+                    new_salience = max(new_salience, min_salience_for_item)
+                    
+                    # Get recommended status
+                    if not is_profile:  # Don't change profile memory status
+                        recommended_status = lifecycle.get_recommended_status(new_salience)
+                    else:
+                        recommended_status = "active"  # Profile always stays active
+                    
+                    # Apply salience change
+                    if abs(new_salience - current_salience) > 0.01:
+                        memory_manager.update_salience(item.id, new_salience)
+                        results["decayed_salience"] += 1
+                        logger.debug("Decayed memory #%d: %.2f -> %.2f (%s)", 
+                                     item.id, current_salience, new_salience, mem_type)
+                    
+                    # Apply status change
+                    if recommended_status == "stale" and not is_profile:
                         memory_manager.update_status(item.id, "stale")
                         results["marked_stale"] += 1
-                        logger.debug("Marked memory #%d as stale (unused for %d days)", item.id, days_unused)
+                        logger.debug("Marked memory #%d as stale", item.id)
+                else:
+                    # Fallback: Simple decay logic
+                    if created_at:
+                        try:
+                            created_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                            days_old = (now - created_dt).days
+                            if days_old > 60 and not is_profile:
+                                new_salience = max(min_salience_for_item, current_salience * 0.7)
+                                if new_salience != current_salience:
+                                    memory_manager.update_salience(item.id, new_salience)
+                                    results["decayed_salience"] += 1
+                        except ValueError:
+                            pass
                         
             except Exception as e:
                 logger.warning("Error processing active memory #%d: %s", item.id, e, exc_info=True)
@@ -795,9 +1036,17 @@ def run_memory_decay(
         # Process stale memories
         for item in all_stale:
             try:
+                tags = getattr(item, 'tags', []) or []
                 current_salience = getattr(item, 'salience', 0.5) or 0.5
                 
-                # Rule 3: Archive very low salience stale memories
+                # Profile memories should never be stale, restore them
+                is_profile = any(t.startswith("profile:") for t in tags)
+                if is_profile:
+                    memory_manager.update_status(item.id, "active")
+                    results["profile_protected"] += 1
+                    continue
+                
+                # Archive very low salience stale memories
                 if current_salience < 0.2:
                     memory_manager.update_status(item.id, "archived")
                     results["archived"] += 1
@@ -808,9 +1057,9 @@ def run_memory_decay(
                 results["errors"] += 1
         
         logger.info(
-            "Memory decay complete: decayed=%d, stale=%d, archived=%d, errors=%d",
+            "Memory decay complete: decayed=%d, stale=%d, archived=%d, profile_protected=%d, errors=%d",
             results["decayed_salience"], results["marked_stale"], 
-            results["archived"], results["errors"]
+            results["archived"], results["profile_protected"], results["errors"]
         )
         
     except Exception as e:
@@ -1017,6 +1266,11 @@ def maybe_extract_episodic_memory(
 # COMBINED AUTO-EXTRACTION ENTRY POINT
 # =============================================================================
 
+# v0.11.0-fix6: Counter for periodic decay
+_extraction_call_count = 0
+_DECAY_EVERY_N_CALLS = 50  # Run decay every 50 messages
+
+
 def run_auto_extraction(
     user_text: str,
     memory_manager: "MemoryManager",
@@ -1027,6 +1281,8 @@ def run_auto_extraction(
     
     This is the main entry point called from the kernel on each message.
     
+    v0.11.0-fix6: Added periodic background decay every N calls.
+    
     Args:
         user_text: User's message
         memory_manager: MemoryManager instance
@@ -1035,13 +1291,17 @@ def run_auto_extraction(
     Returns:
         Dict summarizing what was extracted
     """
+    global _extraction_call_count
+    
     results = {
         "profile": [],
         "procedural": None,
         "episodic": None,
+        "llm_extracted": [],
+        "decay_ran": False,
     }
     
-    # Profile extraction
+    # Profile extraction (regex-based)
     profile_results = maybe_extract_profile_memory(user_text, memory_manager, module_tag)
     if profile_results:
         results["profile"] = profile_results
@@ -1055,6 +1315,46 @@ def run_auto_extraction(
     epis_result = maybe_extract_episodic_memory(user_text, memory_manager, module_tag)
     if epis_result:
         results["episodic"] = epis_result
+    
+    # v0.11.0-fix6: LLM fallback when regex found nothing useful
+    # Only try LLM if:
+    # 1. No profile memories were extracted
+    # 2. Message is substantial (>30 chars)
+    # 3. Message looks like it might contain personal info
+    if not profile_results and len(user_text) > 30:
+        # Check if message might contain personal facts
+        personal_indicators = [
+            "i ", "i'm", "my ", "i am", "i work", "i live", "i like", "i prefer",
+            "i have", "i want", "i need", "my name", "my job", "my goal",
+        ]
+        text_lower = user_text.lower()
+        might_have_facts = any(ind in text_lower for ind in personal_indicators)
+        
+        if might_have_facts:
+            try:
+                llm_results = llm_extract_facts(user_text, memory_manager, module_tag)
+                if llm_results:
+                    results["llm_extracted"] = llm_results
+                    logger.info("LLM fallback extracted %d facts", len(llm_results))
+            except Exception as e:
+                logger.debug("LLM fallback failed (non-fatal): %s", e)
+    
+    # v0.11.0-fix6: Periodic background decay
+    _extraction_call_count += 1
+    if _extraction_call_count >= _DECAY_EVERY_N_CALLS:
+        _extraction_call_count = 0
+        try:
+            decay_results = run_memory_decay(memory_manager)
+            total_changes = (
+                decay_results.get("decayed_salience", 0) +
+                decay_results.get("marked_stale", 0) +
+                decay_results.get("archived", 0)
+            )
+            if total_changes > 0:
+                logger.info("Background decay processed %d memories", total_changes)
+                results["decay_ran"] = True
+        except Exception as e:
+            logger.debug("Background decay error (non-fatal): %s", e)
     
     return results
 
@@ -1089,4 +1389,366 @@ __all__ = [
     "maybe_extract_procedural_memory",
     "maybe_extract_episodic_memory",
     "run_auto_extraction",
+    
+    # v0.11.0-fix6: LLM and embedding features
+    "llm_extract_facts",
+    "semantic_search_memories",
 ]
+
+
+# =============================================================================
+# FIX 3: LLM EXTRACTION FALLBACK
+# =============================================================================
+
+# Cache for LLM client to avoid repeated initialization
+_llm_client_cache = None
+
+
+def _get_llm_client():
+    """Get or create LLM client for extraction."""
+    global _llm_client_cache
+    if _llm_client_cache is not None:
+        return _llm_client_cache
+    
+    try:
+        from backend.llm_client import LLMClient
+        _llm_client_cache = LLMClient()
+        return _llm_client_cache
+    except Exception as e:
+        logger.debug("LLM client not available: %s", e)
+        return None
+
+
+def llm_extract_facts(
+    user_text: str,
+    memory_manager: "MemoryManager",
+    module_tag: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Use LLM to extract personal facts when regex patterns fail.
+    
+    v0.11.0-fix6: LLM fallback for smarter extraction.
+    
+    This is called when regex extraction finds nothing but the message
+    might still contain useful information.
+    
+    Args:
+        user_text: User's message
+        memory_manager: MemoryManager instance
+        module_tag: Optional module context
+    
+    Returns:
+        List of extracted and stored memory dicts
+    """
+    if not user_text or len(user_text) < 20:
+        return []
+    
+    # Skip if text is a question or command
+    text_lower = user_text.lower().strip()
+    if text_lower.startswith(('#', '?', 'what', 'how', 'why', 'when', 'where', 'who', 'can you', 'could you')):
+        return []
+    
+    client = _get_llm_client()
+    if not client:
+        return []
+    
+    stored = []
+    
+    try:
+        # Use a cheap/fast model for extraction
+        extraction_prompt = """Extract personal facts from this message. Return JSON only.
+
+Categories:
+- identity: name, job title, employer, location, age, education
+- preference: likes, dislikes, preferences, communication style
+- goal: objectives, projects, learning goals
+
+If no personal facts found, return: {"facts": []}
+
+Otherwise return:
+{"facts": [{"category": "identity|preference|goal", "fact": "extracted fact"}]}
+
+Message: "{text}"
+
+JSON response:"""
+
+        response = client.chat(
+            messages=[{"role": "user", "content": extraction_prompt.format(text=user_text[:500])}],
+            system_prompt="You extract personal facts from messages. Return valid JSON only, no explanation.",
+            model="gpt-4.1-mini",  # Use fast/cheap model
+            max_tokens=200,
+            command="llm_extract_facts",
+        )
+        
+        response_text = response.get("content", "") or response.get("text", "")
+        
+        # Parse JSON response
+        import json
+        
+        # Clean up response (remove markdown if present)
+        response_text = response_text.strip()
+        if response_text.startswith("```"):
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+        response_text = response_text.strip()
+        
+        try:
+            data = json.loads(response_text)
+            facts = data.get("facts", [])
+        except json.JSONDecodeError:
+            logger.debug("LLM extraction returned invalid JSON: %s", response_text[:100])
+            return []
+        
+        # Store each extracted fact
+        for fact_item in facts:
+            if not isinstance(fact_item, dict):
+                continue
+            
+            category = fact_item.get("category", "").lower()
+            fact = fact_item.get("fact", "").strip()
+            
+            if not fact or len(fact) < 10:
+                continue
+            
+            # Map category to tag
+            if category == "identity":
+                tag = "profile:identity"
+            elif category == "preference":
+                tag = "profile:preference"
+            elif category == "goal":
+                tag = "profile:goal"
+            else:
+                tag = "profile:general"
+            
+            # Check for duplicates/contradictions
+            check_result = _check_duplicate_or_contradiction(memory_manager, fact, tag)
+            
+            if check_result["is_duplicate"]:
+                continue
+            
+            if check_result["is_contradiction"]:
+                update_result = _handle_contradiction(
+                    memory_manager, fact,
+                    check_result["conflicting_memory_id"],
+                    tag, module_tag
+                )
+                if update_result:
+                    stored.append(update_result)
+                continue
+            
+            # Store new fact
+            try:
+                item = memory_manager.store(
+                    payload=fact,
+                    mem_type="semantic",
+                    tags=[tag],
+                    salience=0.85,  # Slightly lower than regex extraction
+                    trace={"source": "llm_extraction"},
+                    module_tag=module_tag,
+                )
+                logger.info("LLM extracted fact: id=%d tag=%s fact='%s'", item.id, tag, fact[:50])
+                stored.append({"id": item.id, "tag": tag, "payload": fact, "source": "llm"})
+            except Exception as e:
+                logger.warning("Failed to store LLM-extracted fact: %s", e)
+        
+        return stored
+        
+    except Exception as e:
+        logger.debug("LLM extraction failed (non-fatal): %s", e)
+        return []
+
+
+# =============================================================================
+# FIX 4: EMBEDDING-BASED SEMANTIC SEARCH
+# =============================================================================
+
+# Cache for embedding model
+_embedding_model_cache = None
+_embeddings_available = None
+
+
+def _check_embeddings_available() -> bool:
+    """Check if sentence-transformers is available."""
+    global _embeddings_available
+    if _embeddings_available is not None:
+        return _embeddings_available
+    
+    try:
+        from sentence_transformers import SentenceTransformer
+        _embeddings_available = True
+        return True
+    except ImportError:
+        _embeddings_available = False
+        logger.info("sentence-transformers not installed - using keyword search fallback")
+        return False
+
+
+def _get_embedding_model():
+    """Get or create embedding model (lazy loading)."""
+    global _embedding_model_cache
+    
+    if not _check_embeddings_available():
+        return None
+    
+    if _embedding_model_cache is not None:
+        return _embedding_model_cache
+    
+    try:
+        from sentence_transformers import SentenceTransformer
+        # Use a small, fast model
+        _embedding_model_cache = SentenceTransformer('all-MiniLM-L6-v2')
+        logger.info("Loaded embedding model: all-MiniLM-L6-v2")
+        return _embedding_model_cache
+    except Exception as e:
+        logger.warning("Failed to load embedding model: %s", e)
+        return None
+
+
+def _compute_embedding(text: str) -> Optional[List[float]]:
+    """Compute embedding for text."""
+    model = _get_embedding_model()
+    if model is None:
+        return None
+    
+    try:
+        embedding = model.encode(text, convert_to_numpy=True)
+        return embedding.tolist()
+    except Exception as e:
+        logger.debug("Failed to compute embedding: %s", e)
+        return None
+
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    """Compute cosine similarity between two vectors."""
+    import math
+    
+    dot_product = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    
+    return dot_product / (norm_a * norm_b)
+
+
+def semantic_search_memories(
+    query: str,
+    memory_manager: "MemoryManager",
+    limit: int = 10,
+    min_similarity: float = 0.3,
+    mem_type: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+) -> List[Tuple[Any, float]]:
+    """
+    Search memories using semantic similarity (embeddings).
+    
+    v0.11.0-fix6: Embedding-based search for better retrieval.
+    
+    Falls back to keyword search if sentence-transformers is not available.
+    
+    Args:
+        query: Search query
+        memory_manager: MemoryManager instance
+        limit: Maximum results to return
+        min_similarity: Minimum cosine similarity threshold
+        mem_type: Optional filter by memory type
+        tags: Optional filter by tags
+    
+    Returns:
+        List of (memory_item, similarity_score) tuples, sorted by score descending
+    """
+    if not query or not memory_manager:
+        return []
+    
+    # Try embedding-based search first
+    if _check_embeddings_available():
+        query_embedding = _compute_embedding(query)
+        
+        if query_embedding is not None:
+            try:
+                # Get all candidate memories
+                candidates = memory_manager.recall(
+                    mem_type=mem_type,
+                    tags=tags,
+                    limit=500,  # Get more candidates for semantic filtering
+                )
+                
+                scored_results = []
+                
+                for item in candidates:
+                    payload = getattr(item, 'payload', '') or ''
+                    if not payload:
+                        continue
+                    
+                    # Check if item has cached embedding
+                    trace = getattr(item, 'trace', {}) or {}
+                    cached_embedding = trace.get('embedding')
+                    
+                    if cached_embedding:
+                        item_embedding = cached_embedding
+                    else:
+                        # Compute embedding on the fly
+                        item_embedding = _compute_embedding(payload)
+                        if item_embedding is None:
+                            continue
+                    
+                    # Compute similarity
+                    similarity = _cosine_similarity(query_embedding, item_embedding)
+                    
+                    if similarity >= min_similarity:
+                        scored_results.append((item, similarity))
+                
+                # Sort by similarity descending
+                scored_results.sort(key=lambda x: x[1], reverse=True)
+                
+                logger.debug("Semantic search found %d results for '%s'", len(scored_results[:limit]), query[:30])
+                return scored_results[:limit]
+                
+            except Exception as e:
+                logger.debug("Semantic search failed, falling back to keywords: %s", e)
+    
+    # Fallback to keyword search
+    return search_by_keywords(query, memory_manager, limit=limit)
+
+
+def get_relevant_semantic_memories_v2(
+    memory_manager: "MemoryManager",
+    user_text: Optional[str] = None,
+    module_tag: Optional[str] = None,
+    limit: int = 5,
+) -> List[Any]:
+    """
+    Get semantically relevant memories for the current context.
+    
+    v0.11.0-fix6: Uses embedding search when user_text is provided.
+    
+    Args:
+        memory_manager: MemoryManager instance
+        user_text: Optional user text for semantic matching
+        module_tag: Optional module for scoping
+        limit: Maximum memories to return
+    
+    Returns:
+        List of relevant memory items
+    """
+    if user_text and _check_embeddings_available():
+        # Use semantic search
+        results = semantic_search_memories(
+            query=user_text,
+            memory_manager=memory_manager,
+            limit=limit,
+            min_similarity=0.35,
+            mem_type="semantic",
+        )
+        # Extract just the items (not scores)
+        memories = [item for item, score in results]
+        
+        # Touch these memories since they're being used
+        _touch_memories(memory_manager, memories)
+        
+        return memories
+    else:
+        # Fallback to basic retrieval
+        return get_relevant_semantic_memories(memory_manager, module_tag=module_tag, limit=limit)
