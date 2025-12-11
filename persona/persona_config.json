@@ -59,6 +59,7 @@
     "therapist_phrases": ["I hear you're feeling...", "How does that make you feel?", "Let's unpack that."],
     "os_robot_phrases": ["processing", "systems", "As an AI...", "Great question!"],
     "slang_phrases": ["lowkey", "vibes", "slay", "no cap", "bestie", "bruh"],
-    "gushing_phrases": ["OMG", "SO proud of you!!!", "That's AMAZING!!!"]
+    "gushing_phrases": ["OMG", "SO proud of you!!!", "That's AMAZING!!!"],
+    "overused_presence": ["I'm here", "I'm here for you", "I'm here with you"]
   }
 }
