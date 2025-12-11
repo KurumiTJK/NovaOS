@@ -45,11 +45,6 @@
     "category": "section",
     "description": "Open the HUMAN STATE section menu"
   },
-  "modules-section": {
-    "handler": "handle_section_modules",
-    "category": "section",
-    "description": "Open the MODULES (Regions) section menu"
-  },
   "identity": {
     "handler": "handle_section_identity",
     "category": "section",
@@ -236,24 +231,39 @@
   },
 
   "modules": {
-    "handler": "handle_modules",
-    "category": "modules",
-    "description": "List all modules/regions."
+    "handler": "handle_section_modules",
+    "category": "section",
+    "description": "Open the MODULES section menu"
   },
-  "map": {
-    "handler": "handle_map",
+  "modules-list": {
+    "handler": "handle_modules_list",
     "category": "modules",
-    "description": "Display the world map of modules."
+    "description": "List all modules with status, phase, and Domain Level."
   },
-  "module-create": {
-    "handler": "handle_module_create",
+  "modules-show": {
+    "handler": "handle_modules_show",
     "category": "modules",
-    "description": "Create a new module/region."
+    "description": "Show details for a specific module."
   },
-  "module-delete": {
-    "handler": "handle_module_delete",
+  "modules-add": {
+    "handler": "handle_modules_add",
     "category": "modules",
-    "description": "Delete a module/region."
+    "description": "Create a new module."
+  },
+  "modules-update": {
+    "handler": "handle_modules_update",
+    "category": "modules",
+    "description": "Update module metadata (status, phase, description, tags)."
+  },
+  "modules-archive": {
+    "handler": "handle_modules_archive",
+    "category": "modules",
+    "description": "Archive a module (keep history, remove from active focus)."
+  },
+  "modules-delete": {
+    "handler": "handle_modules_delete",
+    "category": "modules",
+    "description": "Delete a module (hard removal, with safety checks)."
   },
 
   "env": {

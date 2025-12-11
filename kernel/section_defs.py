@@ -12,6 +12,12 @@ v0.11.0 CHANGES:
 - Updated timerhythm: removed pulse, presence, align; added daily-review
 - Section count: 13 -> 11
 
+v2.0.0 MODULES UPDATE:
+- Refactored modules section with new commands per spec
+- Added: modules-list, modules-show, modules-add, modules-update, modules-archive, modules-delete
+- Modules are the "world map" of NovaOS life areas
+- XP lives in Identity, modules are structural metadata only
+
 Sections:
 1. core          — Nova's heart & OS control center
 2. memory        — Lore / knowledge store
@@ -94,12 +100,14 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "modules": Section(
         title="Modules",
-        description="Regions/domains on the world map. User-created, no defaults.",
+        description="World map: regions of your life (Cybersecurity, Business, Health, etc.). Modules are structural metadata; XP lives in Identity.",
         commands=[
-            CommandInfo("modules", "List all modules/regions", "#modules"),
-            CommandInfo("module-create", "Create a new module/region", "#module-create id=\"cyber\" name=\"Cybersecurity\""),
-            CommandInfo("module-delete", "Delete a module/region", "#module-delete cyber"),
-            CommandInfo("module-inspect", "Inspect a module's details", "#module-inspect cyber"),
+            CommandInfo("modules-list", "List all modules with status, phase, and Domain Level", "#modules-list"),
+            CommandInfo("modules-add", "Create a new module", '#modules-add name="Cybersecurity" category=career'),
+            CommandInfo("modules-show", "Show details for a specific module", "#modules-show name=Cybersecurity"),
+            CommandInfo("modules-update", "Update module metadata (status, phase, description, tags)", "#modules-update name=Cybersecurity phase=growth"),
+            CommandInfo("modules-archive", "Archive a module (keep history, remove from active focus)", "#modules-archive name=Cybersecurity"),
+            CommandInfo("modules-delete", "Delete a module (hard removal, with safety checks)", "#modules-delete name=Cybersecurity"),
         ]
     ),
     "identity": Section(

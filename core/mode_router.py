@@ -241,9 +241,37 @@ def _route_to_interactive_session(
     
     elif wizard_type == "generic-wizard":
         try:
-            from kernel.wizard_mode import process_wizard_input
+            from kernel.wizard_mode import process_wizard_input, build_command_args_from_wizard
             result = process_wizard_input(session_id, message)
             if result:
+                # v1.0.0: Check if wizard completed - if so, execute the command
+                if result.get("extra", {}).get("wizard_complete"):
+                    target_cmd = result["extra"]["target_command"]
+                    collected = result["extra"]["collected_args"]
+                    args_dict = build_command_args_from_wizard(target_cmd, collected)
+                    
+                    print(f"[ModeRouter] Wizard complete, executing: {target_cmd} with args={args_dict}", flush=True)
+                    
+                    # Execute the command through the kernel
+                    from kernel.command_types import CommandRequest
+                    request = CommandRequest(
+                        cmd_name=target_cmd,
+                        args=args_dict,
+                        session_id=session_id,
+                        raw_text=message,
+                        meta=kernel.commands.get(target_cmd),
+                    )
+                    response = kernel.router.route(request, kernel=kernel)
+                    
+                    return {
+                        "text": response.summary if response.summary else "Command executed.",
+                        "ok": response.ok,
+                        "command": target_cmd,
+                        "data": response.data if hasattr(response, 'data') else {},
+                        "handled_by": "generic-wizard-complete",
+                    }
+                
+                # Wizard still in progress
                 return {
                     "text": result.get("summary", ""),
                     "ok": result.get("ok", True),
@@ -253,6 +281,8 @@ def _route_to_interactive_session(
                 }
         except Exception as e:
             print(f"[ModeRouter] generic wizard error: {e}", flush=True)
+            import traceback
+            traceback.print_exc()
             return None
     
     return None

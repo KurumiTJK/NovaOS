@@ -72,10 +72,12 @@ except ImportError:
 
 # Module Manager
 try:
-    from .module_handlers import get_module_handlers
+    from .module_manager import get_module_handlers
     _HAS_MODULE_MANAGER = True
-except ImportError:
+    print("[syscommands] Module manager loaded successfully", flush=True)
+except ImportError as e:
     _HAS_MODULE_MANAGER = False
+    print(f"[syscommands] Module manager import FAILED: {e}", flush=True)
     def get_module_handlers(): return {}
 
 # v0.11.0: Assistant Mode removed
