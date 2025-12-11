@@ -35,32 +35,111 @@ logger = logging.getLogger("nova.memory")
 
 # Identity patterns — stored as profile:identity
 # PATCHED v0.11.0-fix2: Changed regex to stop at period or end-of-string only (not comma)
+# PATCHED v0.11.0-fix7: Added many more patterns for robust extraction
 IDENTITY_PATTERNS = [
+    # Name patterns
     (r"\bmy name is\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)", "name"),
     (r"\bi(?:'m| am)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b", "name"),
-    (r"\bi work at\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bcall me\s+([A-Z][a-z]+)", "name"),
+    (r"\bpeople call me\s+([A-Z][a-z]+)", "name"),
+    (r"\bmy friends call me\s+([A-Z][a-z]+)", "name"),
+    
+    # Role + Employer combined (most specific - check first)
     (r"\bi(?:'m| am) (?:a|an)\s+(.+?)\s+at\s+(.+?)(?:\.|$)", "role_employer"),
-    (r"\bi(?:'m| am) currently working as\s+(?:a|an)?\s*(.+?)(?:\.|$)", "role"),
-    (r"\bmy (?:long-term )?goal is\s+(.+?)(?:\.|$)", "goal"),
+    (r"\bi work as\s+(?:a|an)?\s*(.+?)\s+at\s+(.+?)(?:\.|$)", "role_employer"),
+    (r"\bi(?:'m| am) (?:a|an)\s+(.+?)\s+(?:for|with)\s+(.+?)(?:\.|$)", "role_employer"),
+    (r"\bi work as\s+(?:a|an)?\s*(.+?)\s+(?:for|with)\s+(.+?)(?:\.|$)", "role_employer"),
+    
+    # Employer patterns
+    (r"\bi work (?:at|for)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'m| am) (?:employed|working) (?:at|for|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'ve| have) been working (?:at|for)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi just (?:started|joined|got a job) (?:at|for|with)\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bmy (?:company|employer|workplace) is\s+(.+?)(?:\.|$)", "employer"),
+    (r"\bi(?:'m| am) with\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)(?:\.|$)", "employer"),
+    
+    # Role/job patterns
+    (r"\bi work as\s+(?:a|an)?\s*(.+?)(?:\.|$)", "role"),
     (r"\bi(?:'m| am) (?:a|an)\s+(.+?)(?:\.|$)", "role"),
+    (r"\bi(?:'m| am) currently working as\s+(?:a|an)?\s*(.+?)(?:\.|$)", "role"),
+    (r"\bmy job is\s+(.+?)(?:\.|$)", "role"),
+    (r"\bmy role is\s+(.+?)(?:\.|$)", "role"),
+    (r"\bmy title is\s+(.+?)(?:\.|$)", "role"),
+    (r"\bi(?:'m| am) currently (?:a|an)\s+(.+?)(?:\.|$)", "role"),
+    (r"\bmy profession is\s+(.+?)(?:\.|$)", "role"),
+    (r"\bi do\s+(.+?)\s+for (?:a living|work)(?:\.|$)", "role"),
+    
+    # Background/expertise patterns  
+    (r"\bmy background is (?:in\s+)?(.+?)(?:\.|$)", "background"),
+    (r"\bi specialize in\s+(.+?)(?:\.|$)", "expertise"),
+    (r"\bmy expertise is (?:in\s+)?(.+?)(?:\.|$)", "expertise"),
+    (r"\bi(?:'m| am) (?:an? )?expert in\s+(.+?)(?:\.|$)", "expertise"),
+    (r"\bi(?:'ve| have) been doing\s+(.+?)\s+for\s+(\d+)\s+years", "experience"),
+    (r"\bi have\s+(\d+)\s+years (?:of )?experience in\s+(.+?)(?:\.|$)", "experience"),
+    
+    # Location patterns
     (r"\bi live in\s+(.+?)(?:\.|$)", "location"),
+    (r"\bi(?:'m| am) based (?:in|out of)\s+(.+?)(?:\.|$)", "location"),
+    (r"\bi(?:'m| am) located in\s+(.+?)(?:\.|$)", "location"),
     (r"\bi(?:'m| am) from\s+(.+?)(?:\.|$)", "origin"),
+    (r"\bi grew up in\s+(.+?)(?:\.|$)", "origin"),
+    (r"\bmy hometown is\s+(.+?)(?:\.|$)", "origin"),
+    
+    # Goal patterns
+    (r"\bmy (?:long-term )?goal is\s+(.+?)(?:\.|$)", "goal"),
+    (r"\bi(?:'m| am) (?:trying|working|learning) to\s+(.+?)(?:\.|$)", "goal"),
+    (r"\bi want to\s+(?:become|be|learn|master)\s+(.+?)(?:\.|$)", "goal"),
+    (r"\bmy objective is\s+(.+?)(?:\.|$)", "goal"),
+    
+    # Age pattern
     (r"\bi(?:'m| am)\s+(\d+)\s+years old", "age"),
+    (r"\bi(?:'m| am)\s+(\d+)", "age"),
+    
+    # Education patterns
+    (r"\bi studied\s+(.+?)(?:\s+at\s+.+?)?(?:\.|$)", "education"),
+    (r"\bi have (?:a|an)\s+(.+?)\s+degree", "education"),
+    (r"\bi graduated from\s+(.+?)(?:\.|$)", "education"),
+    (r"\bmy degree is in\s+(.+?)(?:\.|$)", "education"),
 ]
 
 # Preference patterns — stored as profile:preference
 # PATCHED v0.11.0-fix2: Changed regex to stop at period or end-of-string only (not comma)
-# This prevents "I prefer a warm, gentle tone" from being cut at the comma
+# PATCHED v0.11.0-fix7: Added many more patterns for robust extraction
 PREFERENCE_PATTERNS = [
+    # Direct preferences
     (r"\bi prefer\s+(.+?)(?:\.|$)", "preference"),
-    (r"\bi like\s+(.+?)(?:\.|$)", "like"),
-    (r"\bi don(?:'t| not) like\s+(.+?)(?:\.|$)", "dislike"),
-    (r"\bmy favorite\s+(.+?)\s+is\s+(.+?)(?:\.|$)", "favorite"),
-    (r"\bi want nova to\s+(.+?)(?:\.|$)", "nova_preference"),
     (r"\bi(?:'d| would) prefer\s+(.+?)(?:\.|$)", "preference"),
-    (r"\bplease (?:always|don't|never)\s+(.+?)(?:\.|$)", "behavior_preference"),
+    (r"\bi(?:'d| would) rather\s+(.+?)(?:\.|$)", "preference"),
+    
+    # Likes/dislikes
+    (r"\bi (?:really )?like\s+(.+?)(?:\.|$)", "like"),
     (r"\bi love\s+(.+?)(?:\.|$)", "like"),
+    (r"\bi enjoy\s+(.+?)(?:\.|$)", "like"),
+    (r"\bi(?:'m| am) (?:a )?fan of\s+(.+?)(?:\.|$)", "like"),
+    (r"\bi(?:'m| am) into\s+(.+?)(?:\.|$)", "like"),
+    (r"\bi don(?:'t| not) (?:really )?like\s+(.+?)(?:\.|$)", "dislike"),
     (r"\bi hate\s+(.+?)(?:\.|$)", "dislike"),
+    (r"\bi can(?:'t| not) stand\s+(.+?)(?:\.|$)", "dislike"),
+    (r"\bi(?:'m| am) not (?:a )?fan of\s+(.+?)(?:\.|$)", "dislike"),
+    
+    # Favorites
+    (r"\bmy favorite\s+(.+?)\s+is\s+(.+?)(?:\.|$)", "favorite"),
+    (r"\bi(?:'m| am) a big fan of\s+(.+?)(?:\.|$)", "favorite"),
+    
+    # Nova/communication preferences
+    (r"\bi want (?:you|nova) to\s+(.+?)(?:\.|$)", "nova_preference"),
+    (r"\bplease (?:always|never|don't)\s+(.+?)(?:\.|$)", "behavior_preference"),
+    (r"\bi(?:'d| would) like (?:you|nova) to\s+(.+?)(?:\.|$)", "nova_preference"),
+    (r"\bwhen (?:talking|responding|replying),?\s+(?:please\s+)?(.+?)(?:\.|$)", "communication_style"),
+    (r"\bi prefer (?:when you|if you|you to)\s+(.+?)(?:\.|$)", "nova_preference"),
+    (r"\bkeep (?:your )?(?:responses?|answers?)\s+(.+?)(?:\.|$)", "communication_style"),
+    (r"\bbe (?:more\s+)?(.+?)\s+(?:when|in your)(?:\.|$)", "communication_style"),
+    
+    # Interest patterns
+    (r"\bi(?:'m| am) interested in\s+(.+?)(?:\.|$)", "interest"),
+    (r"\bi(?:'m| am) passionate about\s+(.+?)(?:\.|$)", "interest"),
+    (r"\bmy hobbies? (?:is|are|include)\s+(.+?)(?:\.|$)", "hobby"),
+    (r"\bin my (?:free|spare) time,?\s+i\s+(.+?)(?:\.|$)", "hobby"),
 ]
 
 
@@ -1316,28 +1395,49 @@ def run_auto_extraction(
     if epis_result:
         results["episodic"] = epis_result
     
-    # v0.11.0-fix6: LLM fallback when regex found nothing useful
-    # Only try LLM if:
-    # 1. No profile memories were extracted
-    # 2. Message is substantial (>30 chars)
-    # 3. Message looks like it might contain personal info
-    if not profile_results and len(user_text) > 30:
-        # Check if message might contain personal facts
-        personal_indicators = [
-            "i ", "i'm", "my ", "i am", "i work", "i live", "i like", "i prefer",
-            "i have", "i want", "i need", "my name", "my job", "my goal",
-        ]
-        text_lower = user_text.lower()
-        might_have_facts = any(ind in text_lower for ind in personal_indicators)
-        
-        if might_have_facts:
-            try:
-                llm_results = llm_extract_facts(user_text, memory_manager, module_tag)
-                if llm_results:
-                    results["llm_extracted"] = llm_results
-                    logger.info("LLM fallback extracted %d facts", len(llm_results))
-            except Exception as e:
-                logger.debug("LLM fallback failed (non-fatal): %s", e)
+    # v0.11.0-fix7: LLM fallback - MORE AGGRESSIVE
+    # Trigger LLM extraction when:
+    # 1. No profile memories were extracted by regex, OR
+    # 2. Message contains personal indicators but regex only got partial info
+    # 3. Message is substantial (>30 chars)
+    should_try_llm = False
+    text_lower = user_text.lower()
+    
+    # Personal fact indicators - expanded list
+    personal_indicators = [
+        "i ", "i'm", "i am", "my ", "i've", "i have",
+        "i work", "i live", "i like", "i prefer", "i love", "i hate",
+        "i need", "i want", "i enjoy", "i specialize",
+        "my name", "my job", "my role", "my goal", "my background",
+        "my company", "my employer", "my title", "my expertise",
+        "years of experience", "years experience",
+        "based in", "based out of", "located in",
+        "graduated from", "degree in", "studied",
+    ]
+    
+    has_personal_indicators = any(ind in text_lower for ind in personal_indicators)
+    
+    if len(user_text) > 30 and has_personal_indicators:
+        if not profile_results:
+            # No regex matches at all - definitely try LLM
+            should_try_llm = True
+            logger.debug("LLM fallback: no regex matches, trying LLM")
+        elif len(profile_results) == 1:
+            # Only one match - might have missed something, try LLM for completeness
+            # But only if message seems to have multiple facts
+            multi_fact_indicators = [" and ", " also ", ", i ", " plus ", " as well as "]
+            if any(ind in text_lower for ind in multi_fact_indicators):
+                should_try_llm = True
+                logger.debug("LLM fallback: partial match with multi-fact indicators")
+    
+    if should_try_llm:
+        try:
+            llm_results = llm_extract_facts(user_text, memory_manager, module_tag)
+            if llm_results:
+                results["llm_extracted"] = llm_results
+                logger.info("LLM fallback extracted %d facts", len(llm_results))
+        except Exception as e:
+            logger.debug("LLM fallback failed (non-fatal): %s", e)
     
     # v0.11.0-fix6: Periodic background decay
     _extraction_call_count += 1
