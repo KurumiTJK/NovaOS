@@ -1,20 +1,25 @@
 # core/mode_router.py
 """
-NovaOS v0.10.0 — Mode Router
+NovaOS v0.11.1 — Mode Router
+
+v0.11.1 CHANGE: Default mode swapped
+- novaos_enabled=True (Strict mode) is now DEFAULT
+- #boot now ENABLES Persona/conversation mode
+- #shutdown now RETURNS to Strict/NovaOS mode
 
 The single entrypoint for all user messages.
 Routes based on NovaState.novaos_enabled:
 
-- novaos_enabled=False (Persona Mode):
-    → Pure conversational Nova
-    → Only #boot is recognized to switch modes
-    → Everything else goes directly to persona.chat()
-
-- novaos_enabled=True (NovaOS Mode / STRICT MODE):
+- novaos_enabled=True (NovaOS Mode / STRICT MODE) — NOW DEFAULT:
     → Full kernel routing (syscommands, modules, NL router)
     → NO persona fallback - command shell only
     → Unrecognized input returns fixed error message
-    → #shutdown returns to Persona mode
+    → #boot enters Persona mode
+
+- novaos_enabled=False (Persona Mode):
+    → Pure conversational Nova
+    → Only #shutdown is recognized to return to strict mode
+    → Everything else goes directly to persona.chat()
     
 v0.10.0 CHANGES:
     → Added quest lock mode support
@@ -333,14 +338,16 @@ def _handle_persona_mode(
     """
     Handle input when NovaOS is OFF (Persona mode).
     
-    Only #boot is recognized. Everything else is pure persona chat.
+    v0.11.1: This mode is now entered via #boot, exited via #shutdown.
+    Only #shutdown is recognized to return to strict mode.
+    Everything else is pure persona chat.
     
     v0.11.0: Added memory features (remember this, auto-extraction, LTM injection)
     v0.11.0-fix5: Added #session-end support in persona mode
     """
     
-    # Check for #boot command
-    if _is_boot_command(message):
+    # v0.11.1: Check for #shutdown command (returns to strict mode)
+    if _is_shutdown_command(message):
         return _activate_novaos(state, kernel, persona)
     
     # ─────────────────────────────────────────────────────────────────────
@@ -459,8 +466,8 @@ def _handle_novaos_mode_strict(
     (Exception: Quest lock mode allows conversation during active quests)
     """
     
-    # Check for #shutdown
-    if _is_shutdown_command(message):
+    # v0.11.1: Check for #boot (now ENTERS persona mode)
+    if _is_boot_command(message):
         return _deactivate_novaos(state, kernel, persona)
     
     # ─────────────────────────────────────────────────────────────────────
@@ -573,49 +580,24 @@ def _activate_novaos(
     kernel: "NovaKernel",
     persona: "NovaPersona",
 ) -> Dict[str, Any]:
-    """Activate NovaOS mode (strict command shell)."""
+    """
+    Activate NovaOS/Strict mode (return to command shell).
+    
+    v0.11.1: Now called by #shutdown (was called by #boot).
+    """
     state.enable_novaos()
     
-    boot_result = kernel.handle_input("#boot", state.session_id)
-    
-    boot_message = (
-        "NovaOS is now running in strict mode. "
-        "Only syscommands and recognized command phrases are accepted. "
-        "Type #help to see available commands, or #shutdown to exit."
-    )
-    
-    response_text = persona.generate_response(
-        text="[SYSTEM: Acknowledge that NovaOS has booted in strict mode]",
-        session_id=state.session_id,
-        direct_answer=boot_message,
-    )
-    
-    return {
-        "text": response_text,
-        "mode": state.mode_name,
-        "handled_by": "mode_router",
-        "event": "boot",
-        "ok": True,
-    }
-
-
-def _deactivate_novaos(
-    state: NovaState,
-    kernel: "NovaKernel",
-    persona: "NovaPersona",
-) -> Dict[str, Any]:
-    """Deactivate NovaOS mode (return to Persona mode)."""
+    # Call kernel's shutdown handler for cleanup
     kernel.handle_input("#shutdown", state.session_id)
-    state.disable_novaos()
     
     shutdown_message = (
-        "NovaOS is now offline. "
-        "We're back to normal conversation mode. "
-        "Say #boot whenever you want to enter command mode again."
+        "NovaOS is now running in strict mode. "
+        "Only syscommands and recognized command phrases are accepted. "
+        "Type #help to see available commands, or #boot to enter conversation mode."
     )
     
     response_text = persona.generate_response(
-        text="[SYSTEM: Acknowledge that NovaOS has shut down]",
+        text="[SYSTEM: Acknowledge that NovaOS has returned to strict mode]",
         session_id=state.session_id,
         direct_answer=shutdown_message,
     )
@@ -625,6 +607,42 @@ def _deactivate_novaos(
         "mode": state.mode_name,
         "handled_by": "mode_router",
         "event": "shutdown",
+        "ok": True,
+    }
+
+
+def _deactivate_novaos(
+    state: NovaState,
+    kernel: "NovaKernel",
+    persona: "NovaPersona",
+) -> Dict[str, Any]:
+    """
+    Deactivate NovaOS mode (enter Persona/conversation mode).
+    
+    v0.11.1: Now called by #boot (was called by #shutdown).
+    """
+    # Call kernel's boot handler for initialization
+    kernel.handle_input("#boot", state.session_id)
+    
+    state.disable_novaos()
+    
+    boot_message = (
+        "Conversation mode activated. "
+        "We can now chat freely. "
+        "Say #shutdown whenever you want to return to command mode."
+    )
+    
+    response_text = persona.generate_response(
+        text="[SYSTEM: Acknowledge that conversation mode is now active]",
+        session_id=state.session_id,
+        direct_answer=boot_message,
+    )
+    
+    return {
+        "text": response_text,
+        "mode": state.mode_name,
+        "handled_by": "mode_router",
+        "event": "boot",
         "ok": True,
     }
 

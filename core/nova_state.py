@@ -1,6 +1,11 @@
 # core/nova_state.py
 """
-NovaOS v0.9.0 — Unified State Object
+NovaOS v0.11.1 — Unified State Object
+
+v0.11.1 CHANGE: Default mode swapped
+- novaos_enabled now defaults to True (Strict/NovaOS mode)
+- #boot enables Persona/conversation mode
+- #shutdown returns to Strict/NovaOS mode
 
 NovaState is the single source of truth for:
 - Whether NovaOS is active (novaos_enabled)
@@ -37,7 +42,7 @@ class NovaState:
     """
     
     session_id: str
-    novaos_enabled: bool = False  # Default: OFF → Persona mode only
+    novaos_enabled: bool = True  # v0.11.1: Default ON → Strict/NovaOS mode
     context: Dict[str, Any] = field(default_factory=dict)
     
     # ─────────────────────────────────────────────────────────────────────
@@ -90,7 +95,7 @@ class NovaState:
         """Create NovaState from dictionary."""
         return cls(
             session_id=data.get("session_id", "unknown"),
-            novaos_enabled=data.get("novaos_enabled", False),
+            novaos_enabled=data.get("novaos_enabled", True),  # v0.11.1: default True
             context=data.get("context", {}),
         )
     
