@@ -1,10 +1,11 @@
 """
-NovaOS LLM Client — v0.10.2
+NovaOS LLM Client — v0.10.3
 
 Updated with:
 - Explicit timeout on OpenAI API calls (90s, less than Gunicorn's 120s)
 - Custom LLMTimeoutError exception for timeout/network failures
 - Proper exception handling for APITimeoutError, APIConnectionError
+- v0.10.3: Fixed max_tokens → max_completion_tokens for gpt-5.1/o-series models
 """
 
 import os
@@ -233,6 +234,11 @@ class LLMClient:
         
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
         
+        # v0.10.3: gpt-5.1 and o-series models require max_completion_tokens, not max_tokens
+        if "max_tokens" in filtered_kwargs:
+            if "gpt-5" in model or "o1" in model or "o3" in model:
+                filtered_kwargs["max_completion_tokens"] = filtered_kwargs.pop("max_tokens")
+        
         # Log any filtered params for debugging
         removed = set(kwargs.keys()) - set(filtered_kwargs.keys())
         if removed:
@@ -327,6 +333,11 @@ class LLMClient:
         }
         
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in allowed_params}
+        
+        # v0.10.3: gpt-5.1 and o-series models require max_completion_tokens, not max_tokens
+        if "max_tokens" in filtered_kwargs:
+            if "gpt-5" in model or "o1" in model or "o3" in model:
+                filtered_kwargs["max_completion_tokens"] = filtered_kwargs.pop("max_tokens")
         
         try:
             stream = self.client.chat.completions.create(

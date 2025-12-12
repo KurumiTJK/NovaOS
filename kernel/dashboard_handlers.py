@@ -31,14 +31,6 @@ from typing import Any, Dict, Optional, Literal
 
 from .command_types import CommandResponse
 
-# Nova Council integration
-try:
-    from council.dashboard_integration import get_council_display_status
-    _HAS_COUNCIL = True
-except ImportError:
-    _HAS_COUNCIL = False
-    get_council_display_status = None
-
 ViewMode = Literal["compact", "full"]
 
 # =============================================================================
@@ -546,7 +538,7 @@ def _render_finance_snapshot(view: ViewMode, kernel: Any) -> str:
 
 
 def _render_system_health(view: ViewMode, kernel: Any, state: Any = None, session_id: str = None) -> str:
-    """Render the System/Mode section with Council status."""
+    """Render the System/Mode section."""
     # Get persona status
     persona_on = False
     if state and hasattr(state, "novaos_enabled"):
@@ -554,17 +546,9 @@ def _render_system_health(view: ViewMode, kernel: Any, state: Any = None, sessio
     
     persona_status = "ON" if persona_on else "OFF"
     
-    # Get Council status (Nova Council integration)
-    council_status = "OFF"
-    if _HAS_COUNCIL and session_id and get_council_display_status:
-        try:
-            council_status = get_council_display_status(session_id)
-        except Exception:
-            pass
-    
     lines = [_section_border()]
     lines.append(_line("MODE"))
-    lines.append(_line(f"  Persona: {persona_status} | Council: {council_status}"))
+    lines.append(_line(f"  Persona: {persona_status}"))
     
     if view == "full":
         # Full: More system details
@@ -594,7 +578,7 @@ def render_dashboard(
         kernel: NovaKernel instance (for data access)
         state: NovaState instance (for mode info)
         sections: List of section names to include (uses config if None)
-        session_id: Session ID for Council status
+        session_id: Session ID
     
     Returns:
         Complete dashboard string

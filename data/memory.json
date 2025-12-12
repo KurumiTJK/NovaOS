@@ -1,5 +1,32 @@
 {
   "version": "0.5.4",
-  "next_id": 36,
-  "items": []
+  "next_id": 39,
+  "items": [
+    {
+      "id": 38,
+      "type": "semantic",
+      "tags": [
+        "profile:identity",
+        "2025-12"
+      ],
+      "payload": "My name is not surrending",
+      "timestamp": "2025-12-12T12:53:02.394398+00:00",
+      "trace": {
+        "source": "auto_profile_extraction",
+        "pattern": "updated",
+        "replaced_id": 37,
+        "policy_version": "0.5.7",
+        "store_mode": "normal",
+        "store_timestamp": "2025-12-12T12:53:02.394431+00:00"
+      },
+      "cluster_id": null,
+      "source": "user",
+      "salience": 0.9,
+      "status": "active",
+      "confidence": 1.0,
+      "last_used_at": "2025-12-12T12:53:02.413813+00:00",
+      "module_tag": null,
+      "version": 4
+    }
+  ]
 }

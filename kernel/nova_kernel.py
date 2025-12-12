@@ -472,7 +472,7 @@ class NovaKernel:
         # -------------------------------------------------------------
         # 6) Reminder Check (no background threads)
         # -------------------------------------------------------------
-        due = self.reminders.check_due()
+        due = self.reminders.get_due_now()
         if due:
             lines = []
             items = []
@@ -517,7 +517,7 @@ class NovaKernel:
                         "meta": {"source": "memory_remember_intent"},
                     }
             except Exception as e:
-                self.logger.log_error(session_id, f"[Memory] remember_intent error: {e}")
+                self.logger.log_input(session_id, f"[Memory] remember_intent error: {e}")
 
         # ─────────────────────────────────────────────────────────────────
         # v0.11.0: AUTO-EXTRACTION (profile, procedural, episodic)
@@ -527,12 +527,11 @@ class NovaKernel:
                 extraction_result = run_auto_extraction(
                     user_text=stripped,
                     memory_manager=self.memory_manager,
-                    session_id=session_id,
                 )
                 if extraction_result.get("profile") or extraction_result.get("procedural") or extraction_result.get("episodic"):
                     self.logger.log_input(session_id, f"[Memory] Auto-extracted: {extraction_result}")
             except Exception as e:
-                self.logger.log_error(session_id, f"[Memory] auto_extraction error: {e}")
+                self.logger.log_input(session_id, f"[Memory] auto_extraction error: {e}")
 
         # v0.7: Check if Working Memory can answer directly (reference questions)
         direct_answer = wm_answer_reference(session_id, stripped)

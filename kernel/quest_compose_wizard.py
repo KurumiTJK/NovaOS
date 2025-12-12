@@ -30,6 +30,20 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from .command_types import CommandResponse
 
+# Gemini helper for quest generation (try Gemini first, fall back to GPT)
+try:
+    from .gemini_helper import (
+        gemini_generate_quest_steps,
+        gemini_extract_domains,
+        is_gemini_available,
+    )
+    _HAS_GEMINI = True
+except ImportError:
+    _HAS_GEMINI = False
+    def gemini_generate_quest_steps(*args, **kwargs): return None
+    def gemini_extract_domains(*args, **kwargs): return None
+    def is_gemini_available(): return False
+
 
 # =============================================================================
 # WIZARD SESSION STATE
@@ -1073,11 +1087,25 @@ def _trigger_domain_extraction(
 
 def _extract_domains_for_review(raw_text: str, llm_client: Any) -> List[Dict[str, Any]]:
     """
-    Extract domains using a single LLM call for human review.
+    Extract domains using two-pass pipeline.
     
-    This is the ONLY domain extraction - user will confirm/edit before generation.
-    No complex heuristics needed - human review catches issues.
+    v4.0: Gemini draft → GPT polish → FINAL
+    User only sees final polished result.
     """
+    # ═══════════════════════════════════════════════════════════════════════
+    # TWO-PASS PIPELINE: Gemini draft → GPT polish
+    # ═══════════════════════════════════════════════════════════════════════
+    if _HAS_GEMINI:
+        print("[QuestCompose] Using two-pass domain extraction...", flush=True)
+        domains = gemini_extract_domains(raw_text, llm_client)
+        if domains:
+            print(f"[QuestCompose] Two-pass extracted {len(domains)} domains", flush=True)
+            return domains
+        print("[QuestCompose] Two-pass failed, using legacy extraction...", flush=True)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # LEGACY FALLBACK (GPT-only if two-pass unavailable)
+    # ═══════════════════════════════════════════════════════════════════════
     extract_system = """You are a curriculum architect.
 The user will provide a phase description for a learning plan (cyber, cloud, etc.).
 
@@ -2977,6 +3005,8 @@ def _generate_steps_with_llm(
     """
     Generate quest steps using domain-balanced 3-phase architecture.
     
+    v2.0: Try Gemini first (fast, cheap), fall back to GPT.
+    
     v0.10.2: NEW ARCHITECTURE - Domain-first balanced generation
     
     PHASE 1: Domain Extraction
@@ -3008,11 +3038,26 @@ def _generate_steps_with_llm(
                 pass
         print(f"[QuestCompose] {msg} ({pct}%)", flush=True)
     
+    # Get LLM client from kernel (needed for GPT fallback in router)
+    llm_client = getattr(kernel, 'llm_client', None)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # USE GEMINI ROUTER (handles Gemini + GPT fallback + validation)
+    # ═══════════════════════════════════════════════════════════════════════
+    if _HAS_GEMINI:
+        _progress("Generating steps via router...", 5)
+        router_steps = gemini_generate_quest_steps(draft, llm_client)
+        if router_steps:
+            _progress(f"Router succeeded: {len(router_steps)} validated steps", 95)
+            return router_steps
+        _progress("Router failed, using legacy generation...", 10)
+    
+    # ═══════════════════════════════════════════════════════════════════════
+    # LEGACY FALLBACK - Original implementation
+    # ═══════════════════════════════════════════════════════════════════════
     try:
         _progress("Starting domain-balanced generation...", 5)
         
-        # Get LLM client from kernel
-        llm_client = getattr(kernel, 'llm_client', None)
         if not llm_client:
             print("[QuestCompose] No LLM client available", flush=True)
             return []
@@ -3834,7 +3879,7 @@ def _generate_steps_with_llm_streaming(
     """
     Streaming version of step generation that yields progress events.
     
-    v0.10.3: NEW - Streaming generator for QuestCompose.
+    v0.10.4: Gemini-first routing with GPT streaming fallback.
     
     Instead of blocking until all steps are generated, this yields events:
     - {"type": "log", "message": "..."} - Log messages
@@ -3870,7 +3915,7 @@ def _generate_steps_with_llm_streaming(
         return {"type": "error", "message": msg}
     
     try:
-        yield _log("Starting streaming generation...")
+        yield _log("Starting step generation...")
         yield _progress("Initializing...", 5)
         
         # Get LLM client from kernel
@@ -3878,6 +3923,28 @@ def _generate_steps_with_llm_streaming(
         if not llm_client:
             yield _error("No LLM client available")
             return
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # TRY GEMINI ROUTER FIRST (fast, validated)
+        # ═══════════════════════════════════════════════════════════════════════
+        yield _log("Trying Gemini router...")
+        yield _progress("Gemini generation...", 10)
+        
+        if _HAS_GEMINI:
+            router_steps = gemini_generate_quest_steps(draft, llm_client)
+            if router_steps:
+                yield _log(f"Gemini router SUCCESS: {len(router_steps)} validated steps")
+                yield _progress("Gemini complete!", 95)
+                yield _steps(router_steps)
+                return
+            yield _log("Gemini router failed, falling back to streaming GPT...")
+        else:
+            yield _log("Gemini not available, using streaming GPT...")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # GPT STREAMING FALLBACK (original implementation)
+        # ═══════════════════════════════════════════════════════════════════════
+        yield _progress("GPT streaming generation...", 15)
         
         title = draft.get("title", "Untitled Quest")
         category = draft.get("category", "general")
@@ -3889,7 +3956,7 @@ def _generate_steps_with_llm_streaming(
         # ═══════════════════════════════════════════════════════════════════════
         # PHASE 1: USE CONFIRMED DOMAINS
         # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 1: Loading confirmed domains...", 10)
+        yield _progress("Phase 1: Loading confirmed domains...", 20)
         
         domains = draft.get("domains", [])
         
@@ -3902,7 +3969,7 @@ def _generate_steps_with_llm_streaming(
         else:
             # Fallback: extract from objectives
             yield _log("No confirmed domains, extracting from objectives...")
-            yield _progress("Phase 1: Extracting domains from objectives...", 12)
+            yield _progress("Phase 1: Extracting domains from objectives...", 22)
             
             raw_text = "\n".join(objectives) if isinstance(objectives, list) else str(objectives)
             domains = _structural_extract_domains(raw_text)
