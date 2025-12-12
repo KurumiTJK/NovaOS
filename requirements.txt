@@ -29,6 +29,15 @@ python-dotenv>=1.0.0,<2.0.0
 sentence-transformers>=2.2.0,<4.0.0
 
 # =============================================================================
+# REMINDERS SYSTEM (v2.0.0)
+# =============================================================================
+
+# Timezone database for zoneinfo module
+# Required on Windows; provides IANA timezone data for reminder scheduling
+# Linux systems typically have this from the OS, but including for portability
+tzdata>=2024.1
+
+# =============================================================================
 # OPTIONAL / DEV DEPENDENCIES (uncomment if needed)
 # =============================================================================
 
