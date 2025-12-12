@@ -1,5 +1,63 @@
 {
-  "mode": null,
-  "draft": null,
-  "history": []
+  "mode": "forge",
+  "draft": {
+    "ability": {
+      "name": "test",
+      "description": "Custom ability: fetch stock prices",
+      "type": "ability",
+      "enabled": true,
+      "pipeline": [
+        {
+          "stage": "fetch",
+          "executor": "gemini",
+          "web": true,
+          "prompt": "Search for current stock prices about: {topic}"
+        },
+        {
+          "stage": "reason",
+          "executor": "dualgpt",
+          "web": false,
+          "prompt": "Analyze the fetched stock price data and derive insights.\n\nInput signals: {signals}\nDerive: {derived}\n\nReturn JS..."
+        },
+        {
+          "stage": "write",
+          "executor": "dualgpt",
+          "web": false,
+          "prompt": "Generate a NovaOS boxed output report.\n\nUse this data:\n{all_data}\n\nFormat as boxed OS output...."
+        }
+      ],
+      "schema": {
+        "signals": [
+          "topic",
+          "data_points"
+        ],
+        "derived": [
+          "analysis",
+          "recommendation"
+        ]
+      },
+      "output_style": "boxed_os",
+      "permissions": {
+        "allow_web": true
+      },
+      "version": 1,
+      "created_at": "2025-12-12T19:11:13.719348+00:00",
+      "updated_at": "2025-12-12T19:11:42.225287+00:00"
+    },
+    "history": [
+      {
+        "at": "2025-12-12T19:11:42.225294+00:00",
+        "user_edit": "make it fetch stock prices",
+        "changes_summary": "Updated pipeline"
+      }
+    ],
+    "original_name": null
+  },
+  "history": [
+    {
+      "at": "2025-12-12T19:11:42.225294+00:00",
+      "user_edit": "make it fetch stock prices",
+      "changes_summary": "Updated pipeline"
+    }
+  ]
 }

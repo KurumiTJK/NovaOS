@@ -45,6 +45,15 @@ except ImportError:
     def is_gemini_available(): return False
 
 
+# v1.0.0: Lesson Engine for retrieval-backed step generation
+_HAS_LESSON_ENGINE = False
+try:
+    from kernel.lesson_engine import generate_lesson_plan_streaming
+    _HAS_LESSON_ENGINE = True
+except ImportError:
+    pass
+
+
 # =============================================================================
 # WIZARD SESSION STATE
 # =============================================================================
@@ -3985,6 +3994,60 @@ def _generate_steps_with_llm_streaming(
             yield _log("Gemini router failed, falling back to streaming GPT...")
         else:
             yield _log("Gemini not available, using streaming GPT...")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # v1.0.0: LESSON ENGINE (3-phase retrieval-backed generation)
+        # ═══════════════════════════════════════════════════════════════════════
+        # Phase A: Gemini + web grounding for real resources
+        # Phase B: Gemini for atomic step building (60-120 min each)
+        # Phase C: GPT-5.1 for sequencing and polish
+        # ═══════════════════════════════════════════════════════════════════════
+        
+        if _HAS_LESSON_ENGINE:
+            yield _log("Using Lesson Engine (3-phase retrieval-backed)...")
+            yield _progress("Lesson Engine starting...", 15)
+            
+            # Get confirmed domains
+            domains = draft.get("domains", [])
+            
+            if domains:
+                quest_id = draft.get("id") or f"quest_{session_id}"
+                title = draft.get("title", "Untitled Quest")
+                
+                engine_success = False
+                try:
+                    for event in generate_lesson_plan_streaming(
+                        domains=domains,
+                        quest_id=quest_id,
+                        quest_title=title,
+                        kernel=kernel,
+                        user_constraints=None,
+                    ):
+                        if event.get("type") == "steps":
+                            # Success! Return the steps
+                            yield _log(f"Lesson Engine complete: {len(event.get('steps', []))} steps")
+                            yield _progress("Lesson Engine complete!", 95)
+                            yield event
+                            engine_success = True
+                            break
+                        elif event.get("type") == "error":
+                            # Engine failed, will fall through to legacy
+                            yield _log(f"Lesson Engine error: {event.get('message', '')}")
+                            break
+                        else:
+                            # Progress/log events - pass through
+                            yield event
+                    
+                    if engine_success:
+                        return  # Done!
+                    
+                except Exception as e:
+                    yield _log(f"Lesson Engine exception: {e}")
+                
+                yield _log("Falling back to legacy GPT generation...")
+            else:
+                yield _log("No domains for Lesson Engine, using legacy...")
+        
         
         # ═══════════════════════════════════════════════════════════════════════
         # GPT STREAMING FALLBACK (original implementation)
