@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "name": "quadrant-status",
+      "description": "Show current life quadrant status with confidence and drivers",
+      "type": "ability",
+      "enabled": true,
+      "pipeline": [
+        {
+          "stage": "fetch",
+          "executor": "gemini",
+          "web": true,
+          "prompt": "Analyze the user's recent context and goals. Return JSON with: quadrant (career/health/relationships/growth), confidence (0-1), key_drivers (list of 3)."
+        },
+        {
+          "stage": "reason",
+          "executor": "dualgpt",
+          "web": false,
+          "prompt": "Given the fetched data, derive: momentum (rising/stable/declining), watchlist (3 items to monitor), recommendation."
+        },
+        {
+          "stage": "write",
+          "executor": "dualgpt",
+          "web": false,
+          "prompt": "Generate a NovaOS boxed output showing:\n- Quadrant\n- Confidence\n- Drivers\n- Changes since last run\n- Watchlist"
+        }
+      ],
+      "schema": {
+        "signals": [
+          "quadrant",
+          "confidence",
+          "key_drivers"
+        ],
+        "derived": [
+          "momentum",
+          "watchlist",
+          "recommendation"
+        ]
+      },
+      "output_style": "boxed_os",
+      "permissions": {
+        "allow_web": true
+      },
+      "version": 1,
+      "created_at": "2025-12-12T14:14:09.737983+00:00",
+      "updated_at": "2025-12-12T14:14:09.737983+00:00"
+    }
+  ]
+}

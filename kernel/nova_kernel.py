@@ -69,6 +69,26 @@ from .quest_handlers import (
     cancel_all_quest_wizards,
 )
 
+# v1.0.0: Ability Forge (replaces legacy custom commands)
+try:
+    from .ability_forge import (
+        is_forge_mode_active,
+        check_forge_mode_blocking,
+        handle_forge_mode_input,
+        execute_ability,
+        ensure_default_abilities,
+        _load_custom_commands,
+    )
+    _HAS_ABILITY_FORGE = True
+except ImportError:
+    _HAS_ABILITY_FORGE = False
+    def is_forge_mode_active(*args): return False
+    def check_forge_mode_blocking(*args): return None
+    def handle_forge_mode_input(*args): return None
+    def execute_ability(*args): return None
+    def ensure_default_abilities(*args): pass
+    def _load_custom_commands(*args): return {}
+
 # v2.0.0: Reminders Wizard routing
 try:
     from .reminders_integration import check_reminders_wizard
@@ -259,6 +279,14 @@ class NovaKernel:
         except Exception as e:
             print(f"[NovaKernel] v0.10.0 quest integration failed: {e}", flush=True)
 
+        # ---------------- v1.0.0: Ability Forge Init ----------------
+        if _HAS_ABILITY_FORGE:
+            try:
+                ensure_default_abilities(self)
+                print("[NovaKernel] Ability Forge initialized", flush=True)
+            except Exception as e:
+                print(f"[NovaKernel] Ability Forge init failed: {e}", flush=True)
+
 
     # ------------------------------------------------------------------
     # Core input handling
@@ -305,6 +333,28 @@ class NovaKernel:
             response_dict = quest_wizard_response.to_dict()
             self.logger.log_response(session_id, "quest-wizard", response_dict)
             return response_dict
+
+        # -------------------------------------------------------------
+        # 0.5) Ability Forge Mode Check (v1.0.0)
+        # When forge mode is active, intercept all input
+        # -------------------------------------------------------------
+        if _HAS_ABILITY_FORGE and is_forge_mode_active(session_id):
+            # Check if this is a # command
+            if stripped.startswith("#"):
+                tokens = stripped.split()
+                cmd_name = tokens[0][1:].lower()  # Remove #
+                
+                # Check if command is blocked during forge mode
+                blocking = check_forge_mode_blocking(cmd_name, session_id)
+                if blocking:
+                    return blocking.to_dict()
+                
+                # Allowed command - continue normal routing below
+            else:
+                # Plain text during forge mode = edit instruction
+                response = handle_forge_mode_input(stripped, session_id, self)
+                if response:
+                    return response.to_dict()
 
         # -------------------------------------------------------------
         # 1) Active Wizard Check (legacy wizard_mode.py)
@@ -421,7 +471,18 @@ class NovaKernel:
                 self.logger.log_response(session_id, cmd_name, response.to_dict())
                 return response.to_dict()
             else:
-                # Unknown command
+                # Unknown built-in command - check if it's a saved ability (v1.0.0)
+                if _HAS_ABILITY_FORGE:
+                    abilities = _load_custom_commands(self)
+                    if cmd_name in abilities:
+                        args_dict = self._parse_args(args_str)
+                        args_dict["full_input"] = args_str
+                        response = execute_ability(cmd_name, args_dict, session_id, self)
+                        if response:
+                            self.logger.log_response(session_id, cmd_name, response.to_dict())
+                            return response.to_dict()
+                
+                # Truly unknown command
                 return self._error("UNKNOWN_COMMAND", f"Unknown command: #{cmd_name}").to_dict()
 
         # -------------------------------------------------------------

@@ -1512,3 +1512,39 @@ if _HAS_REMINDERS:
 
 # v3.0.0: Human State handlers removed - functionality merged into Timerhythm
 # HP, readiness, sleep/energy tracking now via #daily-review phases
+
+# =============================================================================
+# v1.0.0: ABILITY FORGE INTEGRATION
+# =============================================================================
+
+# Import Ability Forge handlers
+try:
+    from .ability_forge import (
+        get_ability_forge_handlers,
+        handle_section_commands as handle_section_commands_forge,
+    )
+    _HAS_ABILITY_FORGE = True
+except ImportError:
+    _HAS_ABILITY_FORGE = False
+    def get_ability_forge_handlers(): return {}
+    def handle_section_commands_forge(*args, **kwargs): 
+        return _base_response("commands", "Ability Forge not available.", {"ok": False})
+
+# Register Ability Forge handlers
+if _HAS_ABILITY_FORGE:
+    _forge_handlers = get_ability_forge_handlers()
+    
+    # Register each handler with the handler name format
+    SYS_HANDLERS["handle_commands_list"] = _forge_handlers.get("commands-list")
+    SYS_HANDLERS["handle_commands_forge"] = _forge_handlers.get("commands-forge")
+    SYS_HANDLERS["handle_commands_edit"] = _forge_handlers.get("commands-edit")
+    SYS_HANDLERS["handle_commands_preview"] = _forge_handlers.get("commands-preview")
+    SYS_HANDLERS["handle_commands_diff"] = _forge_handlers.get("commands-diff")
+    SYS_HANDLERS["handle_commands_confirm"] = _forge_handlers.get("commands-confirm")
+    SYS_HANDLERS["handle_commands_cancel"] = _forge_handlers.get("commands-cancel")
+    SYS_HANDLERS["handle_commands_delete"] = _forge_handlers.get("commands-delete")
+    
+    # Override section menu for commands with Ability Forge version
+    SYS_HANDLERS["handle_section_commands"] = handle_section_commands_forge
+    
+    print("[syscommands] Ability Forge handlers registered", flush=True)

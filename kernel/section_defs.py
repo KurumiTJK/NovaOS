@@ -1,8 +1,12 @@
 # kernel/section_defs.py
 """
-v2.0.0 — Section Definitions for NovaOS Life RPG
+v2.1.0 — Section Definitions for NovaOS Life RPG
 
-Defines the 11 canonical sections and their associated commands.
+v2.1.0 ABILITY FORGE UPDATE:
+- Commands section completely replaced with Ability Forge
+- New commands: commands-list, commands-forge, commands-edit, commands-preview, 
+  commands-diff, commands-confirm, commands-cancel, commands-delete
+- Forge mode: conversational ability creation and refinement
 
 v2.0.0 HUMAN STATE UPDATE:
 - Rewrote human_state section with new canonical commands
@@ -17,18 +21,6 @@ v0.11.0 CHANGES:
 - Updated timerhythm: removed pulse, presence, align; added daily-review
 - Section count: 13 -> 11
 
-v2.0.0 MODULES UPDATE:
-- Refactored modules section with new commands per spec
-- Added: modules-list, modules-show, modules-add, modules-update, modules-archive, modules-delete
-- Modules are the "world map" of NovaOS life areas
-- XP lives in Identity, modules are structural metadata only
-
-v2.0.0 REMINDERS UPDATE:
-- Complete rewrite of reminders section
-- Added: reminders-list, reminders-due, reminders-show, reminders-add, reminders-update
-- Added: reminders-done, reminders-snooze, reminders-delete, reminders-pin, reminders-unpin
-- Supports recurring reminders (daily/weekly/monthly), windowed reminders, snooze, pin
-
 Sections:
 1. core          — Nova's heart & OS control center
 2. memory        — Lore / knowledge store
@@ -38,7 +30,7 @@ Sections:
 6. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
 7. timerhythm    — Daily/weekly reviews, HP, readiness, habits
 8. reminders     — Time-based reminders / quest pins
-9. commands      — Abilities/macros
+9. commands      — Ability Forge (custom abilities)
 10. debug        — Diagnostics & dev tools
 """
 
@@ -176,15 +168,21 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("reminders-unpin", "Unpin a reminder", "#reminders-unpin id=rem_001"),
         ]
     ),
+    # =========================================================================
+    # COMMANDS SECTION — v1.0.0 ABILITY FORGE
+    # =========================================================================
     "commands": Section(
-        title="Custom Commands",
-        description="Abilities/macros you can unlock and reuse.",
+        title="Commands (Ability Forge)",
+        description="Custom abilities built by conversation refinement. Start forging with #commands-forge.",
         commands=[
-            CommandInfo("command-add", "Add a new custom command (prompt or macro)", "#command-add"),
-            CommandInfo("command-list", "List core and custom commands", "#command-list"),
-            CommandInfo("command-inspect", "Inspect a custom command's metadata", "#command-inspect name=mycommand"),
-            CommandInfo("command-remove", "Remove a custom command by name", "#command-remove name=mycommand"),
-            CommandInfo("command-toggle", "Enable or disable a custom command", "#command-toggle name=mycommand"),
+            CommandInfo("commands-list", "List all saved abilities", "#commands-list"),
+            CommandInfo("commands-forge", "Create or edit an ability interactively", '#commands-forge name="market-scan"'),
+            CommandInfo("commands-edit", "Edit an existing ability", '#commands-edit name="quadrant-status"'),
+            CommandInfo("commands-preview", "Preview current draft (during forge mode)", "#commands-preview"),
+            CommandInfo("commands-diff", "Show changes from last saved version", "#commands-diff"),
+            CommandInfo("commands-confirm", "Save draft and exit forge mode", "#commands-confirm"),
+            CommandInfo("commands-cancel", "Discard draft and exit forge mode", "#commands-cancel"),
+            CommandInfo("commands-delete", "Delete a saved ability", '#commands-delete name="old-ability"'),
         ]
     ),
     "debug": Section(
