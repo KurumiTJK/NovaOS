@@ -43,7 +43,10 @@ except ImportError:
     _HAS_IDENTITY_SECTION = False
     IdentitySectionManager = None
 # v0.11.0: ContinuityHelpers removed
-from .human_state import HumanStateManager
+
+# v2.0.0: Human State Manager (replaces legacy human_state.py)
+from .human_state import HumanStateManagerV2
+
 # v0.6 imports
 from .nl_router import route_natural_language
 from .section_defs import get_section_keys, get_section, SECTION_DEFS
@@ -206,6 +209,10 @@ class NovaKernel:
         else:
             self.identity_section_manager = None
 
+        # ---------------- v2.0.0 Human State Manager ----------------
+        # Canonical human state system with readiness tiers, HP, events
+        self.human_state_manager = HumanStateManagerV2(self.config.data_dir)
+
         # ---------------- v0.5.7 Memory Policy ----------------
         self.memory_policy = MemoryPolicy()
         self.memory_policy.set_mode(self.env_state.get("mode", "normal"))
@@ -222,8 +229,7 @@ class NovaKernel:
         # v0.11.0: Continuity Helpers removed
         self.continuity = None
 
-        # ---------------- v0.5.9 Human State ----------------
-        self.human_state = HumanStateManager(self.config.data_dir)
+        # v0.5.9: Legacy human_state removed - now using human_state_manager (v2.0.0)
 
         # ---------------- Persona fallback ----------------
         from persona.nova_persona import NovaPersona

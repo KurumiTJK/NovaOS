@@ -106,6 +106,16 @@ except ImportError:
     _HAS_IDENTITY_SECTION = False
     def get_identity_handlers(): return {}
 
+# v2.0.0: Human State Handlers (replaces legacy human_state commands)
+try:
+    from .human_state_handlers import get_human_state_handlers
+    _HAS_HUMAN_STATE_V2 = True
+    print("[syscommands] Human State v2 handlers loaded successfully", flush=True)
+except ImportError as e:
+    _HAS_HUMAN_STATE_V2 = False
+    print(f"[syscommands] Human State v2 handlers import FAILED: {e}", flush=True)
+    def get_human_state_handlers(): return {}
+
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -299,7 +309,7 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
     SECTION_DESCRIPTIONS = {
         "core": "Nova's heart & OS control center",
         "memory": "Lore & knowledge store (semantic/procedural/episodic)",
-        "human_state": "HP / stamina / stress / mood tracking",
+        "human_state": "HP / readiness tier / check-in / events",
         "modules": "World map: regions & domains you create",
         "identity": "Player Profile: level, XP, domains, titles",
         "system": "Environment, snapshots, and runtime config",
@@ -1347,17 +1357,9 @@ def handle_memory_mode_filter(cmd_name, args, session_id, context, kernel, meta)
 def handle_reconfirm_prompts(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Reconfirm prompts not yet implemented.", {"ok": False})
 
-def handle_evolution_status(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "Evolution status not yet implemented.", {"ok": False})
-
-def handle_log_state(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "Log state not yet implemented.", {"ok": False})
-
-def handle_state_history(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "State history not yet implemented.", {"ok": False})
-
-def handle_capacity_check(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _base_response(cmd_name, "Capacity check not yet implemented.", {"ok": False})
+# v2.0.0: Legacy human state handlers removed (evolution-status, log-state, state-history, capacity)
+# New handlers: human-show, human-checkin, human-event, human-clear
+# Provided by human_state_handlers.py
 
 def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Macro not yet implemented.", {"ok": False})
@@ -1442,11 +1444,8 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_daily_review": handle_daily_review,
     "handle_weekly_review": handle_weekly_review,
     
-    # Human State
-    "handle_evolution_status": handle_evolution_status,
-    "handle_log_state": handle_log_state,
-    "handle_state_history": handle_state_history,
-    "handle_capacity_check": handle_capacity_check,
+    # v2.0.0: Human State handlers moved to human_state_handlers.py
+    # Legacy handlers removed: evolution_status, log_state, state_history, capacity_check
     
     # Modules
     "handle_bind_module": handle_bind_module,
@@ -1522,3 +1521,7 @@ if _HAS_MEMORY_SYSCOMMANDS:
 # These provide the new comprehensive identity system with XP ledger, archetype, goals, etc.
 if _HAS_IDENTITY_SECTION:
     SYS_HANDLERS.update(get_identity_handlers())
+
+# v2.0.0: Human State handlers (new canonical human state system)
+if _HAS_HUMAN_STATE_V2:
+    SYS_HANDLERS.update(get_human_state_handlers())

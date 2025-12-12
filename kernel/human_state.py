@@ -1,665 +1,935 @@
-# kernel/human_state.py
+# kernel/human_state_v2.py
 """
-v0.5.9 — HumanStateModel + Evolution Status
+NovaOS Human State Engine — v2.0.0
 
-Tracks the human's state across three dimensions:
-1. Biology State (bio_state): sleep, energy, stress, physical
-2. Load State (load_state): cognitive load, task count, overwhelm
-3. Aspiration State (aspiration_state): current focus, growth areas, momentum
+Real-time operating condition and biological context engine.
+Tracks today's condition and provides:
+- Readiness tier (Green/Yellow/Red)
+- Load modifier (0.75 / 1.00 / 1.15)
+- Recommended mode (Push/Maintain/Recover)
 
-Core Principles:
-- All state updates are user-initiated or confirm-gated
-- State informs suggestions, never mandates behavior
-- "Small version" recommendations under strain
-- Evolution status shows progress without judgment
+Powers:
+- Timerhythm daily/weekly review context
+- Workflow difficulty scaling suggestions (via load_modifier)
+- Reminders tone/intensity hints
+
+Data Model:
+- Today snapshot: data/human_state.json
+- History log: data/human_state_log.json
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Literal
 import threading
+from dataclasses import dataclass, field, asdict
+from datetime import datetime, timezone, timedelta, date
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Literal, Tuple
 
 
-# -----------------------------------------------------------------------------
-# State Enums and Types
-# -----------------------------------------------------------------------------
+# =============================================================================
+# TYPES
+# =============================================================================
 
-EnergyLevel = Literal["depleted", "low", "moderate", "good", "high"]
-StressLevel = Literal["overwhelmed", "high", "moderate", "low", "calm"]
-LoadLevel = Literal["overloaded", "heavy", "moderate", "light", "clear"]
-MomentumLevel = Literal["stalled", "slow", "steady", "building", "flowing"]
-
-# Numeric mappings for calculations
-ENERGY_VALUES = {"depleted": 1, "low": 2, "moderate": 3, "good": 4, "high": 5}
-STRESS_VALUES = {"overwhelmed": 5, "high": 4, "moderate": 3, "low": 2, "calm": 1}
-LOAD_VALUES = {"overloaded": 5, "heavy": 4, "moderate": 3, "light": 2, "clear": 1}
-MOMENTUM_VALUES = {"stalled": 1, "slow": 2, "steady": 3, "building": 4, "flowing": 5}
+ReadinessTier = Literal["Green", "Yellow", "Red"]
+RecommendedMode = Literal["Push", "Maintain", "Recover"]
+ToneHint = Literal["ambitious", "normal", "gentle"]
 
 
-# -----------------------------------------------------------------------------
-# State Data Models
-# -----------------------------------------------------------------------------
+# =============================================================================
+# DATA CLASSES
+# =============================================================================
 
 @dataclass
-class BiologyState:
+class HumanStateSnapshot:
     """
-    Physical and biological state.
+    Today's human state snapshot.
+    
+    Core metrics (manually set via check-in):
+    - stamina: 0-100 (physical/mental energy reserve)
+    - stress: 0-100 (pressure level)
+    - mood: -5 to +5 (emotional state)
+    - focus: 0-100 (concentration ability)
+    - sleep_quality: 0-100 (last night's rest)
+    - soreness: 0-100 (physical discomfort)
+    
+    Derived fields (computed):
+    - hp: 0-100 (synthesis score)
+    - readiness_tier: Green/Yellow/Red
+    - load_modifier: 0.75/1.00/1.15
+    - recommended_mode: Push/Maintain/Recover
     """
-    energy: EnergyLevel = "moderate"
-    sleep_quality: Optional[str] = None  # "poor", "fair", "good", "great"
-    sleep_hours: Optional[float] = None
-    stress: StressLevel = "moderate"
-    physical_notes: Optional[str] = None  # Exercise, illness, etc.
-    last_updated: Optional[str] = None
+    # Date tracking
+    today_date: str = ""  # YYYY-MM-DD
+    last_check_in_at: Optional[str] = None  # ISO timestamp
     
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
+    # Core metrics
+    stamina: int = 50
+    stress: int = 50
+    mood: int = 0
+    focus: int = 50
+    sleep_quality: int = 50
+    soreness: int = 0
     
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "BiologyState":
-        return cls(
-            energy=data.get("energy", "moderate"),
-            sleep_quality=data.get("sleep_quality"),
-            sleep_hours=data.get("sleep_hours"),
-            stress=data.get("stress", "moderate"),
-            physical_notes=data.get("physical_notes"),
-            last_updated=data.get("last_updated"),
-        )
+    # Notes and tags
+    notes: str = ""
+    tags: List[str] = field(default_factory=list)
     
-    def get_strain_score(self) -> float:
-        """
-        Calculate strain score (0-1, higher = more strain).
-        """
-        energy_inv = 6 - ENERGY_VALUES.get(self.energy, 3)  # Invert: low energy = high strain
-        stress_val = STRESS_VALUES.get(self.stress, 3)
-        
-        # Average and normalize to 0-1
-        return (energy_inv + stress_val) / 10.0
-
-
-@dataclass
-class LoadState:
-    """
-    Cognitive and task load state.
-    """
-    cognitive_load: LoadLevel = "moderate"
-    active_tasks: int = 0
-    pending_decisions: int = 0
-    overwhelm_feeling: Optional[str] = None  # User's subjective feeling
-    focus_quality: Optional[str] = None  # "scattered", "okay", "focused", "deep"
-    last_updated: Optional[str] = None
+    # Derived fields (computed, not manually set)
+    hp: int = 50
+    readiness_tier: ReadinessTier = "Yellow"
+    load_modifier: float = 1.0
+    recommended_mode: RecommendedMode = "Maintain"
     
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LoadState":
-        return cls(
-            cognitive_load=data.get("cognitive_load", "moderate"),
-            active_tasks=int(data.get("active_tasks", 0)),
-            pending_decisions=int(data.get("pending_decisions", 0)),
-            overwhelm_feeling=data.get("overwhelm_feeling"),
-            focus_quality=data.get("focus_quality"),
-            last_updated=data.get("last_updated"),
-        )
-    
-    def get_strain_score(self) -> float:
-        """
-        Calculate load strain score (0-1, higher = more strain).
-        """
-        load_val = LOAD_VALUES.get(self.cognitive_load, 3)
-        
-        # Task count contribution (cap at 10)
-        task_factor = min(self.active_tasks, 10) / 10.0
-        
-        return (load_val / 5.0 + task_factor) / 2.0
-
-
-@dataclass
-class AspirationState:
-    """
-    Goals, growth, and momentum state.
-    """
-    current_focus: Optional[str] = None  # What they're working toward
-    growth_areas: List[str] = field(default_factory=list)
-    momentum: MomentumLevel = "steady"
-    recent_wins: List[str] = field(default_factory=list)
-    blockers: List[str] = field(default_factory=list)
-    last_updated: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AspirationState":
-        return cls(
-            current_focus=data.get("current_focus"),
-            growth_areas=list(data.get("growth_areas", [])),
-            momentum=data.get("momentum", "steady"),
-            recent_wins=list(data.get("recent_wins", [])),
-            blockers=list(data.get("blockers", [])),
-            last_updated=data.get("last_updated"),
-        )
-    
-    def get_momentum_score(self) -> float:
-        """
-        Calculate momentum score (0-1, higher = more momentum).
-        """
-        base = MOMENTUM_VALUES.get(self.momentum, 3) / 5.0
-        
-        # Boost for recent wins
-        win_boost = min(len(self.recent_wins), 3) * 0.05
-        
-        # Penalty for blockers
-        blocker_penalty = min(len(self.blockers), 3) * 0.05
-        
-        return max(0, min(1, base + win_boost - blocker_penalty))
-
-
-@dataclass
-class HumanState:
-    """
-    Complete human state model.
-    """
-    bio: BiologyState = field(default_factory=BiologyState)
-    load: LoadState = field(default_factory=LoadState)
-    aspiration: AspirationState = field(default_factory=AspirationState)
-    
-    # Meta
-    version: str = "0.5.9"
-    created_at: Optional[str] = None
-    last_checkin: Optional[str] = None
-    checkin_streak: int = 0
+    # Events logged today
+    events: List[Dict[str, Any]] = field(default_factory=list)
     
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "version": self.version,
-            "created_at": self.created_at,
-            "last_checkin": self.last_checkin,
-            "checkin_streak": self.checkin_streak,
-            "bio": self.bio.to_dict(),
-            "load": self.load.to_dict(),
-            "aspiration": self.aspiration.to_dict(),
+            "today_date": self.today_date,
+            "last_check_in_at": self.last_check_in_at,
+            "stamina": self.stamina,
+            "stress": self.stress,
+            "mood": self.mood,
+            "focus": self.focus,
+            "sleep_quality": self.sleep_quality,
+            "soreness": self.soreness,
+            "notes": self.notes,
+            "tags": self.tags,
+            "hp": self.hp,
+            "readiness_tier": self.readiness_tier,
+            "load_modifier": self.load_modifier,
+            "recommended_mode": self.recommended_mode,
+            "events": self.events,
         }
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "HumanState":
+    def from_dict(cls, data: Dict[str, Any]) -> "HumanStateSnapshot":
         return cls(
-            version=data.get("version", "0.5.9"),
-            created_at=data.get("created_at"),
-            last_checkin=data.get("last_checkin"),
-            checkin_streak=int(data.get("checkin_streak", 0)),
-            bio=BiologyState.from_dict(data.get("bio", {})),
-            load=LoadState.from_dict(data.get("load", {})),
-            aspiration=AspirationState.from_dict(data.get("aspiration", {})),
+            today_date=data.get("today_date", ""),
+            last_check_in_at=data.get("last_check_in_at"),
+            stamina=int(data.get("stamina", 50)),
+            stress=int(data.get("stress", 50)),
+            mood=int(data.get("mood", 0)),
+            focus=int(data.get("focus", 50)),
+            sleep_quality=int(data.get("sleep_quality", 50)),
+            soreness=int(data.get("soreness", 0)),
+            notes=data.get("notes", ""),
+            tags=list(data.get("tags", [])),
+            hp=int(data.get("hp", 50)),
+            readiness_tier=data.get("readiness_tier", "Yellow"),
+            load_modifier=float(data.get("load_modifier", 1.0)),
+            recommended_mode=data.get("recommended_mode", "Maintain"),
+            events=list(data.get("events", [])),
         )
-    
-    def get_overall_strain(self) -> float:
-        """
-        Calculate overall strain score (0-1).
-        """
-        bio_strain = self.bio.get_strain_score()
-        load_strain = self.load.get_strain_score()
-        
-        # Weight biology slightly more
-        return bio_strain * 0.6 + load_strain * 0.4
-    
-    def get_capacity_level(self) -> str:
-        """
-        Get human-readable capacity level.
-        """
-        strain = self.get_overall_strain()
-        
-        if strain >= 0.8:
-            return "very_limited"
-        elif strain >= 0.6:
-            return "limited"
-        elif strain >= 0.4:
-            return "moderate"
-        elif strain >= 0.2:
-            return "good"
-        else:
-            return "excellent"
-    
-    def needs_small_version(self) -> bool:
-        """
-        Check if recommendations should be "small version".
-        """
-        return self.get_overall_strain() >= 0.6
-
-
-# -----------------------------------------------------------------------------
-# State History Entry
-# -----------------------------------------------------------------------------
-
-@dataclass
-class StateHistoryEntry:
-    """
-    A historical snapshot of state.
-    """
-    timestamp: str
-    bio_energy: str
-    bio_stress: str
-    load_cognitive: str
-    aspiration_momentum: str
-    overall_strain: float
-    notes: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
     
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "StateHistoryEntry":
+    def default(cls, today: str) -> "HumanStateSnapshot":
+        """Create a default snapshot for today."""
+        snapshot = cls(today_date=today)
+        snapshot.recompute_derived()
+        return snapshot
+
+
+@dataclass
+class HistoryEntry:
+    """
+    A historical record of a day's state.
+    """
+    date: str  # YYYY-MM-DD
+    timestamp: str  # ISO timestamp of check-in
+    
+    # Core metrics snapshot
+    stamina: int = 50
+    stress: int = 50
+    mood: int = 0
+    focus: int = 50
+    sleep_quality: int = 50
+    soreness: int = 0
+    
+    # Derived
+    hp: int = 50
+    readiness_tier: str = "Yellow"
+    load_modifier: float = 1.0
+    recommended_mode: str = "Maintain"
+    
+    # Notes and events
+    notes: str = ""
+    tags: List[str] = field(default_factory=list)
+    events: List[Dict[str, Any]] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "date": self.date,
+            "timestamp": self.timestamp,
+            "stamina": self.stamina,
+            "stress": self.stress,
+            "mood": self.mood,
+            "focus": self.focus,
+            "sleep_quality": self.sleep_quality,
+            "soreness": self.soreness,
+            "hp": self.hp,
+            "readiness_tier": self.readiness_tier,
+            "load_modifier": self.load_modifier,
+            "recommended_mode": self.recommended_mode,
+            "notes": self.notes,
+            "tags": self.tags,
+            "events": self.events,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "HistoryEntry":
         return cls(
+            date=data.get("date", ""),
             timestamp=data.get("timestamp", ""),
-            bio_energy=data.get("bio_energy", "moderate"),
-            bio_stress=data.get("bio_stress", "moderate"),
-            load_cognitive=data.get("load_cognitive", "moderate"),
-            aspiration_momentum=data.get("aspiration_momentum", "steady"),
-            overall_strain=float(data.get("overall_strain", 0.5)),
-            notes=data.get("notes"),
+            stamina=int(data.get("stamina", 50)),
+            stress=int(data.get("stress", 50)),
+            mood=int(data.get("mood", 0)),
+            focus=int(data.get("focus", 50)),
+            sleep_quality=int(data.get("sleep_quality", 50)),
+            soreness=int(data.get("soreness", 0)),
+            hp=int(data.get("hp", 50)),
+            readiness_tier=data.get("readiness_tier", "Yellow"),
+            load_modifier=float(data.get("load_modifier", 1.0)),
+            recommended_mode=data.get("recommended_mode", "Maintain"),
+            notes=data.get("notes", ""),
+            tags=list(data.get("tags", [])),
+            events=list(data.get("events", [])),
+        )
+    
+    @classmethod
+    def from_snapshot(cls, snapshot: HumanStateSnapshot) -> "HistoryEntry":
+        """Create a history entry from a snapshot."""
+        return cls(
+            date=snapshot.today_date,
+            timestamp=snapshot.last_check_in_at or datetime.now(timezone.utc).isoformat(),
+            stamina=snapshot.stamina,
+            stress=snapshot.stress,
+            mood=snapshot.mood,
+            focus=snapshot.focus,
+            sleep_quality=snapshot.sleep_quality,
+            soreness=snapshot.soreness,
+            hp=snapshot.hp,
+            readiness_tier=snapshot.readiness_tier,
+            load_modifier=snapshot.load_modifier,
+            recommended_mode=snapshot.recommended_mode,
+            notes=snapshot.notes,
+            tags=snapshot.tags.copy(),
+            events=snapshot.events.copy(),
         )
 
 
-# -----------------------------------------------------------------------------
-# Human State Manager
-# -----------------------------------------------------------------------------
+# =============================================================================
+# SCORING / DERIVED METRICS ENGINE
+# =============================================================================
 
-class HumanStateManager:
+def compute_hp(
+    stamina: int,
+    stress: int,
+    focus: int,
+    sleep_quality: int,
+) -> int:
     """
-    v0.5.9 Human State Manager
+    Compute HP (synthesis score).
+    
+    Formula:
+    hp = 0.35*stamina + 0.25*sleep_quality + 0.20*focus + 0.20*(100-stress)
+    Clamped 0-100.
+    """
+    raw = (
+        0.35 * stamina +
+        0.25 * sleep_quality +
+        0.20 * focus +
+        0.20 * (100 - stress)
+    )
+    return max(0, min(100, int(round(raw))))
+
+
+def compute_readiness_tier(
+    stamina: int,
+    stress: int,
+    sleep_quality: int,
+) -> ReadinessTier:
+    """
+    Compute readiness tier.
+    
+    Rules:
+    - Green if stamina >= 65 AND stress <= 45
+    - Red if stamina < 40 OR stress > 70 OR sleep_quality < 35
+    - Yellow otherwise
+    """
+    # Check Red conditions first (any triggers Red)
+    if stamina < 40 or stress > 70 or sleep_quality < 35:
+        return "Red"
+    
+    # Check Green conditions (all must be true)
+    if stamina >= 65 and stress <= 45:
+        return "Green"
+    
+    # Default to Yellow
+    return "Yellow"
+
+
+def compute_load_modifier(tier: ReadinessTier) -> float:
+    """
+    Compute load modifier based on readiness tier.
+    
+    - Green: 1.15
+    - Yellow: 1.00
+    - Red: 0.75
+    """
+    return {
+        "Green": 1.15,
+        "Yellow": 1.00,
+        "Red": 0.75,
+    }.get(tier, 1.00)
+
+
+def compute_recommended_mode(tier: ReadinessTier) -> RecommendedMode:
+    """
+    Compute recommended mode based on readiness tier.
+    
+    - Green: Push
+    - Yellow: Maintain
+    - Red: Recover
+    """
+    return {
+        "Green": "Push",
+        "Yellow": "Maintain",
+        "Red": "Recover",
+    }.get(tier, "Maintain")
+
+
+def get_tone_hint(tier: ReadinessTier) -> ToneHint:
+    """
+    Get tone hint for reminders based on tier.
+    
+    - Green: ambitious
+    - Yellow: normal
+    - Red: gentle
+    """
+    return {
+        "Green": "ambitious",
+        "Yellow": "normal",
+        "Red": "gentle",
+    }.get(tier, "normal")
+
+
+# =============================================================================
+# DAILY DRIFT (DAY ROLLOVER)
+# =============================================================================
+
+def apply_daily_drift(snapshot: HumanStateSnapshot) -> HumanStateSnapshot:
+    """
+    Apply daily drift when rolling over to a new day.
+    
+    Rules:
+    - stamina: -5 (min 0)
+    - stress: -3 (min 0)
+    - mood: move 1 point toward 0
+    - soreness: -5 (min 0)
+    - sleep_quality/focus: -2 (min 0)
+    """
+    new_snapshot = HumanStateSnapshot(
+        today_date=snapshot.today_date,  # Will be updated by caller
+        last_check_in_at=None,  # Reset until new check-in
+        stamina=max(0, snapshot.stamina - 5),
+        stress=max(0, snapshot.stress - 3),
+        mood=_drift_toward_zero(snapshot.mood),
+        focus=max(0, snapshot.focus - 2),
+        sleep_quality=max(0, snapshot.sleep_quality - 2),
+        soreness=max(0, snapshot.soreness - 5),
+        notes="",  # Reset notes
+        tags=[],  # Reset tags
+        events=[],  # Reset events
+    )
+    return new_snapshot
+
+
+def _drift_toward_zero(value: int) -> int:
+    """Move value 1 point toward zero."""
+    if value > 0:
+        return value - 1
+    elif value < 0:
+        return value + 1
+    return 0
+
+
+# =============================================================================
+# EVENT DELTAS
+# =============================================================================
+
+EVENT_DELTAS: Dict[str, Dict[str, Any]] = {
+    "workout": {
+        "low": {"soreness": 5, "stress": -2, "stamina": -2},
+        "medium": {"soreness": 10, "stress": -5, "stamina": -5},
+        "high": {"soreness": 15, "stress": -8, "stamina": -8},
+    },
+    "walk": {
+        # Minutes-based scaling (per 10 min)
+        "per_10min": {"stress": -3, "focus": 2, "mood": 1},
+        "max_effect": {"stress": -10, "focus": 6, "mood": 3},
+    },
+    "caffeine": {
+        # Per serving
+        "per_serving": {"stamina": 3, "stress": 1},
+        "max_servings": 3,  # Cap at 3 servings worth
+    },
+    "nap": {
+        # Minutes-based scaling
+        "per_10min": {"stamina": 3, "focus": 2},
+        "max_effect": {"stamina": 15, "focus": 8},
+    },
+    "meditation": {
+        # Minutes-based scaling
+        "per_5min": {"stress": -3, "focus": 2},
+        "max_effect": {"stress": -15, "focus": 8},
+    },
+    "bad_sleep": {
+        "effect": {"sleep_quality": -20, "stamina": -10, "stress": 8},
+    },
+}
+
+
+def apply_event_deltas(
+    snapshot: HumanStateSnapshot,
+    event_type: str,
+    intensity: Optional[str] = None,
+    minutes: Optional[int] = None,
+    servings: Optional[int] = None,
+) -> Tuple[HumanStateSnapshot, List[str]]:
+    """
+    Apply event deltas to a snapshot.
+    
+    Returns: (updated_snapshot, list of tags to add)
+    """
+    tags = [event_type]
+    
+    if event_type == "workout":
+        intensity = intensity or "medium"
+        deltas = EVENT_DELTAS["workout"].get(intensity, EVENT_DELTAS["workout"]["medium"])
+        snapshot.soreness = _clamp(snapshot.soreness + deltas["soreness"], 0, 100)
+        snapshot.stress = _clamp(snapshot.stress + deltas["stress"], 0, 100)
+        snapshot.stamina = _clamp(snapshot.stamina + deltas["stamina"], 0, 100)
+        tags.append(f"workout_{intensity}")
+    
+    elif event_type == "walk":
+        mins = minutes or 15
+        scale = min(mins / 10, 3)  # Cap at 30 mins worth
+        per_10 = EVENT_DELTAS["walk"]["per_10min"]
+        max_fx = EVENT_DELTAS["walk"]["max_effect"]
+        snapshot.stress = _clamp(snapshot.stress + max(per_10["stress"] * scale, max_fx["stress"]), 0, 100)
+        snapshot.focus = _clamp(snapshot.focus + min(per_10["focus"] * scale, max_fx["focus"]), 0, 100)
+        snapshot.mood = _clamp(snapshot.mood + min(int(per_10["mood"] * scale), max_fx["mood"]), -5, 5)
+        tags.append(f"walk_{mins}min")
+    
+    elif event_type == "caffeine":
+        srvs = min(servings or 1, EVENT_DELTAS["caffeine"]["max_servings"])
+        per_srv = EVENT_DELTAS["caffeine"]["per_serving"]
+        snapshot.stamina = _clamp(snapshot.stamina + per_srv["stamina"] * srvs, 0, 100)
+        snapshot.stress = _clamp(snapshot.stress + per_srv["stress"] * srvs, 0, 100)
+        tags.append("caffeine")
+    
+    elif event_type == "nap":
+        mins = minutes or 20
+        scale = min(mins / 10, 4)  # Cap at 40 mins worth
+        per_10 = EVENT_DELTAS["nap"]["per_10min"]
+        max_fx = EVENT_DELTAS["nap"]["max_effect"]
+        snapshot.stamina = _clamp(snapshot.stamina + min(per_10["stamina"] * scale, max_fx["stamina"]), 0, 100)
+        snapshot.focus = _clamp(snapshot.focus + min(per_10["focus"] * scale, max_fx["focus"]), 0, 100)
+        tags.append(f"nap_{mins}min")
+    
+    elif event_type == "meditation":
+        mins = minutes or 10
+        scale = min(mins / 5, 4)  # Cap at 20 mins worth
+        per_5 = EVENT_DELTAS["meditation"]["per_5min"]
+        max_fx = EVENT_DELTAS["meditation"]["max_effect"]
+        snapshot.stress = _clamp(snapshot.stress + max(per_5["stress"] * scale, max_fx["stress"]), 0, 100)
+        snapshot.focus = _clamp(snapshot.focus + min(per_5["focus"] * scale, max_fx["focus"]), 0, 100)
+        tags.append(f"meditation_{mins}min")
+    
+    elif event_type == "bad_sleep":
+        fx = EVENT_DELTAS["bad_sleep"]["effect"]
+        snapshot.sleep_quality = _clamp(snapshot.sleep_quality + fx["sleep_quality"], 0, 100)
+        snapshot.stamina = _clamp(snapshot.stamina + fx["stamina"], 0, 100)
+        snapshot.stress = _clamp(snapshot.stress + fx["stress"], 0, 100)
+        tags.append("bad_sleep")
+    
+    return snapshot, tags
+
+
+def _clamp(value: float, min_val: int, max_val: int) -> int:
+    """Clamp value to range and convert to int."""
+    return max(min_val, min(max_val, int(round(value))))
+
+
+# =============================================================================
+# HUMAN STATE MANAGER (v2)
+# =============================================================================
+
+class HumanStateManagerV2:
+    """
+    Human State Manager v2.0.0
     
     Manages:
-    - Current state (bio, load, aspiration)
-    - State history for evolution tracking
-    - Check-in streaks and patterns
-    - Integration hooks for policy/interpretation
-    
-    All updates are user-initiated or confirm-gated.
+    - Today's snapshot (data/human_state.json)
+    - History log (data/human_state_log.json)
+    - Daily drift on day rollover
+    - Check-ins and events
+    - Integration APIs for other sections
     """
-
-    MAX_HISTORY_SIZE = 100
-
+    
+    MAX_HISTORY_SIZE = 365  # Keep 1 year of history
+    
     def __init__(self, data_dir: Path):
-        self.data_dir = data_dir
-        self.state_file = data_dir / "human_state.json"
+        self.data_dir = Path(data_dir)
+        self.snapshot_file = self.data_dir / "human_state.json"
+        self.history_file = self.data_dir / "human_state_log.json"
         
-        self._state: Optional[HumanState] = None
-        self._history: List[StateHistoryEntry] = []
+        self._snapshot: Optional[HumanStateSnapshot] = None
+        self._history: List[HistoryEntry] = []
         self._loaded: bool = False
         self._lock = threading.Lock()
-
-    # ---------- File Operations ----------
-
+    
+    # =========================================================================
+    # PERSISTENCE
+    # =========================================================================
+    
     def _load(self) -> None:
         """Load state from disk."""
         if self._loaded:
             return
-
+        
         with self._lock:
             if self._loaded:
                 return
-
-            if not self.state_file.exists():
-                self._state = HumanState(
-                    created_at=datetime.now(timezone.utc).isoformat(),
-                )
-                self._history = []
-                self._loaded = True
-                self._save_unlocked()
-                return
-
-            try:
-                raw = json.loads(self.state_file.read_text(encoding="utf-8"))
-                self._state = HumanState.from_dict(raw.get("current", {}))
-                
-                self._history = []
-                for entry_data in raw.get("history", []):
-                    try:
-                        entry = StateHistoryEntry.from_dict(entry_data)
-                        self._history.append(entry)
-                    except Exception:
-                        continue
-            except Exception:
-                self._state = HumanState(
-                    created_at=datetime.now(timezone.utc).isoformat(),
-                )
-                self._history = []
-
+            
+            # Load snapshot
+            if self.snapshot_file.exists():
+                try:
+                    data = json.loads(self.snapshot_file.read_text())
+                    self._snapshot = HumanStateSnapshot.from_dict(data)
+                except Exception as e:
+                    print(f"[HumanState] Error loading snapshot: {e}")
+                    self._snapshot = None
+            
+            # Load history
+            if self.history_file.exists():
+                try:
+                    data = json.loads(self.history_file.read_text())
+                    self._history = [HistoryEntry.from_dict(e) for e in data]
+                except Exception as e:
+                    print(f"[HumanState] Error loading history: {e}")
+                    self._history = []
+            
             self._loaded = True
-
-    def _save(self) -> None:
-        """Save state to disk."""
-        with self._lock:
-            self._save_unlocked()
-
-    def _save_unlocked(self) -> None:
-        """Save without lock."""
-        data = {
-            "version": "0.5.9",
-            "current": self._state.to_dict() if self._state else {},
-            "history": [e.to_dict() for e in self._history[-self.MAX_HISTORY_SIZE:]],
-        }
-        
+    
+    def _save_snapshot(self) -> None:
+        """Save snapshot to disk (must hold lock)."""
+        if self._snapshot:
+            self.data_dir.mkdir(parents=True, exist_ok=True)
+            self.snapshot_file.write_text(
+                json.dumps(self._snapshot.to_dict(), indent=2)
+            )
+    
+    def _save_history(self) -> None:
+        """Save history to disk (must hold lock)."""
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.state_file.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False),
-            encoding="utf-8"
+        # Trim to max size
+        if len(self._history) > self.MAX_HISTORY_SIZE:
+            self._history = self._history[-self.MAX_HISTORY_SIZE:]
+        self.history_file.write_text(
+            json.dumps([e.to_dict() for e in self._history], indent=2)
         )
-
-    # ---------- State Access ----------
-
-    def get_state(self) -> HumanState:
-        """Get current human state."""
-        self._load()
-        return self._state or HumanState()
-
-    def get_bio_state(self) -> BiologyState:
-        """Get biology state."""
-        return self.get_state().bio
-
-    def get_load_state(self) -> LoadState:
-        """Get load state."""
-        return self.get_state().load
-
-    def get_aspiration_state(self) -> AspirationState:
-        """Get aspiration state."""
-        return self.get_state().aspiration
-
-    # ---------- State Updates ----------
-
-    def update_bio(
-        self,
-        energy: Optional[EnergyLevel] = None,
-        sleep_quality: Optional[str] = None,
-        sleep_hours: Optional[float] = None,
-        stress: Optional[StressLevel] = None,
-        physical_notes: Optional[str] = None,
-    ) -> BiologyState:
+    
+    # =========================================================================
+    # DATE HANDLING / DRIFT
+    # =========================================================================
+    
+    def _get_today_str(self) -> str:
+        """Get today's date string in YYYY-MM-DD format."""
+        return datetime.now().strftime("%Y-%m-%d")
+    
+    def _ensure_today(self) -> HumanStateSnapshot:
         """
-        Update biology state.
+        Ensure we have a snapshot for today.
+        If date changed, apply drift and create new day's snapshot.
         """
         self._load()
-
+        
+        today = self._get_today_str()
+        
         with self._lock:
-            bio = self._state.bio
+            if self._snapshot is None:
+                # Fresh install - create default snapshot
+                self._snapshot = HumanStateSnapshot.default(today)
+                self._snapshot.recompute_derived()
+                self._save_snapshot()
+                return self._snapshot
             
-            if energy:
-                bio.energy = energy
+            if self._snapshot.today_date != today:
+                # Day changed - apply drift
+                old_date = self._snapshot.today_date
+                
+                # Apply drift to create new day's base
+                self._snapshot = apply_daily_drift(self._snapshot)
+                self._snapshot.today_date = today
+                self._snapshot.recompute_derived()
+                self._save_snapshot()
+                
+                print(f"[HumanState] Day rollover: {old_date} -> {today}, drift applied")
+            
+            return self._snapshot
+    
+    # =========================================================================
+    # PUBLIC API - GETTERS
+    # =========================================================================
+    
+    def get_today_human_state(self) -> HumanStateSnapshot:
+        """Get today's snapshot (ensuring day rollover is handled)."""
+        return self._ensure_today()
+    
+    def get_readiness_tier(self) -> ReadinessTier:
+        """Get current readiness tier."""
+        snapshot = self._ensure_today()
+        return snapshot.readiness_tier
+    
+    def get_load_modifier(self) -> float:
+        """Get current load modifier."""
+        snapshot = self._ensure_today()
+        return snapshot.load_modifier
+    
+    def get_recommended_mode(self) -> RecommendedMode:
+        """Get current recommended mode."""
+        snapshot = self._ensure_today()
+        return snapshot.recommended_mode
+    
+    def get_tone_hint(self) -> ToneHint:
+        """Get tone hint for reminders."""
+        return get_tone_hint(self.get_readiness_tier())
+    
+    def get_hp(self) -> int:
+        """Get current HP."""
+        snapshot = self._ensure_today()
+        return snapshot.hp
+    
+    # =========================================================================
+    # PUBLIC API - CHECK-IN
+    # =========================================================================
+    
+    def do_checkin(
+        self,
+        stamina: Optional[int] = None,
+        stress: Optional[int] = None,
+        mood: Optional[int] = None,
+        focus: Optional[int] = None,
+        sleep_quality: Optional[int] = None,
+        soreness: Optional[int] = None,
+        notes: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> HumanStateSnapshot:
+        """
+        Perform a check-in, updating provided metrics.
+        
+        - Only provided values are updated
+        - Derived fields are recomputed
+        - History is updated (one entry per day)
+        """
+        snapshot = self._ensure_today()
+        
+        with self._lock:
+            # Update provided values
+            if stamina is not None:
+                snapshot.stamina = _clamp(stamina, 0, 100)
+            if stress is not None:
+                snapshot.stress = _clamp(stress, 0, 100)
+            if mood is not None:
+                snapshot.mood = _clamp(mood, -5, 5)
+            if focus is not None:
+                snapshot.focus = _clamp(focus, 0, 100)
             if sleep_quality is not None:
-                bio.sleep_quality = sleep_quality
-            if sleep_hours is not None:
-                bio.sleep_hours = sleep_hours
-            if stress:
-                bio.stress = stress
-            if physical_notes is not None:
-                bio.physical_notes = physical_notes
+                snapshot.sleep_quality = _clamp(sleep_quality, 0, 100)
+            if soreness is not None:
+                snapshot.soreness = _clamp(soreness, 0, 100)
+            if notes is not None:
+                snapshot.notes = notes
+            if tags is not None:
+                # Merge tags
+                existing = set(snapshot.tags)
+                for t in tags:
+                    existing.add(t)
+                snapshot.tags = list(existing)
             
-            bio.last_updated = datetime.now(timezone.utc).isoformat()
-            self._save_unlocked()
+            # Update timestamp
+            snapshot.last_check_in_at = datetime.now(timezone.utc).isoformat()
             
-            return bio
-
-    def update_load(
+            # Recompute derived
+            snapshot.recompute_derived()
+            
+            # Save snapshot
+            self._save_snapshot()
+            
+            # Update history (one entry per day)
+            self._update_history_for_today(snapshot)
+            
+            return snapshot
+    
+    def _update_history_for_today(self, snapshot: HumanStateSnapshot) -> None:
+        """Update or create history entry for today (must hold lock)."""
+        today = snapshot.today_date
+        
+        # Find existing entry for today
+        for i, entry in enumerate(self._history):
+            if entry.date == today:
+                # Update existing
+                self._history[i] = HistoryEntry.from_snapshot(snapshot)
+                self._save_history()
+                return
+        
+        # Add new entry
+        self._history.append(HistoryEntry.from_snapshot(snapshot))
+        self._save_history()
+    
+    # =========================================================================
+    # PUBLIC API - EVENTS
+    # =========================================================================
+    
+    def log_event(
         self,
-        cognitive_load: Optional[LoadLevel] = None,
-        active_tasks: Optional[int] = None,
-        pending_decisions: Optional[int] = None,
-        overwhelm_feeling: Optional[str] = None,
-        focus_quality: Optional[str] = None,
-    ) -> LoadState:
+        event_type: str,
+        intensity: Optional[str] = None,
+        minutes: Optional[int] = None,
+        servings: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
-        Update load state.
+        Log a quick event that modifies today's state.
+        
+        Supported event types:
+        - workout (intensity: low/medium/high)
+        - walk (minutes)
+        - caffeine (servings)
+        - nap (minutes)
+        - meditation (minutes)
+        - bad_sleep
+        
+        Returns: dict with event details and new state summary
         """
-        self._load()
-
+        snapshot = self._ensure_today()
+        
         with self._lock:
-            load = self._state.load
-            
-            if cognitive_load:
-                load.cognitive_load = cognitive_load
-            if active_tasks is not None:
-                load.active_tasks = active_tasks
-            if pending_decisions is not None:
-                load.pending_decisions = pending_decisions
-            if overwhelm_feeling is not None:
-                load.overwhelm_feeling = overwhelm_feeling
-            if focus_quality is not None:
-                load.focus_quality = focus_quality
-            
-            load.last_updated = datetime.now(timezone.utc).isoformat()
-            self._save_unlocked()
-            
-            return load
-
-    def update_aspiration(
-        self,
-        current_focus: Optional[str] = None,
-        growth_areas: Optional[List[str]] = None,
-        momentum: Optional[MomentumLevel] = None,
-        add_win: Optional[str] = None,
-        add_blocker: Optional[str] = None,
-        remove_blocker: Optional[str] = None,
-    ) -> AspirationState:
-        """
-        Update aspiration state.
-        """
-        self._load()
-
-        with self._lock:
-            asp = self._state.aspiration
-            
-            if current_focus is not None:
-                asp.current_focus = current_focus
-            if growth_areas is not None:
-                asp.growth_areas = growth_areas
-            if momentum:
-                asp.momentum = momentum
-            
-            if add_win:
-                asp.recent_wins = [add_win] + asp.recent_wins[:4]  # Keep last 5
-            if add_blocker:
-                if add_blocker not in asp.blockers:
-                    asp.blockers.append(add_blocker)
-            if remove_blocker and remove_blocker in asp.blockers:
-                asp.blockers.remove(remove_blocker)
-            
-            asp.last_updated = datetime.now(timezone.utc).isoformat()
-            self._save_unlocked()
-            
-            return asp
-
-    # ---------- Check-in ----------
-
-    def do_checkin(self, notes: Optional[str] = None) -> StateHistoryEntry:
-        """
-        Record a check-in and add to history.
-        """
-        self._load()
-
-        with self._lock:
-            now = datetime.now(timezone.utc)
-            
-            # Create history entry
-            entry = StateHistoryEntry(
-                timestamp=now.isoformat(),
-                bio_energy=self._state.bio.energy,
-                bio_stress=self._state.bio.stress,
-                load_cognitive=self._state.load.cognitive_load,
-                aspiration_momentum=self._state.aspiration.momentum,
-                overall_strain=self._state.get_overall_strain(),
-                notes=notes,
+            # Apply deltas
+            snapshot, new_tags = apply_event_deltas(
+                snapshot, event_type, intensity, minutes, servings
             )
             
-            self._history.append(entry)
+            # Merge tags
+            existing = set(snapshot.tags)
+            for t in new_tags:
+                existing.add(t)
+            snapshot.tags = list(existing)
             
-            # Update streak
-            last = self._state.last_checkin
-            if last:
-                try:
-                    last_dt = datetime.fromisoformat(last.replace("Z", "+00:00"))
-                    days_since = (now - last_dt).days
-                    if days_since <= 1:
-                        self._state.checkin_streak += 1
-                    else:
-                        self._state.checkin_streak = 1
-                except ValueError:
-                    self._state.checkin_streak = 1
-            else:
-                self._state.checkin_streak = 1
+            # Log event
+            event_record = {
+                "type": event_type,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "intensity": intensity,
+                "minutes": minutes,
+                "servings": servings,
+            }
+            snapshot.events.append(event_record)
             
-            self._state.last_checkin = now.isoformat()
+            # Recompute derived
+            snapshot.recompute_derived()
             
-            self._save_unlocked()
+            # Save
+            self._save_snapshot()
+            self._update_history_for_today(snapshot)
             
-            return entry
-
-    # ---------- History & Evolution ----------
-
-    def get_history(self, limit: int = 10) -> List[StateHistoryEntry]:
-        """Get recent state history."""
+            return {
+                "event": event_record,
+                "hp": snapshot.hp,
+                "readiness_tier": snapshot.readiness_tier,
+                "recommended_mode": snapshot.recommended_mode,
+            }
+    
+    # =========================================================================
+    # PUBLIC API - CLEAR / RESET
+    # =========================================================================
+    
+    def clear_today(self, hard: bool = False) -> Dict[str, Any]:
+        """
+        Clear today's snapshot.
+        
+        - soft (default): Reset metrics to neutral defaults, keep history
+        - hard=True: Also clear history log
+        """
+        today = self._get_today_str()
+        
+        with self._lock:
+            # Reset snapshot
+            self._snapshot = HumanStateSnapshot.default(today)
+            self._snapshot.recompute_derived()
+            self._save_snapshot()
+            
+            result = {"today_cleared": True, "history_cleared": False}
+            
+            if hard:
+                self._history = []
+                self._save_history()
+                result["history_cleared"] = True
+            
+            return result
+    
+    # =========================================================================
+    # PUBLIC API - HISTORY / ANALYTICS
+    # =========================================================================
+    
+    def get_history(self, limit: int = 7) -> List[HistoryEntry]:
+        """Get recent history entries (most recent first)."""
         self._load()
         return list(reversed(self._history[-limit:]))
-
-    def get_evolution_summary(self) -> Dict[str, Any]:
+    
+    def get_7_day_averages(self) -> Dict[str, float]:
         """
-        Get evolution summary for status display.
-        """
-        self._load()
-
-        state = self._state
-        history = self._history
+        Get 7-day rolling averages for key metrics.
         
-        # Calculate trends (if enough history)
-        energy_trend = "stable"
-        stress_trend = "stable"
-        momentum_trend = "stable"
-        
-        if len(history) >= 3:
-            recent = history[-3:]
-            
-            # Energy trend
-            energy_vals = [ENERGY_VALUES.get(h.bio_energy, 3) for h in recent]
-            if energy_vals[-1] > energy_vals[0]:
-                energy_trend = "improving"
-            elif energy_vals[-1] < energy_vals[0]:
-                energy_trend = "declining"
-            
-            # Stress trend (inverted - lower is better)
-            stress_vals = [STRESS_VALUES.get(h.bio_stress, 3) for h in recent]
-            if stress_vals[-1] < stress_vals[0]:
-                stress_trend = "improving"
-            elif stress_vals[-1] > stress_vals[0]:
-                stress_trend = "increasing"
-            
-            # Momentum trend
-            momentum_vals = [MOMENTUM_VALUES.get(h.aspiration_momentum, 3) for h in recent]
-            if momentum_vals[-1] > momentum_vals[0]:
-                momentum_trend = "building"
-            elif momentum_vals[-1] < momentum_vals[0]:
-                momentum_trend = "slowing"
-        
-        return {
-            "current": {
-                "energy": state.bio.energy,
-                "stress": state.bio.stress,
-                "cognitive_load": state.load.cognitive_load,
-                "momentum": state.aspiration.momentum,
-                "capacity": state.get_capacity_level(),
-                "strain": round(state.get_overall_strain(), 2),
-            },
-            "trends": {
-                "energy": energy_trend,
-                "stress": stress_trend,
-                "momentum": momentum_trend,
-            },
-            "meta": {
-                "checkin_streak": state.checkin_streak,
-                "last_checkin": state.last_checkin,
-                "history_entries": len(history),
-            },
-            "recommendations": self._get_recommendations(),
-        }
-
-    def _get_recommendations(self) -> List[str]:
-        """
-        Generate recommendations based on current state.
-        """
-        recs = []
-        state = self._state
-        
-        # Energy recommendations
-        if state.bio.energy in ("depleted", "low"):
-            recs.append("Consider rest or a shorter work session")
-        
-        # Stress recommendations
-        if state.bio.stress in ("overwhelmed", "high"):
-            recs.append("Focus on one small task to build momentum")
-        
-        # Load recommendations
-        if state.load.cognitive_load in ("overloaded", "heavy"):
-            recs.append("Defer non-essential decisions")
-        
-        if state.load.active_tasks > 5:
-            recs.append(f"You have {state.load.active_tasks} active tasks — consider trimming")
-        
-        # Momentum recommendations
-        if state.aspiration.momentum in ("stalled", "slow"):
-            recs.append("Celebrate a small win to rebuild momentum")
-        
-        # Blocker recommendations
-        if state.aspiration.blockers:
-            recs.append(f"Active blockers: {', '.join(state.aspiration.blockers[:2])}")
-        
-        # Small version recommendation
-        if state.needs_small_version():
-            recs.insert(0, "⚡ Consider 'small version' tasks today")
-        
-        return recs[:5]
-
-    # ---------- Integration Hooks ----------
-
-    def get_policy_context(self) -> Dict[str, Any]:
-        """
-        Get context for policy engine integration.
+        Returns: dict with average stamina, stress, sleep_quality, hp
         """
         self._load()
-        state = self._state
         
+        entries = self._history[-7:]
+        if not entries:
+            return {
+                "avg_stamina": 50.0,
+                "avg_stress": 50.0,
+                "avg_sleep_quality": 50.0,
+                "avg_hp": 50.0,
+            }
+        
+        n = len(entries)
         return {
-            "needs_small_version": state.needs_small_version(),
-            "capacity": state.get_capacity_level(),
-            "strain": state.get_overall_strain(),
-            "energy": state.bio.energy,
-            "stress": state.bio.stress,
-            "cognitive_load": state.load.cognitive_load,
-            "momentum": state.aspiration.momentum,
+            "avg_stamina": sum(e.stamina for e in entries) / n,
+            "avg_stress": sum(e.stress for e in entries) / n,
+            "avg_sleep_quality": sum(e.sleep_quality for e in entries) / n,
+            "avg_hp": sum(e.hp for e in entries) / n,
         }
+    
+    # =========================================================================
+    # MIGRATION FROM LEGACY
+    # =========================================================================
+    
+    def migrate_from_legacy(self, legacy_data: Dict[str, Any]) -> bool:
+        """
+        Migrate from legacy human_state format.
+        
+        Legacy format had: bio (energy, stress), load, aspiration
+        New format has: stamina, stress, mood, focus, sleep_quality, soreness
+        """
+        try:
+            today = self._get_today_str()
+            
+            # Map legacy fields
+            bio = legacy_data.get("current", {}).get("bio", {})
+            
+            # Energy mapping: depleted=20, low=35, moderate=50, good=65, high=80
+            energy_map = {
+                "depleted": 20, "low": 35, "moderate": 50, "good": 65, "high": 80
+            }
+            stamina = energy_map.get(bio.get("energy", "moderate"), 50)
+            
+            # Stress mapping: calm=10, low=25, moderate=50, high=70, overwhelmed=90
+            stress_map = {
+                "calm": 10, "low": 25, "moderate": 50, "high": 70, "overwhelmed": 90
+            }
+            stress = stress_map.get(bio.get("stress", "moderate"), 50)
+            
+            # Sleep quality
+            sleep_map = {"poor": 25, "fair": 45, "good": 70, "great": 90}
+            sleep_quality = sleep_map.get(bio.get("sleep_quality"), 50)
+            
+            with self._lock:
+                self._snapshot = HumanStateSnapshot(
+                    today_date=today,
+                    stamina=stamina,
+                    stress=stress,
+                    mood=0,
+                    focus=50,
+                    sleep_quality=sleep_quality,
+                    soreness=0,
+                )
+                self._snapshot.recompute_derived()
+                self._save_snapshot()
+            
+            print(f"[HumanState] Migrated from legacy format")
+            return True
+            
+        except Exception as e:
+            print(f"[HumanState] Migration error: {e}")
+            return False
 
-    # ---------- Export/Import ----------
 
-    def export_state(self) -> Dict[str, Any]:
-        """Export state for snapshots."""
-        self._load()
-        return {
-            "current": self._state.to_dict() if self._state else {},
-            "history": [e.to_dict() for e in self._history],
-        }
+# =============================================================================
+# EXTEND SNAPSHOT WITH RECOMPUTE METHOD
+# =============================================================================
 
-    def import_state(self, data: Dict[str, Any]) -> None:
-        """Import state from snapshot."""
-        with self._lock:
-            self._state = HumanState.from_dict(data.get("current", {}))
-            self._history = []
-            for entry_data in data.get("history", []):
-                try:
-                    entry = StateHistoryEntry.from_dict(entry_data)
-                    self._history.append(entry)
-                except Exception:
-                    continue
-            self._loaded = True
-            self._save_unlocked()
+def _recompute_derived(self: HumanStateSnapshot) -> None:
+    """Recompute all derived fields."""
+    self.hp = compute_hp(self.stamina, self.stress, self.focus, self.sleep_quality)
+    self.readiness_tier = compute_readiness_tier(self.stamina, self.stress, self.sleep_quality)
+    self.load_modifier = compute_load_modifier(self.readiness_tier)
+    self.recommended_mode = compute_recommended_mode(self.readiness_tier)
+
+
+# Monkey-patch the method onto the dataclass
+HumanStateSnapshot.recompute_derived = _recompute_derived
+
+
+# =============================================================================
+# MODULE-LEVEL HELPER FOR EASY IMPORT
+# =============================================================================
+
+_manager_instance: Optional[HumanStateManagerV2] = None
+
+
+def get_human_state_manager(data_dir: Optional[Path] = None) -> HumanStateManagerV2:
+    """Get or create the global HumanStateManager instance."""
+    global _manager_instance
+    
+    if _manager_instance is None:
+        if data_dir is None:
+            data_dir = Path("data")
+        _manager_instance = HumanStateManagerV2(data_dir)
+    
+    return _manager_instance
+
+
+def reset_human_state_manager() -> None:
+    """Reset the global manager instance (for testing)."""
+    global _manager_instance
+    _manager_instance = None
+
+
+# =============================================================================
+# EXPORTS
+# =============================================================================
+
+__all__ = [
+    # Types
+    "ReadinessTier",
+    "RecommendedMode",
+    "ToneHint",
+    # Data classes
+    "HumanStateSnapshot",
+    "HistoryEntry",
+    # Scoring functions
+    "compute_hp",
+    "compute_readiness_tier",
+    "compute_load_modifier",
+    "compute_recommended_mode",
+    "get_tone_hint",
+    # Manager
+    "HumanStateManagerV2",
+    "get_human_state_manager",
+    "reset_human_state_manager",
+]

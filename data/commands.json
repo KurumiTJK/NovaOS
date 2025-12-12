@@ -350,19 +350,24 @@
     "description": "Alias for #self-test."
   },
 
-  "log-state": {
-    "handler": "handle_log_state",
+  "human-show": {
+    "handler": "handle_human_show",
     "category": "human_state",
-    "description": "Log current human state (energy, stress, momentum)."
+    "description": "Show today's human state: HP, readiness tier, mode, all metrics."
   },
-  "evolution-status": {
-    "handler": "handle_evolution_status",
+  "human-checkin": {
+    "handler": "handle_human_checkin",
     "category": "human_state",
-    "description": "Show state evolution over time."
+    "description": "Daily check-in with guided or parameter mode."
   },
-  "capacity": {
-    "handler": "handle_capacity_check",
+  "human-event": {
+    "handler": "handle_human_event",
     "category": "human_state",
-    "description": "Check current capacity."
+    "description": "Log a quick event (workout, walk, caffeine, nap, meditation, bad_sleep)."
+  },
+  "human-clear": {
+    "handler": "handle_human_clear",
+    "category": "human_state",
+    "description": "Reset today's state. Use hard=true to also clear history."
   }
 }

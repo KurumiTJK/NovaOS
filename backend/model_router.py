@@ -180,11 +180,11 @@ LIGHT_SYSCOMMANDS: Set[str] = {
     "continuity-context",
     "reconfirm-prompts",
     
-    # Human state
-    "evolution-status",
-    "log-state",
-    "state-history",
-    "capacity-check",
+    # Human state (v2.0.0)
+    "human-show",
+    "human-checkin",
+    "human-event",
+    "human-clear",
     
     # Time rhythm
     "time-rhythm-add",

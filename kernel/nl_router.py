@@ -117,13 +117,24 @@ class IntentPatterns:
         (r"\binspect module\s+(\w+)\b", "inspect", "_extract_module_key", 0.9),
     ]
     
-    # ===== HUMAN STATE =====
+    # ===== HUMAN STATE (v2.0.0) =====
     STATE_PATTERNS = [
-        (r"\b(evolution|my) status\b", "evolution-status", None, 0.85),
-        (r"\bhow am i doing\b", "evolution-status", None, 0.8),
-        (r"\bcheck(-in| in|in)\b", "log-state", None, 0.75),
-        (r"\b(log|update) (my )?(state|energy|stress)\b", "log-state", None, 0.8),
-        (r"\b(my|check|show) capacity\b", "capacity", None, 0.8),
+        # human-show
+        (r"\b(show|check|what('s| is)) (my )?(human )?state\b", "human-show", None, 0.85),
+        (r"\bhow am i doing\b", "human-show", None, 0.8),
+        (r"\b(my|show|check) (readiness|hp|energy)\b", "human-show", None, 0.8),
+        
+        # human-checkin
+        (r"\bcheck(-| )?in\b", "human-checkin", None, 0.85),
+        (r"\b(log|update|set) (my )?(state|stamina|stress|mood)\b", "human-checkin", None, 0.8),
+        (r"\bdaily check(-| )?in\b", "human-checkin", None, 0.9),
+        
+        # human-event
+        (r"\b(log|add) (a )?(workout|walk|nap|caffeine|meditation)\b", "human-event", None, 0.8),
+        (r"\bi (worked out|exercised|walked|napped|meditated)\b", "human-event", None, 0.75),
+        
+        # human-clear
+        (r"\b(clear|reset) (my )?(human )?state\b", "human-clear", None, 0.85),
     ]
     
     # ===== CONTINUITY =====

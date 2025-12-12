@@ -1,8 +1,13 @@
 # kernel/section_defs.py
 """
-v0.11.0 — Section Definitions for NovaOS Life RPG
+v2.0.0 — Section Definitions for NovaOS Life RPG
 
 Defines the 11 canonical sections and their associated commands.
+
+v2.0.0 HUMAN STATE UPDATE:
+- Rewrote human_state section with new canonical commands
+- Commands: human-show, human-checkin, human-event, human-clear
+- Removed legacy: log-state, evolution-status, capacity
 
 v0.11.0 CHANGES:
 - Removed inbox section (all inbox commands removed)
@@ -21,7 +26,7 @@ v2.0.0 MODULES UPDATE:
 Sections:
 1. core          — Nova's heart & OS control center
 2. memory        — Lore / knowledge store
-3. human_state   — HP / stamina / stress / mood
+3. human_state   — HP / readiness tier / check-in / events
 4. modules       — Regions/domains on the world map
 5. identity      — Character sheet: name, archetype, goals, level, XP, domains, titles
 6. system        — Environment, snapshots, runtime config
@@ -91,11 +96,12 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "human_state": Section(
         title="Human State",
-        description="HP / stamina / stress / mood tracking.",
+        description="Real-time operating condition: HP, readiness tiers (Green/Yellow/Red), check-ins, and events.",
         commands=[
-            CommandInfo("log-state", "Log current human state", "#log-state energy=high stress=low"),
-            CommandInfo("evolution-status", "Show state evolution over time", "#evolution-status"),
-            CommandInfo("capacity", "Check current capacity", "#capacity"),
+            CommandInfo("human-show", "Show today's state: HP, readiness tier, mode, all metrics", "#human-show"),
+            CommandInfo("human-checkin", "Daily check-in (guided or params)", "#human-checkin stamina=70 stress=40 mood=2"),
+            CommandInfo("human-event", "Log quick event (workout, walk, caffeine, nap, etc.)", "#human-event type=workout intensity=medium"),
+            CommandInfo("human-clear", "Reset today's state (soft=default, hard=clear history too)", "#human-clear or #human-clear hard=true"),
         ]
     ),
     "modules": Section(
