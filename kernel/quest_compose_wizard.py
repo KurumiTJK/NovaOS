@@ -541,13 +541,13 @@ STAGE_PROMPTS = {
     "metadata_module": (
         "—— Step 1/4: Quest Metadata ——\n"
         "\n"
-        "Module? (optional)\n"
+        "Module (required)\n"
         "\n"
         "Which module should this quest belong to?\n"
         "\n"
         "{module_list}\n"
         "\n"
-        "Type a module name or skip for none."
+        "Type a module name:"
     ),
     "objectives": (
         "—— Step 2/4: Learning Objectives ——\n"
@@ -709,6 +709,20 @@ def handle_quest_compose_wizard(
         # Continue existing wizard
         return _process_wizard_input(cmd_name, session, user_input, session_id, engine)
     
+    # ═══════════════════════════════════════════════════════════════════════
+    # NEW WIZARD - Check for modules first (REQUIRED)
+    # ═══════════════════════════════════════════════════════════════════════
+    available_modules = _get_available_modules(kernel)
+    if not available_modules:
+        return _base_response(
+            cmd_name,
+            "⚠️ No modules found.\n\n"
+            "Quests must belong to a module. Please create a module first:\n\n"
+            "  #modules-add\n\n"
+            "Then run #quest-compose again.",
+            {"wizard_active": False}
+        )
+    
     # Start new wizard session
     session = QuestComposeSession()
     
@@ -857,57 +871,61 @@ def _get_current_prompt(cmd_name: str, session: QuestComposeSession, kernel: Any
 
 
 def _get_module_list(kernel: Any) -> str:
-    """Get a formatted list of available modules from the quest engine."""
+    """Get a formatted list of available modules from the module store."""
     try:
-        quest_engine = getattr(kernel, 'quest_engine', None)
-        if not quest_engine:
-            return "(No modules found)"
-        
-        # Try to get modules from the quest engine
-        modules = []
-        
-        # Method 1: Try get_modules() method
-        if hasattr(quest_engine, 'get_modules'):
-            modules = quest_engine.get_modules()
-        # Method 2: Try modules property
-        elif hasattr(quest_engine, 'modules'):
-            modules = quest_engine.modules
-        # Method 3: Try to get from registry
-        elif hasattr(quest_engine, 'registry') and hasattr(quest_engine.registry, 'modules'):
-            modules = list(quest_engine.registry.modules.keys())
+        modules = _get_available_modules(kernel)
         
         if not modules:
-            return "(No modules found - quest will be standalone)"
-        
-        # Format as a list
-        if isinstance(modules, dict):
-            module_names = list(modules.keys())
-        elif isinstance(modules, list):
-            # Handle list of module objects or strings
-            module_names = []
-            for m in modules:
-                if isinstance(m, str):
-                    module_names.append(m)
-                elif hasattr(m, 'id'):
-                    module_names.append(m.id)
-                elif hasattr(m, 'name'):
-                    module_names.append(m.name)
-        else:
-            module_names = []
-        
-        if not module_names:
-            return "(No modules found - quest will be standalone)"
+            return "(No modules found)"
         
         # Format nicely (no markdown)
         lines = ["Available modules:"]
-        for name in sorted(module_names):
+        for name in sorted(modules):
             lines.append(f"  - {name}")
         
         return "\n".join(lines)
         
     except Exception as e:
-        print(f"[QuestCompose] Error getting modules: {e}", flush=True)
+        print(f"[QuestCompose] Error formatting module list: {e}", flush=True)
         return "(Could not load modules)"
+
+
+def _get_available_modules(kernel: Any) -> List[str]:
+    """Get list of available module names from the module store."""
+    try:
+        # Modules are stored in kernel.module_store, not quest_engine
+        module_store = getattr(kernel, 'module_store', None)
+        if not module_store:
+            print("[QuestCompose] No module_store on kernel", flush=True)
+            return []
+        
+        # Use list_all() method on ModuleStore
+        modules = []
+        if hasattr(module_store, 'list_all'):
+            modules = module_store.list_all()
+        elif hasattr(module_store, '_modules'):
+            modules = list(module_store._modules.values())
+        
+        if not modules:
+            print("[QuestCompose] No modules found in store", flush=True)
+            return []
+        
+        # Extract module names
+        module_names = []
+        for m in modules:
+            if isinstance(m, str):
+                module_names.append(m)
+            elif hasattr(m, 'name'):
+                module_names.append(m.name)
+            elif hasattr(m, 'id'):
+                module_names.append(m.id)
+        
+        print(f"[QuestCompose] Found {len(module_names)} modules: {module_names}", flush=True)
+        return module_names
+        
+    except Exception as e:
+        print(f"[QuestCompose] Error getting modules: {e}", flush=True)
+        return []
 
 
 def _process_wizard_input(
@@ -996,11 +1014,38 @@ def _handle_metadata_stage(
         return _get_current_prompt(cmd_name, session, kernel)  # Pass kernel for module list
     
     elif substage == "module":
-        # Handle module selection
+        # Handle module selection - REQUIRED (no skip)
         if user_input and user_input.lower() not in ("skip", "s", "none", ""):
-            draft["module_id"] = user_input
+            # Validate module exists
+            available_modules = _get_available_modules(kernel)
+            module_lower = user_input.lower()
+            matched_module = None
+            for m in available_modules:
+                if m.lower() == module_lower:
+                    matched_module = m
+                    break
+            
+            if matched_module:
+                draft["module_id"] = matched_module
+            else:
+                # Module not found - show error and re-prompt
+                module_list = _get_module_list(kernel)
+                return _base_response(
+                    cmd_name,
+                    f"Module '{user_input}' not found.\n\n{module_list}\n\nPlease select a valid module:",
+                    {"wizard_active": True, "stage": "metadata", "substage": "module"}
+                )
         else:
-            draft["module_id"] = None  # No module
+            # User tried to skip - not allowed
+            clear_compose_session(session_id)
+            return _base_response(
+                cmd_name,
+                "⚠️ Module selection is required.\n\n"
+                "Quests must belong to a module. Please create one first:\n\n"
+                "  #modules-add\n\n"
+                "Then run #quest-compose again.",
+                {"wizard_active": False}
+            )
         
         # Auto-generate skill_tree_path
         draft["skill_tree_path"] = None

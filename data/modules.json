@@ -19,6 +19,26 @@
       },
       "created_at": "2025-12-11T23:30:14.481495+00:00",
       "updated_at": "2025-12-11T23:30:14.481501+00:00"
+    },
+    {
+      "id": "mod_module-test_06386d",
+      "name": "Module Test",
+      "slug": "module-test",
+      "category": "career",
+      "status": "active",
+      "phase": "foundation",
+      "description": "",
+      "tags": [],
+      "color": "#95a5a6",
+      "icon": "📁",
+      "world_meta": {
+        "realm_name": "Module Test Realm",
+        "icon": "📁",
+        "color": "#95a5a6",
+        "tier_labels": null
+      },
+      "created_at": "2025-12-12T13:34:06.647299+00:00",
+      "updated_at": "2025-12-12T13:34:06.647306+00:00"
     }
   ]
 }
