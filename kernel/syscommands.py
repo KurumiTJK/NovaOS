@@ -106,6 +106,14 @@ except ImportError:
     _HAS_IDENTITY_SECTION = False
     def get_identity_handlers(): return {}
 
+# v2.0.0: Reminders Section Handlers (complete rewrite with recurrence, windows, snooze, pin)
+try:
+    from .reminders_handlers import get_reminders_handlers
+    _HAS_REMINDERS = True
+except ImportError:
+    _HAS_REMINDERS = False
+    def get_reminders_handlers(): return {}
+
 # v3.0.0: Human State REMOVED - functionality merged into Timerhythm
 # HP, readiness, and daily state now tracked via #daily-review phases
 _HAS_HUMAN_STATE_V2 = False
@@ -776,77 +784,47 @@ def handle_restore(cmd_name, args, session_id, context, kernel, meta) -> Command
 
 
 # =============================================================================
-# REMINDER HANDLERS
+# REMINDER HANDLERS (v2.0.0: Legacy handlers - kept for backward compatibility)
+# New handlers in reminders_handlers.py: reminders-list, reminders-due, etc.
 # =============================================================================
 
 def handle_remind_add(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Create a reminder."""
-    title = None
-    when = None
-    repeat = None
-
-    if isinstance(args, dict):
-        title = args.get("title") or args.get("_", [None])[0]
-        when = args.get("when")
-        repeat = args.get("repeat")
-
-    if not title or not when:
-        return _base_response(cmd_name, "Missing title or when.", {"ok": False})
-
-    r = kernel.reminders.add(title=title, when=when, repeat=repeat)
-    data = r.to_dict()
-
-    summary = F.header("Reminder added") + f"I'll remind you at {data.get('when')}:\n    \"{data.get('title')}\""
-    return _base_response(cmd_name, summary, data)
+    """DEPRECATED: Use #reminders-add instead. Kept for backward compatibility."""
+    return _base_response(
+        cmd_name, 
+        "⚠️ `#remind-add` is deprecated. Please use `#reminders-add` instead.\n\n"
+        "Example: #reminders-add title=\"Call mom\" due=\"5pm\"",
+        {"deprecated": True, "use_instead": "reminders-add"}
+    )
 
 
 def handle_remind_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """List reminders."""
-    items = [r.to_dict() for r in kernel.reminders.list()]
-
-    if not items:
-        return _base_response(cmd_name, F.header("No active reminders."), {"reminders": []})
-
-    formatted = []
-    for r in items:
-        formatted.append(F.item(r.get("id", "?"), r.get("when", "?"), f"\"{r.get('title', '')}\""))
-
-    summary = F.header(f"Active reminders ({len(items)})") + F.list(formatted)
-    return _base_response(cmd_name, summary, {"reminders": items})
+    """DEPRECATED: Use #reminders-list instead. Kept for backward compatibility."""
+    return _base_response(
+        cmd_name,
+        "⚠️ `#remind-list` is deprecated. Please use `#reminders-list` or `#reminders-due` instead.",
+        {"deprecated": True, "use_instead": "reminders-list"}
+    )
 
 
 def handle_remind_update(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Update an existing reminder."""
-    rid = None
-    if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-    if not rid:
-        return _base_response(cmd_name, "Missing id.", {"ok": False})
-
-    fields = {k: v for k, v in args.items() if k not in ("id", "_")}
-    r = kernel.reminders.update(rid, fields)
-    if not r:
-        return _base_response(cmd_name, f"No reminder '{rid}'.", {"ok": False})
-
-    data = r.to_dict()
-    summary = F.header("Reminder updated") + f"#{data.get('id')} — {data.get('when')}\n    \"{data.get('title')}\""
-    return _base_response(cmd_name, summary, data)
+    """DEPRECATED: Use #reminders-update instead. Kept for backward compatibility."""
+    return _base_response(
+        cmd_name,
+        "⚠️ `#remind-update` is deprecated. Please use `#reminders-update` instead.\n\n"
+        "Example: #reminders-update id=rem_001 title=\"New title\"",
+        {"deprecated": True, "use_instead": "reminders-update"}
+    )
 
 
 def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Delete a reminder."""
-    rid = None
-    if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-
-    if not rid:
-        return _base_response(cmd_name, "Missing id.", {"ok": False})
-
-    ok = kernel.reminders.delete(rid)
-    if not ok:
-        return _base_response(cmd_name, f"No reminder '{rid}'.", {"ok": False})
-
-    return _base_response(cmd_name, f"Reminder '{rid}' deleted.", {"id": rid})
+    """DEPRECATED: Use #reminders-delete instead. Kept for backward compatibility."""
+    return _base_response(
+        cmd_name,
+        "⚠️ `#remind-delete` is deprecated. Please use `#reminders-delete` instead.\n\n"
+        "Example: #reminders-delete id=rem_001",
+        {"deprecated": True, "use_instead": "reminders-delete"}
+    )
 
 
 # =============================================================================
@@ -1444,7 +1422,8 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_snapshot": handle_snapshot,
     "handle_restore": handle_restore,
     
-    # Reminders
+    # Reminders (v2.0.0: legacy handlers kept for backward compatibility)
+    # New handlers registered via get_reminders_handlers() below
     "handle_remind_add": handle_remind_add,
     "handle_remind_list": handle_remind_list,
     "handle_remind_update": handle_remind_update,
@@ -1510,6 +1489,11 @@ if _HAS_MEMORY_SYSCOMMANDS:
 # These provide the new comprehensive identity system with XP ledger, archetype, goals, etc.
 if _HAS_IDENTITY_SECTION:
     SYS_HANDLERS.update(get_identity_handlers())
+
+# v2.0.0: Reminders Section handlers (complete rewrite)
+# New commands: reminders-list, reminders-due, reminders-show, reminders-add, etc.
+if _HAS_REMINDERS:
+    SYS_HANDLERS.update(get_reminders_handlers())
 
 # v3.0.0: Human State handlers removed - functionality merged into Timerhythm
 # HP, readiness, sleep/energy tracking now via #daily-review phases

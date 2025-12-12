@@ -23,6 +23,12 @@ v2.0.0 MODULES UPDATE:
 - Modules are the "world map" of NovaOS life areas
 - XP lives in Identity, modules are structural metadata only
 
+v2.0.0 REMINDERS UPDATE:
+- Complete rewrite of reminders section
+- Added: reminders-list, reminders-due, reminders-show, reminders-add, reminders-update
+- Added: reminders-done, reminders-snooze, reminders-delete, reminders-pin, reminders-unpin
+- Supports recurring reminders (daily/weekly/monthly), windowed reminders, snooze, pin
+
 Sections:
 1. core          — Nova's heart & OS control center
 2. memory        — Lore / knowledge store
@@ -153,12 +159,18 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "reminders": Section(
         title="Reminders",
-        description="Time-based reminders and quest pins.",
+        description="Time-based reminders with recurrence, windows, snooze, and pinning.",
         commands=[
-            CommandInfo("remind-add", "Create a reminder", "#remind-add msg=\"Call mom\" at=\"5pm\""),
-            CommandInfo("remind-list", "List reminders", "#remind-list"),
-            CommandInfo("remind-update", "Update a reminder", "#remind-update id=1 msg=\"...\""),
-            CommandInfo("remind-delete", "Delete a reminder", "#remind-delete id=1"),
+            CommandInfo("reminders-list", "List all reminders (grouped by status)", "#reminders-list"),
+            CommandInfo("reminders-due", "Show reminders that are due now + today + pinned", "#reminders-due"),
+            CommandInfo("reminders-show", "Show full details for a reminder", "#reminders-show id=rem_001"),
+            CommandInfo("reminders-add", "Create a new reminder", '#reminders-add title="Call mom" due="5pm"'),
+            CommandInfo("reminders-update", "Update a reminder's fields", "#reminders-update id=rem_001 title=\"...\""),
+            CommandInfo("reminders-done", "Mark reminder as done (advances recurrence if recurring)", "#reminders-done id=rem_001"),
+            CommandInfo("reminders-snooze", "Snooze a reminder (10m, 1h, 3h, 1d)", "#reminders-snooze id=rem_001 duration=1h"),
+            CommandInfo("reminders-delete", "Delete a reminder", "#reminders-delete id=rem_001"),
+            CommandInfo("reminders-pin", "Pin a reminder", "#reminders-pin id=rem_001"),
+            CommandInfo("reminders-unpin", "Unpin a reminder", "#reminders-unpin id=rem_001"),
         ]
     ),
     "commands": Section(

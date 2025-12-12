@@ -193,25 +193,55 @@
     "description": "Show raw quest engine state for debugging."
   },
 
-  "remind-add": {
-    "handler": "handle_remind_add",
+  "reminders-list": {
+    "handler": "handle_reminders_list",
     "category": "reminders",
-    "description": "Add a new reminder with a time."
+    "description": "List all reminders grouped by status (due/today/upcoming/pinned/done)."
   },
-  "remind-list": {
-    "handler": "handle_remind_list",
+  "reminders-due": {
+    "handler": "handle_reminders_due",
     "category": "reminders",
-    "description": "List all active reminders."
+    "description": "Show reminders that are currently due, plus today and pinned."
   },
-  "remind-update": {
-    "handler": "handle_remind_update",
+  "reminders-show": {
+    "handler": "handle_reminders_show",
     "category": "reminders",
-    "description": "Update an existing reminder."
+    "description": "Show full details for a specific reminder."
   },
-  "remind-delete": {
-    "handler": "handle_remind_delete",
+  "reminders-add": {
+    "handler": "handle_reminders_add",
+    "category": "reminders",
+    "description": "Create a new reminder with optional repeat and window."
+  },
+  "reminders-update": {
+    "handler": "handle_reminders_update",
+    "category": "reminders",
+    "description": "Update an existing reminder's fields."
+  },
+  "reminders-delete": {
+    "handler": "handle_reminders_delete",
     "category": "reminders",
     "description": "Delete a reminder by ID."
+  },
+  "reminders-done": {
+    "handler": "handle_reminders_done",
+    "category": "reminders",
+    "description": "Mark a reminder as done. Recurring reminders advance to next occurrence."
+  },
+  "reminders-snooze": {
+    "handler": "handle_reminders_snooze",
+    "category": "reminders",
+    "description": "Snooze a reminder for a duration (10m, 1h, 3h, 1d)."
+  },
+  "reminders-pin": {
+    "handler": "handle_reminders_pin",
+    "category": "reminders",
+    "description": "Pin a reminder so it always shows in due view."
+  },
+  "reminders-unpin": {
+    "handler": "handle_reminders_unpin",
+    "category": "reminders",
+    "description": "Unpin a reminder."
   },
 
   "identity-show": {
