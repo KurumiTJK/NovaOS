@@ -1,0 +1,319 @@
+{
+  "quest_id": "quest_web-9f8336a7",
+  "quest_title": "test",
+  "total_steps": 7,
+  "total_hours": 10.5,
+  "steps": [
+    {
+      "step_id": "step_1",
+      "step_type": "INFO",
+      "title": "Day 1: Docker Core Concepts",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Read the Docker 'Get Started: Overview' documentation to understand containers and compare them to virtual machines (25 min).",
+        "Study the concepts of Docker Images and Containers by reading Part 1 of the 'Get Started' guide (25 min).",
+        "Review the official documentation for the three fundamental Docker CLI commands: `docker run`, `docker build`, and `docker ps` (20 min).",
+        "Write a one-paragraph summary for each of the following: Image, Container, and Dockerfile, explaining how they relate to each other (20 min)."
+      ],
+      "completion_check": "You're done when you can explain the difference between a Docker image and a container, and describe the purpose of a Dockerfile to a colleague.",
+      "resource_refs": [
+        "https://docs.docker.com/get-started/overview/",
+        "https://docs.docker.com/get-started/"
+      ],
+      "domain": "Docker Fundamentals",
+      "subdomain": "Docker Fundamentals",
+      "subtopics": [
+        "Docker Fundamentals"
+      ],
+      "day_number": 1
+    },
+    {
+      "step_id": "step_2",
+      "step_type": "INFO",
+      "title": "Day 2: Container Image Design Best Practices",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Read the 'Use multi-stage builds' and 'Don't install unnecessary packages' sections of the official Dockerfile best practices guide (25 min).",
+        "Read the 'Minimize the number of layers' and 'Leverage build cache' sections of the Dockerfile best practices guide, focusing on how `RUN` commands can be combined (25 min).",
+        "Read the 'Choose a base image' section, paying close attention to the pros and cons of distroless, Alpine, and slim variants (20 min).",
+        "Write a 5-point checklist for creating a production-ready container image, summarizing the key principles you just researched (20 min)."
+      ],
+      "completion_check": "You're done when you have created a 5-point checklist for optimizing a Dockerfile and can explain the purpose of a multi-stage build.",
+      "resource_refs": [
+        "https://docs.docker.com/develop/develop-images/dockerfile_best-practices/"
+      ],
+      "domain": "Container Image Design",
+      "subdomain": "Container Image Design",
+      "subtopics": [
+        "Container Image Design"
+      ],
+      "day_number": 2
+    },
+    {
+      "step_id": "step_3",
+      "step_type": "INFO",
+      "title": "Day 3: Kubernetes Core Concepts",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Read the 'What is Kubernetes?' and 'Kubernetes Components' sections of the official documentation to understand the overall architecture (Control Plane, Nodes) (25 min)",
+        "Read the 'Pods' concept page in the Kubernetes documentation, focusing on what a Pod is, why it's needed, and its lifecycle (20 min)",
+        "Read the 'Deployments' concept page, focusing on how they manage ReplicaSets and Pods to provide declarative updates and scaling (25 min)",
+        "Read the 'Services' concept page to learn how they provide a stable network endpoint for a dynamic set of Pods (20 min)"
+      ],
+      "completion_check": "You're done when you can draw a simple diagram showing how a Service exposes a set of Pods managed by a Deployment on a Node, and can explain the role of each component.",
+      "resource_refs": [
+        "https://kubernetes.io/docs/concepts/"
+      ],
+      "domain": "Kubernetes Basics",
+      "subdomain": "Kubernetes Basics",
+      "subtopics": [
+        "Kubernetes Basics"
+      ],
+      "day_number": 3
+    },
+    {
+      "step_id": "step_4",
+      "step_type": "INFO",
+      "title": "Day 4: Foundations of Kubernetes Operations",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Read the official Kubernetes documentation on 'Monitoring' concepts, focusing on the metrics pipeline and available tools (25 min).",
+        "Study the official Kubernetes documentation on 'Logging Architecture', identifying the difference between node-level and cluster-level logging (25 min).",
+        "Review the 'Troubleshooting' guides in the official Kubernetes documentation, focusing on the common steps for debugging applications and clusters (25 min).",
+        "Write a 1-page summary comparing the roles of monitoring, logging, and tracing in Kubernetes operations based on your research (15 min)."
+      ],
+      "completion_check": "You're done when you can outline the standard approaches for monitoring, logging, and troubleshooting a Kubernetes cluster using the official documentation as a reference.",
+      "resource_refs": [
+        "https://kubernetes.io/docs/concepts/cluster-administration/monitoring/",
+        "https://kubernetes.io/docs/concepts/cluster-administration/logging/",
+        "https://kubernetes.io/docs/tasks/debug/"
+      ],
+      "domain": "Kubernetes Operations",
+      "subdomain": "Kubernetes Operations",
+      "subtopics": [
+        "Kubernetes Operations"
+      ],
+      "day_number": 4
+    },
+    {
+      "step_id": "step_5",
+      "step_type": "INFO",
+      "title": "Day 5: Core CI/CD Concepts and Terminology",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Read Atlassian's guide on 'Continuous integration vs. continuous delivery vs. continuous deployment' to understand the core differences (25 min).",
+        "Read the 'Continuous Integration' and 'Continuous Delivery/Deployment' sections of the AWS CI/CD whitepaper, focusing on source control, build, test, and release automation stages (25 min).",
+        "Watch the 'What is CI/CD?' video by IBM Cloud (15 min) to visualize the pipeline and workflow from code commit to production.",
+        "Write a 1-paragraph summary for each of the following: Continuous Integration, Continuous Delivery, and Continuous Deployment, explaining their purpose and key activities in your own words (25 min)."
+      ],
+      "completion_check": "You're done when you can explain the difference between CI, Continuous Delivery, and Continuous Deployment, and list the typical stages in a CI/CD pipeline (e.g., source, build, test, deploy).",
+      "resource_refs": [
+        "https://www.atlassian.com/continuous-delivery/ci-cd",
+        "https://docs.aws.amazon.com/whitepapers/latest/introduction-devops-aws/continuous-integration-continuous-delivery.html",
+        "https://www.youtube.com/watch?v=62N8S3l_8zI"
+      ],
+      "domain": "CI/CD Concepts",
+      "subdomain": "CI/CD Concepts",
+      "subtopics": [
+        "CI/CD Concepts"
+      ],
+      "day_number": 5
+    },
+    {
+      "step_id": "step_6",
+      "step_type": "INFO",
+      "title": "Day 6: CI/CD Tooling Landscape: Jenkins, GitLab, and GitHub Actions",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Research Jenkins: Read the 'What is Jenkins?' and 'Getting Started with Pipeline' sections of the official documentation to understand its architecture (controller/agent, plugins) and pipeline-as-code (Jenkinsfile). (25 min)",
+        "Research GitLab CI/CD: Read the 'Introduction to GitLab CI/CD' and 'CI/CD concepts' documentation to understand its integrated approach, runners, and the `.gitlab-ci.yml` file structure. (25 min)",
+        "Research GitHub Actions: Read the 'Understanding GitHub Actions' and 'Core concepts for GitHub Actions' documentation to learn about workflows, events, jobs, and runners. (25 min)",
+        "Create a 3-column comparison table summarizing the key features, pipeline syntax (e.g., Jenkinsfile vs .yml), and hosting model (self-hosted vs SaaS) for each of the three tools. (15 min)"
+      ],
+      "completion_check": "You're done when you have a comparison table outlining the core concepts, syntax, and hosting options for Jenkins, GitLab CI/CD, and GitHub Actions.",
+      "resource_refs": [
+        "https://www.jenkins.io/doc/",
+        "https://docs.gitlab.com/ee/ci/",
+        "https://docs.github.com/en/actions/learn-github-actions"
+      ],
+      "domain": "CI/CD Pipeline Tooling",
+      "subdomain": "CI/CD Pipeline Tooling",
+      "subtopics": [
+        "CI/CD Pipeline Tooling"
+      ],
+      "day_number": 6
+    },
+    {
+      "step_id": "step_7",
+      "step_type": "INFO",
+      "title": "Day 7: Containerized Deployment Automation",
+      "estimated_time_minutes": 90,
+      "goal": "",
+      "actions": [
+        "Study: Research: Containerized Deployment Automation (Self-directed)",
+        "Take notes on key concepts from Containerized Deployment Automation",
+        "Create a summary of what you learned"
+      ],
+      "completion_check": "You can explain the key concepts of Containerized Deployment Automation",
+      "resource_refs": [],
+      "domain": "Containerized Deployment Automation",
+      "subdomain": "Containerized Deployment Automation",
+      "subtopics": [
+        "Containerized Deployment Automation"
+      ],
+      "day_number": 7
+    }
+  ],
+  "evidence_packs": [
+    {
+      "subdomain": "Docker Fundamentals",
+      "domain": "Docker Fundamentals",
+      "resources": [
+        {
+          "title": "Research: Docker Fundamentals",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "docker-fundamentals"
+          ],
+          "description": "Research official documentation and training for Docker Fundamentals",
+          "retrieved_at": "2025-12-12T21:51:57.745348+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:51:57.745353+00:00"
+    },
+    {
+      "subdomain": "Container Image Design",
+      "domain": "Container Image Design",
+      "resources": [
+        {
+          "title": "Research: Container Image Design",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "container-image-design"
+          ],
+          "description": "Research official documentation and training for Container Image Design",
+          "retrieved_at": "2025-12-12T21:52:13.485556+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:52:13.485562+00:00"
+    },
+    {
+      "subdomain": "Kubernetes Basics",
+      "domain": "Kubernetes Basics",
+      "resources": [
+        {
+          "title": "Research: Kubernetes Basics",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "kubernetes-basics"
+          ],
+          "description": "Research official documentation and training for Kubernetes Basics",
+          "retrieved_at": "2025-12-12T21:52:24.940707+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:52:24.940712+00:00"
+    },
+    {
+      "subdomain": "Kubernetes Operations",
+      "domain": "Kubernetes Operations",
+      "resources": [
+        {
+          "title": "Research: Kubernetes Operations",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "kubernetes-operations"
+          ],
+          "description": "Research official documentation and training for Kubernetes Operations",
+          "retrieved_at": "2025-12-12T21:52:51.652208+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:52:51.652213+00:00"
+    },
+    {
+      "subdomain": "CI/CD Concepts",
+      "domain": "CI/CD Concepts",
+      "resources": [
+        {
+          "title": "Research: CI/CD Concepts",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "ci/cd-concepts"
+          ],
+          "description": "Research official documentation and training for CI/CD Concepts",
+          "retrieved_at": "2025-12-12T21:53:25.140576+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:53:25.140583+00:00"
+    },
+    {
+      "subdomain": "CI/CD Pipeline Tooling",
+      "domain": "CI/CD Pipeline Tooling",
+      "resources": [
+        {
+          "title": "Research: CI/CD Pipeline Tooling",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "ci/cd-pipeline-tooling"
+          ],
+          "description": "Research official documentation and training for CI/CD Pipeline Tooling",
+          "retrieved_at": "2025-12-12T21:53:41.049289+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:53:41.049296+00:00"
+    },
+    {
+      "subdomain": "Containerized Deployment Automation",
+      "domain": "Containerized Deployment Automation",
+      "resources": [
+        {
+          "title": "Research: Containerized Deployment Automation",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "containerized-deployment-automation"
+          ],
+          "description": "Research official documentation and training for Containerized Deployment Automation",
+          "retrieved_at": "2025-12-12T21:54:03.147339+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:54:03.147344+00:00"
+    }
+  ],
+  "recommended_days": 7,
+  "steps_per_day": 1,
+  "generated_at": "2025-12-12T21:55:29.668939+00:00",
+  "engine_version": "1.0.0"
+}

@@ -113,15 +113,18 @@ def generate_lesson_plan_streaming(
         if not evidence_packs:
             yield _log("Retrieving resources with Gemini web grounding...")
             
-            # Run retrieval
-            for event in retrieve_all_evidence(domains, kernel, user_constraints):
-                if isinstance(event, list):  # Final result
-                    evidence_packs = event
-                else:
+            # Run retrieval - need to capture generator return value
+            retrieval_gen = retrieve_all_evidence(domains, kernel, user_constraints)
+            try:
+                while True:
+                    event = next(retrieval_gen)
                     # Adjust progress for Phase A (10-35%)
                     if event.get("type") == "progress":
                         event["percent"] = 10 + int(event["percent"] * 0.25)
                     yield event
+            except StopIteration as e:
+                # Generator returned - get the value
+                evidence_packs = e.value if e.value else []
             
             # Save evidence
             if evidence_packs:
@@ -140,15 +143,17 @@ def generate_lesson_plan_streaming(
         yield _progress("Phase B: Building Steps...", 40)
         yield _log("Converting evidence to atomic learning steps...")
         
-        # Run step builder
-        for event in build_steps_from_evidence(evidence_packs, quest_title, kernel):
-            if isinstance(event, list):  # Final result
-                raw_steps = event
-            else:
+        # Run step builder - need to capture generator return value
+        step_gen = build_steps_from_evidence(evidence_packs, quest_title, kernel)
+        try:
+            while True:
+                event = next(step_gen)
                 # Adjust progress for Phase B (40-70%)
                 if event.get("type") == "progress":
                     event["percent"] = 40 + int(event["percent"] * 0.30)
                 yield event
+        except StopIteration as e:
+            raw_steps = e.value if e.value else []
         
         if not raw_steps:
             yield _error("No steps generated from evidence")
@@ -170,16 +175,18 @@ def generate_lesson_plan_streaming(
         if user_constraints:
             user_pacing = {"steps_per_day": user_constraints.get("steps_per_day", 1)}
         
-        # Run plan refiner
+        # Run plan refiner - need to capture generator return value
         final_plan = None
-        for event in refine_lesson_plan(raw_steps, evidence_packs, quest_id, quest_title, kernel, user_pacing):
-            if isinstance(event, LessonPlan):
-                final_plan = event
-            else:
+        refine_gen = refine_lesson_plan(raw_steps, evidence_packs, quest_id, quest_title, kernel, user_pacing)
+        try:
+            while True:
+                event = next(refine_gen)
                 # Adjust progress for Phase C (75-95%)
                 if event.get("type") == "progress":
                     event["percent"] = 75 + int(event["percent"] * 0.20)
                 yield event
+        except StopIteration as e:
+            final_plan = e.value if e.value else None
         
         if not final_plan:
             yield _log("Warning: Using raw steps without refinement")

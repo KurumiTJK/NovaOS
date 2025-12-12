@@ -6,14 +6,17 @@ Uses Gemini 2.5 Pro with Google Search grounding to find real, verified
 learning resources for each subdomain.
 
 Purpose: Stay current and factual - DO NOT invent resources.
+
+Requires: pip install google-genai
 """
 
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Dict, Generator, List, Optional
 
 from .schemas import EvidenceResource, EvidencePack
 
@@ -44,7 +47,7 @@ PREFERRED_PROVIDERS = [
     "edX", 
     "Pluralsight",
     "LinkedIn Learning",
-    "Udemy",  # Only if clearly relevant
+    "Udemy",
     
     # Technical resources
     "PortSwigger Web Security Academy",
@@ -55,7 +58,7 @@ PREFERRED_PROVIDERS = [
 
 
 # =============================================================================
-# GEMINI RETRIEVAL
+# GEMINI RETRIEVAL WITH WEB GROUNDING
 # =============================================================================
 
 def retrieve_resources_for_subdomain(
@@ -81,26 +84,22 @@ def retrieve_resources_for_subdomain(
     """
     yield {"type": "log", "message": f"[Retrieval] Searching for: {subdomain}"}
     
-    # Use kernel's LLM client which has Gemini configured
-    llm_client = getattr(kernel, 'llm_client', None)
-    if not llm_client:
-        yield {"type": "log", "message": "[Retrieval] No LLM client, using fallback"}
+    # Get API key
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        yield {"type": "log", "message": "[Retrieval] No GEMINI_API_KEY, using fallback"}
         return _fallback_evidence_pack(subdomain, domain)
     
-    # Try to use Gemini via the gemini_helper
+    # Try to use the new google-genai SDK
     try:
-        import google.generativeai as genai
-        import os
+        from google import genai
+        from google.genai import types
         
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        if not api_key:
-            yield {"type": "log", "message": "[Retrieval] No GEMINI_API_KEY, using fallback"}
-            return _fallback_evidence_pack(subdomain, domain)
+        yield {"type": "log", "message": "[Retrieval] Using google-genai SDK with web grounding"}
         
-        genai.configure(api_key=api_key)
-        has_gemini = True
     except ImportError:
-        yield {"type": "log", "message": "[Retrieval] Gemini SDK not available, using fallback"}
+        yield {"type": "log", "message": "[Retrieval] google-genai not installed, using fallback"}
+        yield {"type": "log", "message": "[Retrieval] Install with: pip install google-genai"}
         return _fallback_evidence_pack(subdomain, domain)
     
     # Build search prompt
@@ -143,40 +142,42 @@ Return 3-6 high-quality resources. JSON array only, no markdown."""
     user_prompt = f"Find learning resources for: {subdomain}"
     
     try:
-        yield {"type": "log", "message": f"[Retrieval] Calling Gemini for resources..."}
+        yield {"type": "log", "message": f"[Retrieval] Calling Gemini with Google Search grounding..."}
         
-        # Call Gemini directly with web grounding
-        model = genai.GenerativeModel(
-            model_name="gemini-2.5-pro",
+        # Initialize client with API key
+        client = genai.Client(api_key=api_key)
+        
+        # Create Google Search grounding tool
+        grounding_tool = types.Tool(
+            google_search=types.GoogleSearch()
+        )
+        
+        # Configure the request
+        config = types.GenerateContentConfig(
             system_instruction=system_prompt,
+            tools=[grounding_tool],
+            temperature=0.3,
+            max_output_tokens=2000,
         )
         
-        # Enable grounding with Google Search
-        from google.generativeai.types import Tool
-        google_search_tool = Tool(
-            google_search={}
+        # Make the grounded request
+        response = client.models.generate_content(
+            model="gemini-2.5-pro",
+            contents=user_prompt,
+            config=config,
         )
         
-        response = model.generate_content(
-            user_prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.3,
-                max_output_tokens=2000,
-            ),
-            tools=[google_search_tool],
-        )
-        
-        response_text = ""
-        if hasattr(response, 'text'):
-            response_text = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
-            candidate = response.candidates[0]
-            if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
-                for part in candidate.content.parts:
-                    if hasattr(part, 'text'):
-                        response_text += part.text
+        response_text = response.text if hasattr(response, 'text') else ""
         
         yield {"type": "log", "message": f"[Retrieval] Got response ({len(response_text)} chars)"}
+        
+        # Check for grounding metadata
+        if hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'grounding_metadata') and candidate.grounding_metadata:
+                grounding = candidate.grounding_metadata
+                if hasattr(grounding, 'web_search_queries'):
+                    yield {"type": "log", "message": f"[Retrieval] Search queries: {grounding.web_search_queries}"}
         
         # Parse JSON
         resources = _parse_resources_json(response_text)

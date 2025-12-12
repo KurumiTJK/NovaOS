@@ -15,6 +15,7 @@ Critical Rules:
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
@@ -32,7 +33,7 @@ def build_steps_from_evidence(
     kernel: Any,
 ) -> Generator[Dict[str, Any], None, List[LessonStep]]:
     """
-    Phase B: Convert evidence packs into atomic learning steps.
+    Phase B: Convert evidence packs into atomic learning steps using Gemini 2.5 Pro.
     
     Args:
         evidence_packs: List of evidence packs from Phase A
@@ -80,13 +81,12 @@ def _build_steps_for_pack(
     start_step_num: int,
     kernel: Any,
 ) -> List[LessonStep]:
-    """Build steps for a single evidence pack."""
+    """Build steps for a single evidence pack using Gemini 2.5 Pro."""
     
     # Calculate total resource time
     total_hours = sum(r.estimated_hours for r in pack.resources)
     
     # Determine how many steps we need (each step 60-120 min = 1-2 hours)
-    # Round up to ensure coverage
     target_minutes_per_step = 90  # Sweet spot
     total_minutes = total_hours * 60
     num_steps = max(1, int(total_minutes / target_minutes_per_step + 0.5))
@@ -94,12 +94,22 @@ def _build_steps_for_pack(
     # Cap steps per pack to avoid explosion
     num_steps = min(num_steps, 5)
     
-    # Get LLM to build steps
-    llm_client = getattr(kernel, 'llm_client', None)
-    if not llm_client:
+    # Try to use Gemini 2.5 Pro
+    try:
+        import google.generativeai as genai
+        
+        api_key = os.getenv("GEMINI_API_KEY", "")
+        if not api_key:
+            print(f"[StepBuilder] No GEMINI_API_KEY, using programmatic fallback", flush=True)
+            return _build_steps_programmatic(pack, start_step_num, num_steps)
+        
+        genai.configure(api_key=api_key)
+        
+    except ImportError:
+        print(f"[StepBuilder] Gemini SDK not available, using programmatic fallback", flush=True)
         return _build_steps_programmatic(pack, start_step_num, num_steps)
     
-    # Build resource summary for LLM
+    # Build resource summary for Gemini
     resource_summary = ""
     for r in pack.resources:
         resource_summary += f"- {r.title} ({r.provider}, {r.estimated_hours}h, {r.difficulty})\n"
@@ -122,7 +132,7 @@ STEP TYPES:
 - RECALL: Flashcards, quizzes, summarizing from memory
 - BOSS: Capstone challenge combining multiple subtopics
 
-ACTIONS MUST BE SPECIFIC, like:
+ACTIONS MUST BE SPECIFIC STRINGS, like:
 ✓ "Watch the IAM Policies video (20 min) on AWS Skill Builder"
 ✓ "Create a custom IAM policy that allows S3 read-only access"
 ✓ "Write a 1-paragraph summary of policy evaluation logic"
@@ -132,6 +142,8 @@ NOT VAGUE like:
 ✗ "Understand how policies work"
 ✗ "Study the documentation"
 
+IMPORTANT: Actions must be plain strings, NOT objects/dicts.
+
 Output ONLY JSON array. No markdown."""
 
     user_prompt = f"""Create {num_steps} learning step(s) for "{pack.subdomain}" (part of {quest_title}).
@@ -139,7 +151,7 @@ Output ONLY JSON array. No markdown."""
 RESOURCES TO USE:
 {resource_summary}
 
-Generate a JSON array:
+Generate a JSON array with plain string actions:
 [
   {{
     "step_type": "INFO",
@@ -147,9 +159,9 @@ Generate a JSON array:
     "estimated_time_minutes": 90,
     "goal": "What you will understand/accomplish",
     "actions": [
-      "Specific 15-25 min task with resource reference",
-      "Another specific task",
-      "Practice or apply task"
+      "Specific 15-25 min task with resource reference (20 min)",
+      "Another specific task (25 min)",
+      "Practice or apply task (25 min)"
     ],
     "completion_check": "You're done when you can explain/do X",
     "resource_refs": ["url1", "url2"]
@@ -159,21 +171,43 @@ Generate a JSON array:
 JSON array only:"""
 
     try:
-        result = llm_client.complete_system(
-            system=system_prompt,
-            user=user_prompt,
-            command="lesson-step-builder",
-            think_mode=False,
+        print(f"[StepBuilder] Calling Gemini 2.5 Pro for {pack.subdomain}...", flush=True)
+        
+        # Call Gemini 2.5 Pro
+        model = genai.GenerativeModel(
+            model_name="gemini-2.5-pro",
+            system_instruction=system_prompt,
         )
         
-        response_text = result.get("text", "").strip()
+        response = model.generate_content(
+            user_prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=2000,
+            ),
+        )
+        
+        response_text = ""
+        if hasattr(response, 'text'):
+            response_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            candidate = response.candidates[0]
+            if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                for part in candidate.content.parts:
+                    if hasattr(part, 'text'):
+                        response_text += part.text
+        
+        print(f"[StepBuilder] Gemini response: {len(response_text)} chars", flush=True)
+        
         steps = _parse_steps_json(response_text, pack, start_step_num)
         
         if steps:
             return steps
         
+        print(f"[StepBuilder] Failed to parse Gemini response, using fallback", flush=True)
+        
     except Exception as e:
-        print(f"[StepBuilder] LLM error for {pack.subdomain}: {e}", flush=True)
+        print(f"[StepBuilder] Gemini error for {pack.subdomain}: {e}", flush=True)
     
     # Fallback to programmatic
     return _build_steps_programmatic(pack, start_step_num, num_steps)
@@ -212,11 +246,26 @@ def _parse_steps_json(text: str, pack: EvidencePack, start_num: int) -> List[Les
             if time_mins > 120:
                 time_mins = 120
             
-            # Get actions
-            actions = item.get("actions", [])
-            if not isinstance(actions, list):
-                actions = []
-            actions = [str(a) for a in actions if a]
+            # Get actions - handle both string and dict formats from Gemini
+            raw_actions = item.get("actions", [])
+            if not isinstance(raw_actions, list):
+                raw_actions = []
+            
+            actions = []
+            for a in raw_actions:
+                if not a:
+                    continue
+                if isinstance(a, dict):
+                    # Gemini sometimes returns {"description": "...", "estimated_time_minutes": N}
+                    desc = a.get("description", a.get("action", ""))
+                    time_mins_action = a.get("estimated_time_minutes", a.get("time"))
+                    if desc:
+                        if time_mins_action:
+                            actions.append(f"{desc} ({time_mins_action} min)")
+                        else:
+                            actions.append(desc)
+                else:
+                    actions.append(str(a))
             
             # Ensure minimum actions
             if len(actions) < 2:

@@ -1,0 +1,146 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2025-12-12T21:54:03.147534+00:00",
+  "packs": [
+    {
+      "subdomain": "Docker Fundamentals",
+      "domain": "Docker Fundamentals",
+      "resources": [
+        {
+          "title": "Research: Docker Fundamentals",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "docker-fundamentals"
+          ],
+          "description": "Research official documentation and training for Docker Fundamentals",
+          "retrieved_at": "2025-12-12T21:51:57.745348+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:51:57.745353+00:00"
+    },
+    {
+      "subdomain": "Container Image Design",
+      "domain": "Container Image Design",
+      "resources": [
+        {
+          "title": "Research: Container Image Design",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "container-image-design"
+          ],
+          "description": "Research official documentation and training for Container Image Design",
+          "retrieved_at": "2025-12-12T21:52:13.485556+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:52:13.485562+00:00"
+    },
+    {
+      "subdomain": "Kubernetes Basics",
+      "domain": "Kubernetes Basics",
+      "resources": [
+        {
+          "title": "Research: Kubernetes Basics",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "kubernetes-basics"
+          ],
+          "description": "Research official documentation and training for Kubernetes Basics",
+          "retrieved_at": "2025-12-12T21:52:24.940707+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:52:24.940712+00:00"
+    },
+    {
+      "subdomain": "Kubernetes Operations",
+      "domain": "Kubernetes Operations",
+      "resources": [
+        {
+          "title": "Research: Kubernetes Operations",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "kubernetes-operations"
+          ],
+          "description": "Research official documentation and training for Kubernetes Operations",
+          "retrieved_at": "2025-12-12T21:52:51.652208+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:52:51.652213+00:00"
+    },
+    {
+      "subdomain": "CI/CD Concepts",
+      "domain": "CI/CD Concepts",
+      "resources": [
+        {
+          "title": "Research: CI/CD Concepts",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "ci/cd-concepts"
+          ],
+          "description": "Research official documentation and training for CI/CD Concepts",
+          "retrieved_at": "2025-12-12T21:53:25.140576+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:53:25.140583+00:00"
+    },
+    {
+      "subdomain": "CI/CD Pipeline Tooling",
+      "domain": "CI/CD Pipeline Tooling",
+      "resources": [
+        {
+          "title": "Research: CI/CD Pipeline Tooling",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "ci/cd-pipeline-tooling"
+          ],
+          "description": "Research official documentation and training for CI/CD Pipeline Tooling",
+          "retrieved_at": "2025-12-12T21:53:41.049289+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:53:41.049296+00:00"
+    },
+    {
+      "subdomain": "Containerized Deployment Automation",
+      "domain": "Containerized Deployment Automation",
+      "resources": [
+        {
+          "title": "Research: Containerized Deployment Automation",
+          "provider": "Self-directed",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "",
+          "tags": [
+            "containerized-deployment-automation"
+          ],
+          "description": "Research official documentation and training for Containerized Deployment Automation",
+          "retrieved_at": "2025-12-12T21:54:03.147339+00:00"
+        }
+      ],
+      "retrieved_at": "2025-12-12T21:54:03.147344+00:00"
+    }
+  ]
+}
