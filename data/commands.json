@@ -290,12 +290,12 @@
   "daily-review": {
     "handler": "handle_daily_review",
     "category": "timerhythm",
-    "description": "Start or complete daily review."
+    "description": "Two-phase daily review (morning/night). Use 'morning' or 'night' to complete a phase. +15 XP first phase, +10 XP bonus for second."
   },
   "weekly-review": {
     "handler": "handle_weekly_review",
     "category": "timerhythm",
-    "description": "Start or complete weekly review."
+    "description": "Show weekly stats and macro goals. Use 'done' to complete and earn macro XP."
   },
 
   "command-add": {

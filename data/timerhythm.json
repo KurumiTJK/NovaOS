@@ -1,0 +1,17 @@
+{
+  "last_daily_review_date": null,
+  "daily_review_streak_count": 0,
+  "daily_review": {
+    "date": "",
+    "morning_completed": false,
+    "night_completed": false,
+    "morning_completed_at": null,
+    "night_completed_at": null
+  },
+  "last_presence_date": null,
+  "last_weekly_review_week_id": null,
+  "daily_review_dates": [],
+  "perfect_day_count": 0,
+  "perfect_day_streak": 0,
+  "last_perfect_day_date": null
+}

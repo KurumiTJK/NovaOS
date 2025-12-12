@@ -1,11 +1,17 @@
 # kernel/identity_integration.py
 """
-NovaOS Identity Section Integration v1.0.0
+NovaOS Identity Section Integration v1.0.1
 
 This module provides integration hooks for the Identity Section:
 - Quest completion XP events
 - Title generation hooks
+- Timerhythm XP events (daily/weekly review, presence)
 - Integration with existing PlayerProfileManager (for backwards compat)
+
+v1.0.1 CHANGES:
+- Added award_presence_xp function
+- Updated award_daily_review_xp with new streak bonus formula
+- Updated award_weekly_review_xp to handle macro goals
 
 USAGE:
 After quest completion, call:
@@ -259,54 +265,90 @@ def award_quest_xp(
 # TIMERHYTHM INTEGRATION
 # =============================================================================
 
+def award_presence_xp(
+    kernel: Any,
+    xp_amount: int = 10,
+) -> Optional[Dict[str, Any]]:
+    """
+    Award XP for daily presence (first interaction of the day).
+    
+    Args:
+        kernel: NovaKernel instance
+        xp_amount: XP amount (default 10)
+    
+    Returns:
+        Dict with result info, or None if no manager available
+    """
+    return award_xp(
+        kernel,
+        amount=xp_amount,
+        source="presence",
+        module=None,
+        description="First interaction today",
+        metadata={"type": "presence"},
+    )
+
+
 def award_daily_review_xp(
     kernel: Any,
-    xp_amount: int = 25,
     streak: int = 0,
     notes: str = "",
 ) -> Optional[Dict[str, Any]]:
     """
     Award XP for completing a daily review.
     
+    XP Formula:
+    - Base: 20 XP
+    - Streak 1-3: +0 bonus
+    - Streak 4-6: +5 bonus
+    - Streak 7+: +10 bonus
+    
     Args:
         kernel: NovaKernel instance
-        xp_amount: Base XP amount (default 25)
-        streak: Current daily review streak
+        streak: Current daily review streak (after this completion)
         notes: Optional notes about the review
     
     Returns:
         Dict with result info
     """
-    # Streak bonus: +5 XP per streak day, capped at +25
-    streak_bonus = min(streak * 5, 25)
-    total_xp = xp_amount + streak_bonus
+    # Calculate XP based on streak
+    base_xp = 20
     
-    description = f"Completed daily review"
-    if streak > 0:
-        description += f" (streak: {streak} days, +{streak_bonus} bonus)"
+    if streak >= 7:
+        bonus = 10
+    elif streak >= 4:
+        bonus = 5
+    else:
+        bonus = 0
+    
+    total_xp = base_xp + bonus
+    
+    description = f"Daily review (streak {streak} days)"
     
     return award_xp(
         kernel,
         amount=total_xp,
         source="timerhythm_daily",
-        module="Meta",  # Daily reviews go to Meta module
+        module=None,  # Daily reviews don't go to a specific module
         description=description,
-        metadata={"streak": streak, "notes": notes},
+        metadata={"streak": streak, "notes": notes, "base_xp": base_xp, "bonus": bonus},
     )
 
 
 def award_weekly_review_xp(
     kernel: Any,
-    xp_amount: int = 100,
-    notes: str = "",
+    xp_amount: int,
+    goal_name: str,
+    module: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
     """
-    Award XP for completing a weekly review.
+    Award XP for completing a weekly macro goal.
     
     Args:
         kernel: NovaKernel instance
-        xp_amount: Base XP amount (default 100)
-        notes: Optional notes about the review
+        xp_amount: XP amount for this goal
+        goal_name: Name of the macro goal achieved
+        module: Module to attribute XP to (if applicable)
     
     Returns:
         Dict with result info
@@ -315,9 +357,9 @@ def award_weekly_review_xp(
         kernel,
         amount=xp_amount,
         source="timerhythm_weekly",
-        module="Meta",
-        description="Completed weekly review",
-        metadata={"notes": notes},
+        module=module,
+        description=f"Weekly macro: {goal_name}",
+        metadata={"goal": goal_name},
     )
 
 
@@ -353,6 +395,7 @@ __all__ = [
     "get_identity_manager",
     "award_xp",
     "award_quest_xp",
+    "award_presence_xp",
     "award_daily_review_xp",
     "award_weekly_review_xp",
     "award_debug_xp",
