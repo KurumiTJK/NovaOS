@@ -693,8 +693,49 @@
     const sendButton = document.getElementById('sendButton');
     const inputBar = document.getElementById('inputBar');
 
-    // Session ID for this client
-    const SESSION_ID = 'web-' + Date.now();
+    // Session ID for this client (will be set by initSession)
+    let SESSION_ID = 'web-' + Date.now();
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // SESSION INITIALIZATION — v0.12.0: Auto-show dashboard on launch
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Initialize the session by calling /nova/init.
+     * This returns the session_id and optionally a dashboard to display.
+     */
+    async function initSession() {
+      try {
+        const response = await fetch('/nova/init', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+
+        if (!response.ok) {
+          console.error('[NovaOS] Failed to init session:', response.status);
+          return;
+        }
+
+        const data = await response.json();
+        
+        if (data.session_id) {
+          SESSION_ID = data.session_id;
+          console.log('[NovaOS] Session initialized:', SESSION_ID);
+        }
+
+        // v0.12.0: Display dashboard if returned
+        if (data.dashboard) {
+          console.log('[NovaOS] Auto-displaying dashboard on launch');
+          appendNovaMessage(data.dashboard);
+        }
+
+      } catch (err) {
+        console.error('[NovaOS] Error initializing session:', err);
+      }
+    }
+
+    // initSession will be called at the end of the script after all functions are defined
 
     // ═══════════════════════════════════════════════════════════════════════
     // UTILITIES
@@ -800,6 +841,54 @@
           pre.innerHTML = processedText;
           
           // Start live clock update
+          const clockEl = pre.querySelector(`#${clockId}`);
+          if (clockEl) {
+            const updateClock = () => {
+              const now = new Date();
+              let hours = now.getHours();
+              const ampm = hours >= 12 ? 'PM' : 'AM';
+              hours = hours % 12;
+              hours = hours ? hours : 12;
+              const minutes = now.getMinutes().toString().padStart(2, '0');
+              clockEl.textContent = `${hours}:${minutes} ${ampm}`;
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+          }
+        // v0.12.2: Dashboard live clock support - new format {{CLOCK:time}}
+        } else if (text.includes('DASHBOARD:') && text.includes('{{CLOCK:')) {
+          // Replace {{CLOCK:H:MM AM}} with animated span
+          const clockId = 'dashboard-clock-' + Date.now();
+          const processedText = text.replace(
+            /\{\{CLOCK:([^}]+)\}\}/g,
+            `<span id="${clockId}" class="live-clock">$1</span>`
+          );
+          pre.innerHTML = processedText;
+          
+          // Start live clock update
+          const clockEl = pre.querySelector(`#${clockId}`);
+          if (clockEl) {
+            const updateClock = () => {
+              const now = new Date();
+              let hours = now.getHours();
+              const ampm = hours >= 12 ? 'PM' : 'AM';
+              hours = hours % 12;
+              hours = hours ? hours : 12;
+              const minutes = now.getMinutes().toString().padStart(2, '0');
+              clockEl.textContent = `${hours}:${minutes} ${ampm}`;
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+          }
+        // v0.12.1 legacy: Support old [[LIVE_CLOCK:time]] format
+        } else if (text.includes('NOVAOS') && text.includes('[[LIVE_CLOCK:')) {
+          const clockId = 'dashboard-clock-' + Date.now();
+          const processedText = text.replace(
+            /\[\[LIVE_CLOCK:([^\]]+)\]\]/g,
+            `<span id="${clockId}" class="live-clock">$1</span>`
+          );
+          pre.innerHTML = processedText;
+          
           const clockEl = pre.querySelector(`#${clockId}`);
           if (clockEl) {
             const updateClock = () => {
@@ -1740,6 +1829,9 @@
 
     // Set initial padding based on actual input bar height
     updateChatPadding();
+
+    // v0.12.2: Initialize session and show dashboard (must be after all functions defined)
+    initSession();
 
     console.log('NovaOS Web UI initialized');
     console.log('Session ID:', SESSION_ID);

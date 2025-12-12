@@ -81,6 +81,8 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("reset", "Reload system memory and modules", "#reset"),
             CommandInfo("status", "Display system state", "#status"),
             CommandInfo("help", "Show command sections and help", "#help"),
+            CommandInfo("dashboard", "Display system dashboard (compact/full view)", "#dashboard"),
+            CommandInfo("dashboard-view", "Toggle or set dashboard view mode", "#dashboard-view full"),
             CommandInfo("reminders-settings", "Configure notification settings (ntfy push, in-app)", "#reminders-settings"),
         ]
     ),

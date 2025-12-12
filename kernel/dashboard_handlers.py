@@ -2,14 +2,16 @@
 """
 NovaOS Dashboard — Core System Dashboard
 
+v0.12.2: Fixed alignment, clean clock format, clearer sections.
+
 Provides #dashboard and #dashboard-view syscommands for at-a-glance system status.
 
 Dashboard Sections:
-1. Header (instance info, mode, date/time)
+1. Header (mode, date/time with live clock)
 2. Today Readiness (sleep, energy, stress, focus, mood, HP)
 3. Module Status (domain progress overview)
-4. Finance Snapshot (static rules/plan)
-5. System Health (ops status)
+4. Finance Snapshot (investment rules)
+5. System/Mode (persona status)
 
 Two view modes:
 - compact: Single-line summaries
@@ -32,6 +34,119 @@ from .command_types import CommandResponse
 ViewMode = Literal["compact", "full"]
 
 # =============================================================================
+# LAYOUT CONSTANTS — Single source of truth for alignment
+# =============================================================================
+
+DASH_WIDTH = 66  # Total width including border characters (increased for module names)
+CONTENT_WIDTH = DASH_WIDTH - 4  # Width between "║  " and "║" (2 space indent + 1 border each side)
+
+# Box drawing characters
+BOX_TL = "╔"  # Top-left
+BOX_TR = "╗"  # Top-right
+BOX_BL = "╚"  # Bottom-left
+BOX_BR = "╝"  # Bottom-right
+BOX_H = "═"   # Horizontal
+BOX_V = "║"   # Vertical
+BOX_ML = "╠"  # Middle-left
+BOX_MR = "╣"  # Middle-right
+
+
+# =============================================================================
+# LINE BUILDER HELPERS — Deterministic alignment
+# =============================================================================
+
+def _top_border() -> str:
+    """Top border of dashboard."""
+    return BOX_TL + BOX_H * (DASH_WIDTH - 2) + BOX_TR
+
+
+def _bottom_border() -> str:
+    """Bottom border of dashboard."""
+    return BOX_BL + BOX_H * (DASH_WIDTH - 2) + BOX_BR
+
+
+def _section_border() -> str:
+    """Section separator."""
+    return BOX_ML + BOX_H * (DASH_WIDTH - 2) + BOX_MR
+
+
+def _line(content: str) -> str:
+    """
+    Create a single line with proper padding.
+    Content is left-aligned, padded to exactly CONTENT_WIDTH with 1 char right margin.
+    """
+    # Reserve 1 char margin from right border
+    usable_width = CONTENT_WIDTH - 1
+    
+    # Truncate if needed
+    if len(content) > usable_width:
+        content = content[:usable_width - 1] + "…"
+    
+    # Pad to exact width (with 1 char margin)
+    padding_needed = CONTENT_WIDTH - len(content)
+    padded = content + " " * padding_needed
+    
+    return BOX_V + "  " + padded + BOX_V
+
+
+def _line_raw(content: str, extra_pad: int = 0) -> str:
+    """
+    Create a line with manual padding adjustment for unicode characters.
+    extra_pad: negative to reduce padding (for wide unicode), positive to add.
+    """
+    # Reserve 1 char margin from right border
+    usable_width = CONTENT_WIDTH - 1
+    
+    # Truncate if needed
+    if len(content) > usable_width:
+        content = content[:usable_width - 1] + "…"
+    
+    # Pad to exact width, adjusted for unicode display width
+    padding_needed = CONTENT_WIDTH - len(content) + extra_pad
+    if padding_needed < 0:
+        padding_needed = 0
+    padded = content + " " * padding_needed
+    
+    return BOX_V + "  " + padded + BOX_V
+
+
+def _line_two_col(left: str, right: str) -> str:
+    """
+    Create a line with left-aligned and right-aligned content.
+    Handles {{CLOCK:...}} marker by using display width instead of string length.
+    """
+    # Calculate display width of right side (clock marker is longer than displayed)
+    if "{{CLOCK:" in right:
+        right_display_len = _clock_display_width()
+    else:
+        right_display_len = len(right)
+    
+    # Reserve 1 char margin from right border
+    usable_width = CONTENT_WIDTH - 1
+    
+    # Calculate space needed
+    total_display = len(left) + right_display_len
+    
+    # If too long, truncate left side
+    if total_display > usable_width - 2:  # -2 for minimum gap
+        max_left = usable_width - right_display_len - 3
+        if max_left > 0:
+            left = left[:max_left] + "…"
+        else:
+            left = ""
+    
+    # Calculate gap between left and right (using display width)
+    gap = usable_width - len(left) - right_display_len
+    if gap < 1:
+        gap = 1
+    
+    # Build the content line with 1 char right margin
+    content = left + " " * gap + right + " "
+    
+    return BOX_V + "  " + content + BOX_V
+
+
+# =============================================================================
 # CONFIG MANAGEMENT
 # =============================================================================
 
@@ -40,7 +155,6 @@ def _get_config_path(data_dir: Optional[Path] = None) -> Path:
     if data_dir:
         config_dir = data_dir.parent / "config"
     else:
-        # Fallback: use relative path from project root
         base = Path(__file__).resolve().parent.parent
         config_dir = base / "config"
     return config_dir / "dashboard.json"
@@ -66,7 +180,6 @@ def load_dashboard_config(data_dir: Optional[Path] = None) -> Dict[str, Any]:
     config_path = _get_config_path(data_dir)
     
     if not config_path.exists():
-        # Create default config
         config = _get_default_config()
         save_dashboard_config(config, data_dir)
         return config
@@ -74,7 +187,6 @@ def load_dashboard_config(data_dir: Optional[Path] = None) -> Dict[str, Any]:
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             config = json.load(f)
-        # Ensure all required keys exist
         default = _get_default_config()
         for key, value in default.items():
             if key not in config:
@@ -98,7 +210,7 @@ def save_dashboard_config(config: Dict[str, Any], data_dir: Optional[Path] = Non
 
 
 # =============================================================================
-# SAFE DATA LOADERS (no crashes on missing data)
+# SAFE DATA LOADERS
 # =============================================================================
 
 def _safe_get(data: Any, *keys: str, default: Any = "--") -> Any:
@@ -115,7 +227,6 @@ def _safe_get(data: Any, *keys: str, default: Any = "--") -> Any:
 def _load_timerhythm_state(kernel: Any) -> Dict[str, Any]:
     """Load timerhythm state safely."""
     try:
-        # Try kernel's time_rhythm_manager
         if hasattr(kernel, "time_rhythm_manager") and kernel.time_rhythm_manager:
             manager = kernel.time_rhythm_manager
             if hasattr(manager, "_load_state"):
@@ -123,7 +234,6 @@ def _load_timerhythm_state(kernel: Any) -> Dict[str, Any]:
                 if hasattr(state, "today"):
                     return state.today.__dict__ if hasattr(state.today, "__dict__") else {}
         
-        # Fallback: load from file directly
         data_dir = getattr(kernel, "config", None)
         if data_dir and hasattr(data_dir, "data_dir"):
             tr_path = data_dir.data_dir / "timerhythm.json"
@@ -142,12 +252,10 @@ def _load_timerhythm_state(kernel: Any) -> Dict[str, Any]:
 def _load_modules_state(kernel: Any) -> list:
     """Load modules state safely."""
     try:
-        # Try kernel's module store
         if hasattr(kernel, "module_store") and kernel.module_store:
             modules = kernel.module_store.list_all(include_archived=False)
             return [m.to_dict() if hasattr(m, "to_dict") else {} for m in modules]
         
-        # Fallback: load from file directly
         data_dir = getattr(kernel, "config", None)
         if data_dir and hasattr(data_dir, "data_dir"):
             mod_path = data_dir.data_dir / "modules.json"
@@ -169,18 +277,15 @@ def _load_modules_state(kernel: Any) -> list:
 def _load_identity_state(kernel: Any) -> Dict[str, Any]:
     """Load identity/player profile state safely."""
     try:
-        # Try kernel's identity manager
         if hasattr(kernel, "identity_manager") and kernel.identity_manager:
             return kernel.identity_manager.get_profile_summary()
         
-        # Try legacy player_profile_manager
         if hasattr(kernel, "player_profile_manager") and kernel.player_profile_manager:
             profile = kernel.player_profile_manager.get_profile()
             if hasattr(profile, "to_dict"):
                 return profile.to_dict()
             return profile.__dict__ if hasattr(profile, "__dict__") else {}
         
-        # Fallback: load from file directly
         data_dir = getattr(kernel, "config", None)
         if data_dir and hasattr(data_dir, "data_dir"):
             id_path = data_dir.data_dir / "identity.json"
@@ -208,51 +313,69 @@ def _load_memory_count(kernel: Any) -> int:
     return 0
 
 
-def _get_last_error(kernel: Any) -> Optional[str]:
-    """Get last logged error if available."""
+# =============================================================================
+# VISUAL HELPERS
+# =============================================================================
+
+def _progress_bar(value: int, max_value: int, width: int = 10) -> str:
+    """Generate a progress bar."""
+    if max_value <= 0:
+        return "░" * width
+    percent = min(100, max(0, int((value / max_value) * 100)))
+    filled = int((percent / 100) * width)
+    return "█" * filled + "░" * (width - filled)
+
+
+def _status_icon(status: str) -> str:
+    """Get status indicator."""
+    status_map = {
+        "ok": "✓",
+        "active": "✓",
+        "good": "✓",
+        "warning": "⚠",
+        "in_progress": "◐",
+        "ip": "◐",
+        "error": "✗",
+        "bad": "✗",
+        "ns": "○",
+        "none": "○",
+    }
+    return status_map.get(status.lower(), "○")
+
+
+def _get_current_time() -> str:
+    """
+    Get current time formatted as H:MM AM/PM.
+    Uses America/Los_Angeles timezone.
+    Returns clean time string (no brackets, no labels).
+    """
     try:
-        if hasattr(kernel, "logger") and kernel.logger:
-            if hasattr(kernel.logger, "last_error"):
-                return kernel.logger.last_error
-    except Exception:
-        pass
-    return None
+        from zoneinfo import ZoneInfo
+        tz = ZoneInfo("America/Los_Angeles")
+    except ImportError:
+        tz = timezone.utc
+    
+    now = datetime.now(tz)
+    # Format: 1:45 AM (no leading zero on hour)
+    return now.strftime("%I:%M %p").lstrip("0")
 
 
-def _get_last_save_time(kernel: Any) -> str:
-    """Get last save timestamp."""
-    try:
-        data_dir = getattr(kernel, "config", None)
-        if data_dir and hasattr(data_dir, "data_dir"):
-            # Check most recent data file modification
-            for fname in ["timerhythm.json", "identity.json", "modules.json"]:
-                fpath = data_dir.data_dir / fname
-                if fpath.exists():
-                    mtime = datetime.fromtimestamp(fpath.stat().st_mtime)
-                    return mtime.strftime("%H:%M")
-    except Exception:
-        pass
-    return "--"
+def _get_live_clock_marker() -> str:
+    """
+    Return time wrapped in marker for frontend live clock detection.
+    Format: {{CLOCK:1:45 AM}} — frontend replaces with live updating span.
+    
+    Using double braces to avoid confusion with other bracket patterns.
+    """
+    time_str = _get_current_time()
+    return f"{{{{CLOCK:{time_str}}}}}"
 
 
-def _check_data_integrity(kernel: Any) -> str:
-    """Check if core data files exist and are valid."""
-    try:
-        data_dir = getattr(kernel, "config", None)
-        if data_dir and hasattr(data_dir, "data_dir"):
-            required = ["commands.json"]
-            for fname in required:
-                fpath = data_dir.data_dir / fname
-                if not fpath.exists():
-                    return f"Missing:{fname}"
-                try:
-                    with open(fpath, "r") as f:
-                        json.load(f)
-                except json.JSONDecodeError:
-                    return f"Corrupt:{fname}"
-        return "OK"
-    except Exception as e:
-        return f"Err:{str(e)[:10]}"
+def _clock_display_width() -> int:
+    """Return the display width of the clock (what user sees after frontend processes it)."""
+    # Clock displays as "H:MM AM" (~7-8 chars) but we use 12 to add left padding
+    # This pushes the clock further from the right border
+    return 12
 
 
 # =============================================================================
@@ -261,7 +384,6 @@ def _check_data_integrity(kernel: Any) -> str:
 
 def _render_header(view: ViewMode, kernel: Any, state: Any = None) -> str:
     """Render the header section."""
-    # Get current time in LA timezone
     try:
         from zoneinfo import ZoneInfo
         tz = ZoneInfo("America/Los_Angeles")
@@ -269,106 +391,82 @@ def _render_header(view: ViewMode, kernel: Any, state: Any = None) -> str:
         tz = timezone.utc
     
     now = datetime.now(tz)
-    date_str = now.strftime("%A, %B %d %Y")
-    time_str = now.strftime("%I:%M %p")
-    
-    # Get hostname
-    try:
-        hostname = socket.gethostname()
-        if len(hostname) > 15:
-            hostname = hostname[:15] + "..."
-    except Exception:
-        hostname = "local"
+    date_str = now.strftime("%a %b %d")  # e.g. "Fri Dec 12" (10 chars)
     
     # Get mode
     mode = "STRICT"
     if state and hasattr(state, "novaos_enabled"):
         mode = "STRICT" if state.novaos_enabled else "PERSONA"
-    elif kernel:
-        env = getattr(kernel, "env_state", {})
-        mode = env.get("mode", "STRICT").upper()
     
-    # Get version/branch
-    version = "--"
-    branch = "--"
-    try:
-        # Check for version file
-        base = Path(__file__).resolve().parent.parent
-        version_file = base / "VERSION"
-        if version_file.exists():
-            version = version_file.read_text().strip()
-        # Check git branch
-        git_head = base / ".git" / "HEAD"
-        if git_head.exists():
-            head_content = git_head.read_text().strip()
-            if head_content.startswith("ref: refs/heads/"):
-                branch = head_content.replace("ref: refs/heads/", "")
-    except Exception:
-        pass
+    # Get time string (will be replaced by frontend, but need display width)
+    time_display = _get_current_time()  # e.g. "2:37 AM" (7-8 chars)
+    clock_marker = _get_live_clock_marker()  # e.g. "{{CLOCK:2:37 AM}}" (longer)
     
-    if view == "compact":
-        return f"|==== NOVAOS DASHBOARD ====| Mode: {mode} | {date_str} {time_str}"
+    # Calculate shared start column for right-aligned info
+    # Both time and date will START at this column (based on display width)
+    RIGHT_MARGIN = 2
+    max_info_display_len = max(len(time_display), len(date_str))
+    INFO_START_COL = CONTENT_WIDTH - RIGHT_MARGIN - max_info_display_len
     
-    # Full view
-    lines = [
-        "|==================== NOVAOS DASHBOARD ====================|",
-        f"Instance: {hostname:<20} Mode: {mode}",
-        f"Date: {date_str:<20} Time: {time_str} (America/Los_Angeles)",
-        f"Build: {version:<20} Branch: {branch}",
-        "|==========================================================|",
-    ]
+    left_content = f"DASHBOARD: {mode}"
+    
+    # Truncate left content if it would collide with info column
+    max_left_len = INFO_START_COL - 2  # Leave 2 char gap
+    if len(left_content) > max_left_len:
+        left_content = left_content[:max_left_len - 1] + "…"
+    
+    lines = [_top_border()]
+    
+    # Line 1: DASHBOARD: MODE ... time
+    # Build line with left content padded, then clock marker appended
+    # The marker is longer than display, so we build differently
+    left_padded = left_content.ljust(INFO_START_COL)
+    line1_content = left_padded + clock_marker
+    # Pad to ensure right border aligns (marker will be replaced by shorter text)
+    # Add spaces to reach CONTENT_WIDTH based on display width
+    extra_spaces = CONTENT_WIDTH - INFO_START_COL - len(time_display)
+    line1 = BOX_V + "  " + left_padded + clock_marker + " " * extra_spaces + BOX_V
+    lines.append(line1)
+    
+    # Line 2: (empty left) ... date at same column
+    left_empty = " " * INFO_START_COL
+    date_padded = date_str.ljust(CONTENT_WIDTH - INFO_START_COL)
+    line2 = BOX_V + "  " + left_empty + date_padded + BOX_V
+    lines.append(line2)
+    
     return "\n".join(lines)
 
 
 def _render_today_readiness(view: ViewMode, kernel: Any) -> str:
-    """Render the Today Readiness section."""
+    """Render the State section (HP, Energy, Sleep, Food, Checkin)."""
     tr = _load_timerhythm_state(kernel)
     
     sleep = _safe_get(tr, "sleep")
     energy = _safe_get(tr, "energy")
-    stress = _safe_get(tr, "stress")
-    mood = _safe_get(tr, "mood")
     hp = _safe_get(tr, "hp")
     
-    # Derive focus from energy if not present
-    focus = _safe_get(tr, "focus")
-    if focus == "--" and energy != "--":
-        try:
-            focus = int(energy) * 20  # Simple derivation
-        except (ValueError, TypeError):
-            focus = "--"
+    # Checkboxes - check if completed today
+    food_done = _safe_get(tr, "food_completed", False)
+    checkin_done = _safe_get(tr, "morning_completed", False) or _safe_get(tr, "evening_completed", False)
+    
+    food_box = "☑" if food_done else "☐"
+    checkin_box = "☑" if checkin_done else "☐"
+    
+    lines = [_section_border()]
+    lines.append(_line("STATE"))
     
     if view == "compact":
-        return f"[Readiness] Sleep {sleep} | Energy {energy} | Stress {stress} | Focus {focus} | Mood {mood} | HP {hp}"
+        lines.append(_line(f"  HP: {hp}  Energy: {energy}  Sleep: {sleep}"))
+        # Checkboxes are wide unicode - subtract 1 from padding
+        food_checkin = f"  Food: {food_box}  Checkin: {checkin_box}"
+        lines.append(_line_raw(food_checkin, extra_pad=-1))
+    else:
+        lines.append(_line(f"  HP: {hp}"))
+        lines.append(_line(f"  Energy: {energy}"))
+        lines.append(_line(f"  Sleep: {sleep}"))
+        food_checkin = f"  Food: {food_box}  Checkin: {checkin_box}"
+        lines.append(_line_raw(food_checkin, extra_pad=-1))
     
-    # Full view
-    morning_at = _safe_get(tr, "morning_completed_at")
-    evening_at = _safe_get(tr, "evening_completed_at")
-    
-    last_checkin = "--"
-    next_checkin = "Morning"
-    
-    morning_done = _safe_get(tr, "morning_completed", False)
-    evening_done = _safe_get(tr, "evening_completed", False)
-    night_done = _safe_get(tr, "night_completed", False)
-    
-    if night_done:
-        next_checkin = "Tomorrow Morning"
-        last_checkin = _safe_get(tr, "night_completed_at", "--")
-    elif evening_done:
-        next_checkin = "Night"
-        last_checkin = evening_at if evening_at else "--"
-    elif morning_done:
-        next_checkin = "Evening"
-        last_checkin = morning_at if morning_at else "--"
-    
-    lines = [
-        "┌─ Today Readiness ─────────────────────────────────────────┐",
-        f"│  Sleep: {str(sleep):<8}  Energy: {str(energy):<8}  Stress: {str(stress):<8}│",
-        f"│  Focus: {str(focus):<8}  Mood: {str(mood):<10}  HP: {str(hp):<8}│",
-        f"│  Last Check-in: {str(last_checkin):<15}  Next: {next_checkin:<12}│",
-        "└──────────────────────────────────────────────────────────┘",
-    ]
     return "\n".join(lines)
 
 
@@ -377,21 +475,17 @@ def _render_module_status(view: ViewMode, kernel: Any) -> str:
     modules = _load_modules_state(kernel)
     identity = _load_identity_state(kernel)
     
-    # Get module XP from identity
     module_xp = identity.get("modules", {})
     if isinstance(module_xp, list):
-        # Handle list format from get_profile_summary
-        module_xp = {m.get("name", ""): {"xp": m.get("xp", 0), "level": m.get("level", 1)} for m in module_xp if isinstance(m, dict)}
+        module_xp = {m.get("name", ""): {"xp": m.get("xp", 0), "level": m.get("level", 1)} 
+                     for m in module_xp if isinstance(m, dict)}
     
-    # Build module info list
     module_info = []
-    for m in modules[:6]:  # Limit to 6 for display
+    for m in modules[:6]:
         if isinstance(m, dict):
             name = m.get("name", "?")
             status = m.get("status", "active")
-            phase = m.get("phase", "planning")
             
-            # Get XP info
             xp_data = module_xp.get(name, {})
             if isinstance(xp_data, dict):
                 xp = xp_data.get("xp", 0)
@@ -400,89 +494,68 @@ def _render_module_status(view: ViewMode, kernel: Any) -> str:
                 xp = xp_data if isinstance(xp_data, (int, float)) else 0
                 level = 1
             
-            # Abbreviate status
-            status_abbr = "OK" if status == "active" else "IP" if status == "in_progress" else "NS"
-            
             module_info.append({
-                "name": name[:12],  # Truncate long names
-                "status": status_abbr,
-                "phase": phase[0].upper() if phase else "P",
-                "xp": xp,
-                "level": level,
+                "name": name[:14],  # Truncate to 14 chars to fit Cybersecurity
+                "status_icon": _status_icon(status),
+                "xp": int(xp),
+                "level": int(level),
             })
     
+    lines = [_section_border()]
+    lines.append(_line("MODULES"))
+    
     if not module_info:
-        if view == "compact":
-            return "[Modules] No modules defined"
-        return "┌─ Module Status ─┐\n│  No modules     │\n└─────────────────┘"
+        lines.append(_line("  (none defined)"))
+        return "\n".join(lines)
     
-    if view == "compact":
-        parts = []
-        for m in module_info[:4]:  # Max 4 in compact
-            # Format: Name P_xp/target(status)
-            target = 50 * m["level"]  # XP to next level
-            parts.append(f"{m['name'][:6]} {m['phase']}{m['xp']}/{target}({m['status']})")
-        return f"[Modules] {' | '.join(parts)}"
-    
-    # Full view
-    lines = ["┌─ Module Status ────────────────────────────────────────────┐"]
+    # Show modules without progress bar
     for m in module_info:
         target = 50 * m["level"]
-        progress = min(100, int((m["xp"] / max(target, 1)) * 100))
-        bar = "█" * (progress // 10) + "░" * (10 - progress // 10)
-        lines.append(f"│  {m['name']:<12} [{bar}] {m['xp']:>4}/{target:<4} L{m['level']} ({m['status']})  │")
-    lines.append("└───────────────────────────────────────────────────────────┘")
+        # Format: name xp/target L# icon
+        line_content = f"  {m['name']:<14} {m['xp']}/{target} L{m['level']} {m['status_icon']}"
+        lines.append(_line(line_content))
+    
     return "\n".join(lines)
 
 
 def _render_finance_snapshot(view: ViewMode, kernel: Any) -> str:
-    """Render the Finance Snapshot section with static rules."""
-    # These are user-specific static rules as specified
-    if view == "compact":
-        return "[Finance] $425 stocks/wk | $200 SPAXX/wk | Wed buys | LEAPS only Q-C | FHA Apr-Dec 2027"
+    """Render the Finance section with investment rules."""
+    lines = [_section_border()]
+    lines.append(_line("FINANCE"))
     
-    # Full view
-    lines = [
-        "┌─ Finance Snapshot ─────────────────────────────────────────┐",
-        "│  Weekly Plan:                                              │",
-        "│    • $425 → Stocks                                         │",
-        "│    • $200 → SPAXX                                          │",
-        "│  Buy Day: Wednesday                                        │",
-        "│  LEAPS: Quadrant C only (Apr-Sep 2026 target)              │",
-        "│  FHA Purchase: Apr-Dec 2027                                │",
-        "│  Liquidation Order:                                        │",
-        "│    SPAXX → SCHD/GLDM/some VTI → META/TSM → MSFT/AVUV → NVDA│",
-        "└───────────────────────────────────────────────────────────┘",
-    ]
+    if view == "compact":
+        # Compact: Key rules on separate lines for clarity
+        lines.append(_line("  $425/wk stocks | $200/wk SPAXX | Buy: Wed"))
+        lines.append(_line("  LEAPS: Q-C only | FHA: Apr-Dec 2027"))
+    else:
+        # Full: Detailed breakdown
+        lines.append(_line("  Weekly: $425 -> Stocks, $200 -> SPAXX"))
+        lines.append(_line("  Buy Day: Wednesday"))
+        lines.append(_line("  LEAPS: Quadrant C only (Apr-Sep 2026 target)"))
+        lines.append(_line("  FHA Goal: Apr-Dec 2027"))
+    
     return "\n".join(lines)
 
 
 def _render_system_health(view: ViewMode, kernel: Any, state: Any = None) -> str:
-    """Render the System Health section."""
-    # Get persona fallback status
-    pf_status = "Off"
+    """Render the System/Mode section."""
+    # Get persona status
+    persona_on = False
     if state and hasattr(state, "novaos_enabled"):
-        pf_status = "Off" if state.novaos_enabled else "On"
+        persona_on = not state.novaos_enabled
     
-    memory_count = _load_memory_count(kernel)
-    data_status = _check_data_integrity(kernel)
-    last_save = _get_last_save_time(kernel)
-    last_error = _get_last_error(kernel)
+    persona_status = "ON" if persona_on else "OFF"
     
-    err_str = "None" if not last_error else last_error[:20]
+    lines = [_section_border()]
+    lines.append(_line("MODE"))
+    lines.append(_line(f"  Persona: {persona_status}"))
     
-    if view == "compact":
-        return f"[System] PF:{pf_status} | Memory:{memory_count} | Data:{data_status} | LastSave:{last_save} | Err:{err_str}"
+    if view == "full":
+        # Full: More system details
+        memory_count = _load_memory_count(kernel)
+        lines.append(_line(f"  Memories: {memory_count}"))
     
-    # Full view
-    mode = "STRICT" if state and state.novaos_enabled else "PERSONA"
-    lines = [
-        "┌─ System Health ────────────────────────────────────────────┐",
-        f"│  Mode: {mode:<12}  Persona Fallback: {pf_status:<8}           │",
-        f"│  Memory Count: {memory_count:<6}  Data Integrity: {data_status:<10}      │",
-        f"│  Last Save: {last_save:<10}  Last Error: {err_str:<18}    │",
-        "└───────────────────────────────────────────────────────────┘",
-    ]
+    lines.append(_bottom_border())
     return "\n".join(lines)
 
 
@@ -533,10 +606,9 @@ def render_dashboard(
             try:
                 parts.append(renderer())
             except Exception as e:
-                parts.append(f"[{section}] Error: {str(e)[:30]}")
+                parts.append(_line(f"[{section}] Error: {str(e)[:30]}"))
     
-    separator = "\n" if view == "compact" else "\n\n"
-    return separator.join(parts)
+    return "\n".join(parts)
 
 
 # =============================================================================
@@ -549,8 +621,8 @@ def _base_response(cmd_name: str, summary: str, data: Optional[Dict[str, Any]] =
         ok=True,
         command=cmd_name,
         summary=summary,
-        content={"command": cmd_name, "summary": summary},
-        data=data,
+        data=data or {},
+        type="syscommand",
     )
 
 
@@ -568,10 +640,9 @@ def handle_dashboard(
     Usage:
         #dashboard           → render using stored default view
         #dashboard refresh   → reload state from disk then render
-        #dashboard compact   → one-off render in compact (doesn't change default)
-        #dashboard full      → one-off render in full (doesn't change default)
+        #dashboard compact   → one-off render in compact
+        #dashboard full      → one-off render in full
     """
-    # Parse args
     action = None
     if isinstance(args, dict):
         positional = args.get("_", [])
@@ -582,7 +653,6 @@ def handle_dashboard(
     elif isinstance(args, str) and args.strip():
         action = args.strip().lower()
     
-    # Load config
     data_dir = getattr(kernel, "config", None)
     if data_dir and hasattr(data_dir, "data_dir"):
         config = load_dashboard_config(data_dir.data_dir)
@@ -591,24 +661,18 @@ def handle_dashboard(
     
     default_view = config.get("default_view", "compact")
     
-    # Determine view mode
     if action == "compact":
         view = "compact"
     elif action == "full":
         view = "full"
     elif action == "refresh":
-        # Reload state (trigger any state loaders to re-read from disk)
         if hasattr(kernel, "time_rhythm_manager") and kernel.time_rhythm_manager:
             if hasattr(kernel.time_rhythm_manager, "reload"):
                 kernel.time_rhythm_manager.reload()
-        if hasattr(kernel, "identity_manager") and kernel.identity_manager:
-            if hasattr(kernel.identity_manager, "reload"):
-                kernel.identity_manager.reload()
         view = default_view
     else:
         view = default_view
     
-    # Get state from context manager if available
     state = None
     if hasattr(kernel, "context_manager"):
         try:
@@ -616,7 +680,6 @@ def handle_dashboard(
         except Exception:
             pass
     
-    # Render dashboard
     dashboard_text = render_dashboard(view=view, kernel=kernel, state=state)
     
     return _base_response(cmd_name, dashboard_text, {"view": view})
@@ -638,7 +701,6 @@ def handle_dashboard_view(
         #dashboard-view compact  → set stored view to compact
         #dashboard-view full     → set stored view to full
     """
-    # Parse args
     target_view = None
     if isinstance(args, dict):
         positional = args.get("_", [])
@@ -649,7 +711,6 @@ def handle_dashboard_view(
     elif isinstance(args, str) and args.strip():
         target_view = args.strip().lower()
     
-    # Load config
     data_dir = getattr(kernel, "config", None)
     if data_dir and hasattr(data_dir, "data_dir"):
         config = load_dashboard_config(data_dir.data_dir)
@@ -660,21 +721,14 @@ def handle_dashboard_view(
     
     current_view = config.get("default_view", "compact")
     
-    # Determine new view
     if target_view in ("compact", "full"):
         new_view = target_view
     else:
-        # Toggle
         new_view = "full" if current_view == "compact" else "compact"
     
-    # Update and save config
     config["default_view"] = new_view
     save_dashboard_config(config, save_dir)
     
-    # Confirmation message
-    confirmation = f"Dashboard view set: {new_view.upper()}"
-    
-    # Get state
     state = None
     if hasattr(kernel, "context_manager"):
         try:
@@ -682,10 +736,8 @@ def handle_dashboard_view(
         except Exception:
             pass
     
-    # Render dashboard with new view
     dashboard_text = render_dashboard(view=new_view, kernel=kernel, state=state)
-    
-    full_output = f"{confirmation}\n\n{dashboard_text}"
+    full_output = f"View: {new_view.upper()}\n\n{dashboard_text}"
     
     return _base_response(cmd_name, full_output, {"view": new_view})
 
@@ -693,11 +745,7 @@ def handle_dashboard_view(
 def get_auto_dashboard_on_launch(kernel: Any = None, state: Any = None) -> Optional[str]:
     """
     Get dashboard string for auto-display on launch.
-    
     Returns None if auto_show_on_launch is False.
-    
-    This is called during app initialization, before the first prompt.
-    It is deterministic and does NOT call any LLM.
     """
     data_dir = None
     if kernel:
@@ -728,10 +776,6 @@ def get_dashboard_handlers() -> Dict[str, Any]:
     """Get dashboard handlers for registration in SYS_HANDLERS."""
     return DASHBOARD_HANDLERS
 
-
-# =============================================================================
-# MODULE EXPORTS
-# =============================================================================
 
 __all__ = [
     "handle_dashboard",
