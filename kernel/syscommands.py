@@ -114,6 +114,17 @@ except ImportError:
     _HAS_REMINDERS = False
     def get_reminders_handlers(): return {}
 
+# v0.12.0: Dashboard handlers
+try:
+    from .dashboard_handlers import handle_dashboard, handle_dashboard_view
+    _HAS_DASHBOARD = True
+except ImportError:
+    _HAS_DASHBOARD = False
+    def handle_dashboard(*args, **kwargs): 
+        return _base_response("dashboard", "Dashboard not available.", {"ok": False})
+    def handle_dashboard_view(*args, **kwargs): 
+        return _base_response("dashboard-view", "Dashboard not available.", {"ok": False})
+
 # v3.0.0: Human State REMOVED - functionality merged into Timerhythm
 # HP, readiness, and daily state now tracked via #daily-review phases
 _HAS_HUMAN_STATE_V2 = False
@@ -1346,6 +1357,10 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_reset": handle_reset,
     "handle_status": handle_status,
     "handle_help": handle_help,
+    
+    # Dashboard (v0.12.0)
+    "handle_dashboard": handle_dashboard,
+    "handle_dashboard_view": handle_dashboard_view,
     
     # Memory
     "handle_store": handle_store,

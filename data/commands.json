@@ -29,6 +29,16 @@
     "category": "core",
     "description": "Show command sections and help"
   },
+  "dashboard": {
+    "handler": "handle_dashboard",
+    "category": "core",
+    "description": "Display system dashboard. Args: refresh, compact, full"
+  },
+  "dashboard-view": {
+    "handler": "handle_dashboard_view",
+    "category": "core",
+    "description": "Toggle or set dashboard view mode (compact/full)"
+  },
 
   "core": {
     "handler": "handle_section_core",

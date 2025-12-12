@@ -69,6 +69,9 @@ from persona.nova_persona import NovaPersona
 # v0.9.0: Import mode router
 from core.mode_router import handle_user_message, get_or_create_state
 
+# v0.12.0: Dashboard auto-show on launch
+from kernel.dashboard_handlers import get_auto_dashboard_on_launch
+
 # v2.0.0: Reminder service and API
 try:
     from kernel.reminder_service import init_reminder_service, stop_reminder_service, get_reminder_service
@@ -739,6 +742,51 @@ def status_endpoint():
         "mode": state.mode_name,
         "novaos_enabled": state.novaos_enabled,
         "session_id": session_id,
+    })
+
+
+@app.route("/nova/init", methods=["GET", "POST"])
+def nova_init():
+    """
+    Initialize a new NovaOS session with optional dashboard.
+    
+    v0.12.0: Returns dashboard string for auto-display on launch.
+    
+    Body (optional): { "session_id": "my-session" }
+    
+    Returns: {
+        "ok": true,
+        "session_id": str,
+        "mode": "Persona" | "NovaOS",
+        "novaos_enabled": bool,
+        "dashboard": str | null  (only if novaos_enabled and auto_show configured)
+    }
+    """
+    import uuid
+    
+    # Parse session_id from request
+    session_id = None
+    if request.is_json and request.json:
+        session_id = request.json.get("session_id")
+    if not session_id:
+        session_id = request.args.get("session_id")
+    if not session_id:
+        session_id = f"web-{uuid.uuid4().hex[:8]}"
+    
+    # Get or create state
+    state = get_or_create_state(session_id)
+    
+    # Get auto-dashboard if configured and in strict/NovaOS mode
+    auto_dashboard = None
+    if state.novaos_enabled:
+        auto_dashboard = get_auto_dashboard_on_launch(kernel=kernel, state=state)
+    
+    return jsonify({
+        "ok": True,
+        "session_id": session_id,
+        "mode": state.mode_name,
+        "novaos_enabled": state.novaos_enabled,
+        "dashboard": auto_dashboard,
     })
 
 

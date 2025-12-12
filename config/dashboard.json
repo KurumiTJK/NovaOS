@@ -1,0 +1,11 @@
+{
+  "auto_show_on_launch": true,
+  "default_view": "compact",
+  "sections": [
+    "header",
+    "today_readiness",
+    "module_status",
+    "finance_snapshot",
+    "system_health"
+  ]
+}

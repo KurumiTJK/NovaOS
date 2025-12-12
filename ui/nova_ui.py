@@ -18,6 +18,9 @@ import traceback
 # v0.9.0: Import mode router
 from core.mode_router import handle_user_message, get_or_create_state
 
+# v0.12.0: Dashboard auto-show on launch
+from kernel.dashboard_handlers import get_auto_dashboard_on_launch
+
 
 class NovaApp:
     def __init__(self, kernel, persona, config):
@@ -231,7 +234,12 @@ class NovaApp:
         """Start the application main loop."""
         # Show initial message
         if self.state.novaos_enabled:
-            self._append_text("NovaOS is running. Type #help for commands.\n\n", "system")
+            # v0.12.0: Show dashboard on launch if configured
+            dashboard = get_auto_dashboard_on_launch(kernel=self.kernel, state=self.state)
+            if dashboard:
+                self._append_text(f"{dashboard}\n\n", "system")
+            else:
+                self._append_text("NovaOS is running. Type #help for commands.\n\n", "system")
         else:
             self._append_text(
                 "Welcome! I'm Nova. We're in Persona mode — just us talking.\n"
