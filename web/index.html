@@ -331,6 +331,12 @@
       box-shadow: none;
     }
 
+    /* Live clock in daily review - subtle highlight */
+    .live-clock {
+      color: var(--accent);
+      font-weight: 500;
+    }
+
     /* Timestamp */
     .message-time {
       font-size: 0.6875rem;
@@ -782,7 +788,35 @@
         bubble.classList.add('system-output');
         const pre = document.createElement('pre');
         pre.className = 'message-pre';
-        pre.textContent = text;
+        
+        // Check if this is daily review output - add live clock
+        if (text.includes('╔══ Daily Review')) {
+          // Replace the static time with a live clock placeholder
+          const clockId = 'live-clock-' + Date.now();
+          const processedText = text.replace(
+            /Date: (\d{4}-\d{2}-\d{2}) @ (\d{1,2}:\d{2} [AP]M)/,
+            `Date: $1 @ <span id="${clockId}" class="live-clock">$2</span>`
+          );
+          pre.innerHTML = processedText;
+          
+          // Start live clock update
+          const clockEl = pre.querySelector(`#${clockId}`);
+          if (clockEl) {
+            const updateClock = () => {
+              const now = new Date();
+              let hours = now.getHours();
+              const ampm = hours >= 12 ? 'PM' : 'AM';
+              hours = hours % 12;
+              hours = hours ? hours : 12;
+              const minutes = now.getMinutes().toString().padStart(2, '0');
+              clockEl.textContent = `${hours}:${minutes} ${ampm}`;
+            };
+            updateClock();
+            setInterval(updateClock, 1000);
+          }
+        } else {
+          pre.textContent = text;
+        }
         bubble.appendChild(pre);
       } else {
         // Style A: Render as normal conversational bubble (DEFAULT)

@@ -40,11 +40,6 @@
     "category": "section",
     "description": "Open the MEMORY section menu"
   },
-  "human_state": {
-    "handler": "handle_section_human_state",
-    "category": "section",
-    "description": "Open the HUMAN STATE section menu"
-  },
   "identity": {
     "handler": "handle_section_identity",
     "category": "section",
@@ -63,7 +58,7 @@
   "timerhythm": {
     "handler": "handle_section_timerhythm",
     "category": "section",
-    "description": "Open the TIME RHYTHM section menu"
+    "description": "Open the TIME RHYTHM section menu (HP, readiness, daily/weekly reviews)"
   },
   "reminders": {
     "handler": "handle_section_reminders",
@@ -79,6 +74,11 @@
     "handler": "handle_section_debug",
     "category": "section",
     "description": "Open the DEBUG section menu"
+  },
+  "modules": {
+    "handler": "handle_section_modules",
+    "category": "section",
+    "description": "Open the MODULES section menu"
   },
 
   "store": {
@@ -170,7 +170,7 @@
   "quest-compose": {
     "handler": "handle_quest_compose",
     "category": "workflow",
-    "description": "Start an interactive wizard to design a new quest step-by-step, then save it after confirmation."
+    "description": "Start an interactive wizard to design a new quest step-by-step."
   },
   "quest-delete": {
     "handler": "handle_quest_delete",
@@ -230,11 +230,6 @@
     "description": "Reset progression (soft=keep profile, hard=clear all). Requires confirm=yes."
   },
 
-  "modules": {
-    "handler": "handle_section_modules",
-    "category": "section",
-    "description": "Open the MODULES section menu"
-  },
   "modules-list": {
     "handler": "handle_modules_list",
     "category": "modules",
@@ -290,12 +285,17 @@
   "daily-review": {
     "handler": "handle_daily_review",
     "category": "timerhythm",
-    "description": "Two-phase daily review (morning/night). Use 'morning' or 'night' to complete a phase. +15 XP first phase, +10 XP bonus for second."
+    "description": "Three-phase daily review: morning (sleep+HP+goal), evening (energy), night (reflection+habits). Tracks HP and readiness."
   },
   "weekly-review": {
     "handler": "handle_weekly_review",
     "category": "timerhythm",
-    "description": "Show weekly stats and macro goals. Use 'done' to complete and earn macro XP."
+    "description": "Weekly review with macro goals, habit progress, and XP. Use 'done' to complete."
+  },
+  "time-clear": {
+    "handler": "handle_time_clear",
+    "category": "timerhythm",
+    "description": "DEV: Clear all timerhythm data (streaks, HP history, habits). Use 'confirm' to execute."
   },
 
   "command-add": {
@@ -348,26 +348,5 @@
     "handler": "handle_diagnostics",
     "category": "debug",
     "description": "Alias for #self-test."
-  },
-
-  "human-show": {
-    "handler": "handle_human_show",
-    "category": "human_state",
-    "description": "Show today's human state: HP, readiness tier, mode, all metrics."
-  },
-  "human-checkin": {
-    "handler": "handle_human_checkin",
-    "category": "human_state",
-    "description": "Daily check-in with guided or parameter mode."
-  },
-  "human-event": {
-    "handler": "handle_human_event",
-    "category": "human_state",
-    "description": "Log a quick event (workout, walk, caffeine, nap, meditation, bad_sleep)."
-  },
-  "human-clear": {
-    "handler": "handle_human_clear",
-    "category": "human_state",
-    "description": "Reset today's state. Use hard=true to also clear history."
   }
 }

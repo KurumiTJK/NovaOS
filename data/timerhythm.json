@@ -1,17 +1,69 @@
 {
-  "last_daily_review_date": null,
-  "daily_review_streak_count": 0,
-  "daily_review": {
+  "today": {
     "date": "",
+    "sleep": null,
+    "energy": null,
+    "goal": null,
+    "mood": null,
+    "stress": null,
+    "hp": null,
     "morning_completed": false,
+    "evening_completed": false,
     "night_completed": false,
     "morning_completed_at": null,
-    "night_completed_at": null
+    "evening_completed_at": null,
+    "night_completed_at": null,
+    "what_did_you_do": null,
+    "goal_progress": null,
+    "one_word": null,
+    "adjustment": null,
+    "win": null,
+    "diet_ate": null
   },
+  "yesterday": {
+    "date": "",
+    "sleep": null,
+    "energy": null,
+    "goal": null,
+    "mood": null,
+    "stress": null,
+    "hp": null,
+    "morning_completed": false,
+    "evening_completed": false,
+    "night_completed": false,
+    "morning_completed_at": null,
+    "evening_completed_at": null,
+    "night_completed_at": null,
+    "what_did_you_do": null,
+    "goal_progress": null,
+    "one_word": null,
+    "adjustment": null,
+    "win": null,
+    "diet_ate": null
+  },
+  "weekly_habits": {
+    "week_id": "",
+    "focus_progress": 0.0,
+    "focus_target": 7,
+    "diet_progress": 0
+  },
+  "weekly_schedule": {
+    "week_id": "",
+    "monday": [],
+    "tuesday": [],
+    "wednesday": [],
+    "thursday": [],
+    "friday": [],
+    "saturday": [],
+    "sunday": []
+  },
+  "last_daily_review_date": null,
+  "daily_review_streak_count": 0,
+  "daily_review_dates": [],
   "last_presence_date": null,
   "last_weekly_review_week_id": null,
-  "daily_review_dates": [],
   "perfect_day_count": 0,
   "perfect_day_streak": 0,
-  "last_perfect_day_date": null
+  "last_perfect_day_date": null,
+  "hp_history": []
 }

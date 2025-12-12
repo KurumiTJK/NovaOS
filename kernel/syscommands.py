@@ -106,15 +106,10 @@ except ImportError:
     _HAS_IDENTITY_SECTION = False
     def get_identity_handlers(): return {}
 
-# v2.0.0: Human State Handlers (replaces legacy human_state commands)
-try:
-    from .human_state_handlers import get_human_state_handlers
-    _HAS_HUMAN_STATE_V2 = True
-    print("[syscommands] Human State v2 handlers loaded successfully", flush=True)
-except ImportError as e:
-    _HAS_HUMAN_STATE_V2 = False
-    print(f"[syscommands] Human State v2 handlers import FAILED: {e}", flush=True)
-    def get_human_state_handlers(): return {}
+# v3.0.0: Human State REMOVED - functionality merged into Timerhythm
+# HP, readiness, and daily state now tracked via #daily-review phases
+_HAS_HUMAN_STATE_V2 = False
+def get_human_state_handlers(): return {}
 
 
 # =============================================================================
@@ -294,7 +289,6 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
     SECTION_ORDER = [
         "core",
         "memory",
-        "human_state",
         "modules",
         "identity",
         "system",
@@ -309,12 +303,11 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
     SECTION_DESCRIPTIONS = {
         "core": "Nova's heart & OS control center",
         "memory": "Lore & knowledge store (semantic/procedural/episodic)",
-        "human_state": "HP / readiness tier / check-in / events",
         "modules": "World map: regions & domains you create",
         "identity": "Player Profile: level, XP, domains, titles",
         "system": "Environment, snapshots, and runtime config",
         "workflow": "Quest Engine: quests, XP, skills, streaks",
-        "timerhythm": "Daily and weekly reviews",
+        "timerhythm": "Daily reviews (HP, readiness, habits) + weekly goals",
         "reminders": "Time-based reminders & pins",
         "commands": "Custom commands & macros (abilities)",
         "debug": "Diagnostics & dev tools",
@@ -1091,9 +1084,7 @@ def handle_section_memory(cmd_name, args, session_id, context, kernel, meta) -> 
     return _handle_section_menu("memory", cmd_name, args, session_id, context, kernel, meta)
 
 # v0.11.0: handle_section_continuity removed
-
-def handle_section_human_state(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _handle_section_menu("human_state", cmd_name, args, session_id, context, kernel, meta)
+# v3.0.0: handle_section_human_state removed (merged into timerhythm)
 
 def handle_section_modules(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("modules", cmd_name, args, session_id, context, kernel, meta)
@@ -1358,8 +1349,8 @@ def handle_reconfirm_prompts(cmd_name, args, session_id, context, kernel, meta) 
     return _base_response(cmd_name, "Reconfirm prompts not yet implemented.", {"ok": False})
 
 # v2.0.0: Legacy human state handlers removed (evolution-status, log-state, state-history, capacity)
-# New handlers: human-show, human-checkin, human-event, human-clear
-# Provided by human_state_handlers.py
+# v3.0.0: Human State section completely removed - functionality merged into Timerhythm
+# HP, readiness, sleep, energy now tracked via #daily-review morning/evening/night phases
 
 def handle_macro(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _base_response(cmd_name, "Macro not yet implemented.", {"ok": False})
@@ -1440,12 +1431,11 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     # v0.11.0: Continuity handlers removed (preferences, projects, continuity_context)
     "handle_reconfirm_prompts": handle_reconfirm_prompts,
     
-    # Time Rhythm (v0.11.0)
+    # Time Rhythm (v0.11.0, v3.0.0: now includes HP/readiness from former Human State)
     "handle_daily_review": handle_daily_review,
     "handle_weekly_review": handle_weekly_review,
     
-    # v2.0.0: Human State handlers moved to human_state_handlers.py
-    # Legacy handlers removed: evolution_status, log_state, state_history, capacity_check
+    # v3.0.0: Human State section removed - merged into Timerhythm
     
     # Modules
     "handle_bind_module": handle_bind_module,
@@ -1474,10 +1464,9 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_self_test": handle_self_test,
     "handle_diagnostics": handle_diagnostics,
     
-    # Section Menus (v0.11.0: removed continuity, inbox)
+    # Section Menus (v0.11.0: removed continuity, inbox; v3.0.0: removed human_state)
     "handle_section_core": handle_section_core,
     "handle_section_memory": handle_section_memory,
-    "handle_section_human_state": handle_section_human_state,
     "handle_section_modules": handle_section_modules,
     "handle_section_identity": handle_section_identity,
     "handle_section_system": handle_section_system,
@@ -1522,6 +1511,5 @@ if _HAS_MEMORY_SYSCOMMANDS:
 if _HAS_IDENTITY_SECTION:
     SYS_HANDLERS.update(get_identity_handlers())
 
-# v2.0.0: Human State handlers (new canonical human state system)
-if _HAS_HUMAN_STATE_V2:
-    SYS_HANDLERS.update(get_human_state_handlers())
+# v3.0.0: Human State handlers removed - functionality merged into Timerhythm
+# HP, readiness, sleep/energy tracking now via #daily-review phases

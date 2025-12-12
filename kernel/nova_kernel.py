@@ -44,8 +44,8 @@ except ImportError:
     IdentitySectionManager = None
 # v0.11.0: ContinuityHelpers removed
 
-# v2.0.0: Human State Manager (replaces legacy human_state.py)
-from .human_state import HumanStateManagerV2
+# v3.0.0: Human State REMOVED - merged into Timerhythm
+# HP, readiness, sleep/energy now tracked via #daily-review phases
 
 # v0.6 imports
 from .nl_router import route_natural_language
@@ -209,9 +209,9 @@ class NovaKernel:
         else:
             self.identity_section_manager = None
 
-        # ---------------- v2.0.0 Human State Manager ----------------
-        # Canonical human state system with readiness tiers, HP, events
-        self.human_state_manager = HumanStateManagerV2(self.config.data_dir)
+        # ---------------- v3.0.0 Human State REMOVED ----------------
+        # HP, readiness, sleep/energy now tracked via Timerhythm daily review
+        self.human_state_manager = None
 
         # ---------------- v0.5.7 Memory Policy ----------------
         self.memory_policy = MemoryPolicy()
@@ -229,7 +229,7 @@ class NovaKernel:
         # v0.11.0: Continuity Helpers removed
         self.continuity = None
 
-        # v0.5.9: Legacy human_state removed - now using human_state_manager (v2.0.0)
+        # v3.0.0: human_state_manager removed - functionality merged into Timerhythm
 
         # ---------------- Persona fallback ----------------
         from persona.nova_persona import NovaPersona

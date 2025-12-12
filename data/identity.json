@@ -9,16 +9,69 @@
   },
   "goals": [],
   "level": 1,
-  "current_xp": 0,
-  "xp_to_next": 100,
-  "total_xp": 0,
-  "xp_by_source": {},
+  "current_xp": 80,
+  "xp_to_next": 20,
+  "total_xp": 80,
+  "xp_by_source": {
+    "presence": 40,
+    "timerhythm_daily": 40
+  },
   "modules": {},
   "equipped_title": null,
   "titles": [],
-  "xp_history": [],
+  "xp_history": [
+    {
+      "amount": 10,
+      "source": "presence",
+      "module": null,
+      "description": "First interaction today",
+      "timestamp": "2025-12-12T03:34:24.469503+00:00"
+    },
+    {
+      "amount": 15,
+      "source": "timerhythm_daily",
+      "module": null,
+      "description": "Daily review (phase 1/2): night",
+      "timestamp": "2025-12-12T03:34:24.470263+00:00"
+    },
+    {
+      "amount": 10,
+      "source": "timerhythm_daily",
+      "module": null,
+      "description": "Daily review bonus (phase 2/2): morning",
+      "timestamp": "2025-12-12T03:56:41.585453+00:00"
+    },
+    {
+      "amount": 10,
+      "source": "presence",
+      "module": null,
+      "description": "First interaction today",
+      "timestamp": "2025-12-12T04:17:10.233186+00:00"
+    },
+    {
+      "amount": 15,
+      "source": "timerhythm_daily",
+      "module": null,
+      "description": "Daily review (phase 1/2): night",
+      "timestamp": "2025-12-12T04:17:10.233976+00:00"
+    },
+    {
+      "amount": 10,
+      "source": "presence",
+      "module": null,
+      "description": "First interaction today",
+      "timestamp": "2025-12-12T06:30:21.190151+00:00"
+    },
+    {
+      "amount": 10,
+      "source": "presence",
+      "module": null,
+      "description": "First interaction today",
+      "timestamp": "2025-12-12T06:32:46.020940+00:00"
+    }
+  ],
   "created_at": "2025-12-11T22:15:25.133658+00:00",
-  "updated_at": "2025-12-11T22:15:25.133683+00:00",
+  "updated_at": "2025-12-12T06:32:46.020944+00:00",
   "version": "1.0.0",
   "visual_unlocks": [],
   "unlocked_shortcuts": []

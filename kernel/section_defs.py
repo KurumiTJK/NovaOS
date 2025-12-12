@@ -26,15 +26,14 @@ v2.0.0 MODULES UPDATE:
 Sections:
 1. core          — Nova's heart & OS control center
 2. memory        — Lore / knowledge store
-3. human_state   — HP / readiness tier / check-in / events
-4. modules       — Regions/domains on the world map
-5. identity      — Character sheet: name, archetype, goals, level, XP, domains, titles
-6. system        — Environment, snapshots, runtime config
-7. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
-8. timerhythm    — Daily/weekly reviews and rhythm
-9. reminders     — Time-based reminders / quest pins
-10. commands     — Abilities/macros
-11. debug        — Diagnostics & dev tools
+3. modules       — Regions/domains on the world map
+4. identity      — Character sheet: name, archetype, goals, level, XP, domains, titles
+5. system        — Environment, snapshots, runtime config
+6. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
+7. timerhythm    — Daily/weekly reviews, HP, readiness, habits
+8. reminders     — Time-based reminders / quest pins
+9. commands      — Abilities/macros
+10. debug        — Diagnostics & dev tools
 """
 
 from dataclasses import dataclass, field
@@ -94,16 +93,6 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("session-end", "End session: save WM to LTM and clear", "#session-end"),
         ]
     ),
-    "human_state": Section(
-        title="Human State",
-        description="Real-time operating condition: HP, readiness tiers (Green/Yellow/Red), check-ins, and events.",
-        commands=[
-            CommandInfo("human-show", "Show today's state: HP, readiness tier, mode, all metrics", "#human-show"),
-            CommandInfo("human-checkin", "Daily check-in (guided or params)", "#human-checkin stamina=70 stress=40 mood=2"),
-            CommandInfo("human-event", "Log quick event (workout, walk, caffeine, nap, etc.)", "#human-event type=workout intensity=medium"),
-            CommandInfo("human-clear", "Reset today's state (soft=default, hard=clear history too)", "#human-clear or #human-clear hard=true"),
-        ]
-    ),
     "modules": Section(
         title="Modules",
         description="World map: regions of your life (Cybersecurity, Business, Health, etc.). Modules are structural metadata; XP lives in Identity.",
@@ -155,10 +144,11 @@ SECTION_DEFS: Dict[str, Section] = {
     ),
     "timerhythm": Section(
         title="Time Rhythm",
-        description="Daily and weekly reviews for reflection and planning.",
+        description="Daily reviews (morning/evening/night) track HP, readiness, and habits. Weekly reviews for macro goals.",
         commands=[
-            CommandInfo("daily-review", "Start or complete daily review", "#daily-review"),
-            CommandInfo("weekly-review", "Start or complete weekly review", "#weekly-review"),
+            CommandInfo("daily-review", "Three-phase daily review: morning (sleep+goal), evening (energy), night (reflection)", "#daily-review morning"),
+            CommandInfo("weekly-review", "Weekly review with macro goals, habits, and XP", "#weekly-review"),
+            CommandInfo("time-clear", "DEV: Clear all timerhythm data (streaks, reviews, logs)", "#time-clear confirm"),
         ]
     ),
     "reminders": Section(

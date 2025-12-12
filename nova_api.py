@@ -196,6 +196,28 @@ def nova_endpoint():
         # Get or create state for this session
         state = get_or_create_state(session_id)
         
+        # v2.2.0: Check for active daily review wizard FIRST
+        # This intercepts user input during the wizard flow
+        try:
+            from kernel.time_rhythm_handlers import (
+                has_active_daily_review_wizard,
+                process_daily_review_wizard_input,
+            )
+            
+            if has_active_daily_review_wizard(session_id):
+                # Don't intercept if user is running a new command
+                if not text.startswith("#"):
+                    wizard_result = process_daily_review_wizard_input(session_id, text, kernel)
+                    if wizard_result:
+                        return jsonify({
+                            "ok": wizard_result.ok,
+                            "text": wizard_result.summary,
+                            "data": wizard_result.data,
+                            "type": wizard_result.type,
+                        })
+        except ImportError:
+            pass  # Time rhythm handlers not available
+        
         # Route through the mode router
         result = handle_user_message(
             message=text,
