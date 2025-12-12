@@ -1515,6 +1515,13 @@
         // v0.10.3: Update QuestCompose state based on response
         updateQuestComposeState(data);
 
+        // v2.0.0: Check for UI actions (like opening settings panel)
+        if (data.data && data.data.action === 'open_settings') {
+          if (typeof openReminderSettings === 'function') {
+            setTimeout(() => openReminderSettings(), 100);
+          }
+        }
+
         // Extract and display Nova's response
         const reply = extractNovaResponse(data);
         appendNovaMessage(reply);
@@ -1739,5 +1746,9 @@
     console.log('iOS device:', isIOS());
     console.log('iOS PWA mode:', isIOSPWA());
   </script>
+  
+  <!-- Reminder Notification System -->
+  <script src="reminder-notifications.js"></script>
+  <script src="reminder-settings.js"></script>
 </body>
 </html>

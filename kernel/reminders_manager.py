@@ -947,6 +947,19 @@ class RemindersManager:
         
         return reminder
     
+    def mark_fired(self, rid: str) -> Optional[Reminder]:
+        """Mark a reminder as having fired (for notification tracking)."""
+        self._load()
+        
+        reminder = self._items.get(rid)
+        if not reminder:
+            return None
+        
+        reminder.last_fired_at = self._now(reminder.timezone).isoformat()
+        self._save()
+        
+        return reminder
+    
     # =========================================================================
     # QUERY OPERATIONS
     # =========================================================================

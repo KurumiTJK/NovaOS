@@ -68,6 +68,14 @@ from .quest_handlers import (
     route_to_quest_wizard,
     cancel_all_quest_wizards,
 )
+
+# v2.0.0: Reminders Wizard routing
+try:
+    from .reminders_integration import check_reminders_wizard
+    _HAS_REMINDERS_WIZARD = True
+except ImportError:
+    _HAS_REMINDERS_WIZARD = False
+    def check_reminders_wizard(*args, **kwargs): return None
 # v0.7: Working Memory Engine (NovaWM)
 from .nova_wm import (
     get_wm,
@@ -329,6 +337,14 @@ class NovaKernel:
                 "content": {"command": "wizard", "summary": result.get("summary", "")},
                 "extra": result.get("extra", {}),
             }
+
+        # -------------------------------------------------------------
+        # 1.5) Reminders Wizard Check
+        # -------------------------------------------------------------
+        if _HAS_REMINDERS_WIZARD:
+            wizard_result = check_reminders_wizard(session_id, stripped, self)
+            if wizard_result:
+                return wizard_result
 
         # -------------------------------------------------------------
         # 2) Active Section Menu Check

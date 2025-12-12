@@ -7,6 +7,8 @@ Implements all reminder commands:
 - reminders-add, reminders-update, reminders-delete
 - reminders-done, reminders-snooze
 - reminders-pin, reminders-unpin
+
+v2.0.1: Added wizard support for commands needing args
 """
 
 from __future__ import annotations
@@ -29,31 +31,42 @@ from .reminders_manager import (
     WEEKDAY_MAP,
 )
 
+# Wizard support
+from .reminders_wizard import (
+    is_reminders_wizard_command,
+    has_active_wizard,
+    start_reminders_wizard,
+    process_reminders_wizard_input,
+    clear_wizard_session,
+    WIZARD_COMMANDS,
+)
+
 
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
-def _base_response(cmd_name: str, summary: str, extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Build a standard response dict."""
-    response = {
-        "ok": True,
-        "command": cmd_name,
-        "summary": summary,
-    }
-    if extra:
-        response["extra"] = extra
-    return response
+def _base_response(cmd_name: str, summary: str, data: Optional[Dict[str, Any]] = None) -> CommandResponse:
+    """Build a standard CommandResponse object."""
+    return CommandResponse(
+        ok=True,
+        command=cmd_name,
+        summary=summary,
+        data=data or {},
+        type="syscommand",
+    )
 
 
-def _error_response(cmd_name: str, message: str, error_code: str = "ERROR") -> Dict[str, Any]:
-    """Build an error response dict."""
-    return {
-        "ok": False,
-        "command": cmd_name,
-        "summary": message,
-        "error_code": error_code,
-    }
+def _error_response(cmd_name: str, message: str, error_code: str = "ERROR") -> CommandResponse:
+    """Build an error CommandResponse object."""
+    return CommandResponse(
+        ok=False,
+        command=cmd_name,
+        summary=message,
+        error_code=error_code,
+        error_message=message,
+        type="error",
+    )
 
 
 def _get_manager(kernel) -> Optional[RemindersManager]:
@@ -101,86 +114,121 @@ def _format_date(dt_str: str, tz_name: str = DEFAULT_TIMEZONE) -> str:
         dt = datetime.fromisoformat(dt_str)
         tz = ZoneInfo(tz_name)
         dt = dt.astimezone(tz)
-        return dt.strftime("%a %b %d")
+        return dt.strftime("%Y-%m-%d")
     except Exception:
         return dt_str[:10] if len(dt_str) > 10 else dt_str
 
 
-def _format_window(window: RepeatWindow) -> str:
-    """Format a time window."""
+def _format_window(window: Optional[RepeatWindow]) -> str:
+    """Format a window to readable string."""
     if not window:
-        return ""
+        return "—"
     try:
-        # Convert HH:MM to readable format
         start_h, start_m = map(int, window.start.split(":"))
         end_h, end_m = map(int, window.end.split(":"))
         
         start_ampm = "AM" if start_h < 12 else "PM"
         end_ampm = "AM" if end_h < 12 else "PM"
         
-        start_h = start_h % 12 or 12
-        end_h = end_h % 12 or 12
+        start_h_12 = start_h % 12 or 12
+        end_h_12 = end_h % 12 or 12
         
-        start_str = f"{start_h}:{start_m:02d} {start_ampm}" if start_m else f"{start_h}:00 {start_ampm}"
-        end_str = f"{end_h}:{end_m:02d} {end_ampm}" if end_m else f"{end_h}:00 {end_ampm}"
-        
-        return f"{start_str}–{end_str}"
+        return f"{start_h_12}:{start_m:02d} {start_ampm}–{end_h_12}:{end_m:02d} {end_ampm}"
     except Exception:
         return f"{window.start}–{window.end}"
 
 
-def _format_repeat(repeat: RepeatConfig) -> str:
-    """Format repeat configuration."""
+def _format_repeat(repeat: Optional[RepeatConfig]) -> str:
+    """Format repeat config to readable string."""
     if not repeat:
-        return ""
+        return "One-time"
     
-    result = repeat.type.capitalize()
+    parts = []
     
-    if repeat.interval > 1:
-        result = f"Every {repeat.interval} {repeat.type}s"
+    if repeat.type == "daily":
+        if repeat.interval == 1:
+            parts.append("Daily")
+        else:
+            parts.append(f"Every {repeat.interval} days")
+    elif repeat.type == "weekly":
+        if repeat.by_day:
+            # by_day contains abbreviations like "MO", "TU", etc.
+            # Just use them directly (they're already readable)
+            day_names = repeat.by_day
+            parts.append(f"Weekly on {', '.join(day_names)}")
+        else:
+            parts.append("Weekly")
+    elif repeat.type == "monthly":
+        if repeat.by_month_day:
+            days = ", ".join(str(d) for d in repeat.by_month_day)
+            parts.append(f"Monthly on day(s) {days}")
+        else:
+            parts.append("Monthly")
     
-    if repeat.type == "weekly" and repeat.by_day:
-        days = [d for d in repeat.by_day]
-        if days:
-            result += f" on {', '.join(days)}"
+    if repeat.window:
+        parts.append(f"window {_format_window(repeat.window)}")
     
-    if repeat.type == "monthly" and repeat.by_month_day:
-        days = [str(d) for d in repeat.by_month_day]
-        if days:
-            result += f" on day {', '.join(days)}"
-    
-    return result
+    return " · ".join(parts) if parts else "Recurring"
 
 
-def _format_reminder_line(r: Reminder, show_time: bool = True) -> str:
-    """Format a single reminder for list display."""
-    parts = [f"[{r.id}]"]
+def _format_reminder_line(r: Reminder, show_id: bool = True) -> str:
+    """Format a single reminder as a line."""
+    parts = []
     
-    if r.pinned:
-        parts.append("📌")
+    if show_id:
+        parts.append(f"[{r.id}]")
     
     parts.append(r.title)
     
-    if show_time:
-        if r.has_window and r.repeat.window:
-            parts.append(f"(window: {_format_window(r.repeat.window)})")
-        else:
-            parts.append(f"— {_format_time_short(r.due_at, r.timezone)}")
+    if r.due_at:
+        parts.append(f"@ {_format_time(r.due_at, r.timezone)}")
     
-    if r.is_recurring and not r.has_window:
-        parts.append(f"[{_format_repeat(r.repeat)}]")
+    if r.is_recurring:
+        parts.append(f"({_format_repeat(r.repeat)})")
     
     if r.snoozed_until:
-        parts.append(f"(snoozed until {_format_time_short(r.snoozed_until, r.timezone)})")
+        parts.append(f"💤 until {_format_time_short(r.snoozed_until, r.timezone)}")
     
     return " ".join(parts)
 
 
-def _now_string(tz_name: str = DEFAULT_TIMEZONE) -> str:
-    """Get current time as formatted string."""
-    tz = ZoneInfo(tz_name)
-    now = datetime.now(tz)
-    return now.strftime("%Y-%m-%d · %I:%M %p").replace(" 0", " ")
+def _format_reminder_detail(r: Reminder) -> str:
+    """Format a reminder with full details."""
+    lines = [
+        f"╔══ {r.title} ══╗",
+        "",
+        f"ID:        {r.id}",
+        f"Status:    {r.status}",
+        f"Priority:  {r.priority}",
+        f"Pinned:    {'Yes' if r.pinned else 'No'}",
+        "",
+        f"Due:       {_format_time(r.due_at, r.timezone)}",
+        f"Timezone:  {r.timezone}",
+    ]
+    
+    if r.is_recurring:
+        lines.append(f"Repeat:    {_format_repeat(r.repeat)}")
+        if r.has_window and r.repeat and r.repeat.window:
+            lines.append(f"Window:    {_format_window(r.repeat.window)}")
+    
+    if r.snoozed_until:
+        lines.append(f"Snoozed:   Until {_format_time(r.snoozed_until, r.timezone)}")
+    
+    if r.notes:
+        lines.append("")
+        lines.append(f"Notes:     {r.notes}")
+    
+    lines.append("")
+    lines.append(f"Created:   {_format_time(r.created_at, r.timezone)}")
+    lines.append(f"Updated:   {_format_time(r.updated_at, r.timezone)}")
+    
+    if r.last_fired_at:
+        lines.append(f"Last fired: {_format_time(r.last_fired_at, r.timezone)}")
+    
+    if r.missed_count > 0:
+        lines.append(f"Missed:    {r.missed_count} time(s)")
+    
+    return "\n".join(lines)
 
 
 def _parse_repeat_arg(repeat_str: str) -> Optional[Dict[str, Any]]:
@@ -193,10 +241,8 @@ def _parse_repeat_arg(repeat_str: str) -> Optional[Dict[str, Any]]:
     # Simple types
     if repeat_str == "daily":
         return {"type": "daily", "interval": 1}
-    
     if repeat_str == "weekly":
         return {"type": "weekly", "interval": 1}
-    
     if repeat_str == "monthly":
         return {"type": "monthly", "interval": 1}
     
@@ -261,7 +307,7 @@ def _parse_window_arg(window_str: str) -> Optional[Dict[str, str]]:
 # COMMAND HANDLERS
 # =============================================================================
 
-def handle_reminders_list(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
     List all reminders grouped by status.
     
@@ -271,10 +317,12 @@ def handle_reminders_list(cmd_name, args, session_id, context, kernel, meta) -> 
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
-    # Parse status filter
+    # Parse status filter - handle both dict and non-dict args
     status_filter = "active"
     if isinstance(args, dict):
         status_filter = args.get("status", "active")
+    elif isinstance(args, list) and len(args) > 0:
+        status_filter = str(args[0]) if args[0] in ("active", "done", "all") else "active"
     
     all_reminders = manager.list_all()
     tz = DEFAULT_TIMEZONE
@@ -310,60 +358,48 @@ def handle_reminders_list(cmd_name, args, session_id, context, kernel, meta) -> 
         else:
             upcoming.append(r)
     
-    # Sort upcoming by due date
-    upcoming.sort(key=lambda r: r.due_at or "")
-    
-    # Build output
-    lines = [
-        "╔══ Reminders — List ══╗",
-        f"Now: {_now_string(tz)}",
-        "",
-    ]
+    lines = ["╔══ Reminders ══╗", ""]
     
     if pinned:
-        lines.append("📌 Pinned:")
+        lines.append("📌 PINNED")
         for r in pinned:
-            lines.append(f"  • {_format_reminder_line(r)}")
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
     if due_now:
-        lines.append("🔴 Due now:")
+        lines.append("🔴 DUE NOW")
         for r in due_now:
-            lines.append(f"  • {_format_reminder_line(r)}")
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
     if due_today:
-        lines.append("🟡 Today:")
+        lines.append("🟡 TODAY")
         for r in due_today:
-            lines.append(f"  • {_format_reminder_line(r)}")
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
     if upcoming:
-        lines.append("🟢 Upcoming:")
-        for r in upcoming[:10]:  # Limit to 10
-            lines.append(f"  • {_format_reminder_line(r)} — {_format_date(r.due_at, r.timezone)}")
-        if len(upcoming) > 10:
-            lines.append(f"  ... and {len(upcoming) - 10} more")
+        lines.append("🟢 UPCOMING")
+        for r in upcoming:
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
-    if done and status_filter in ("all", "done"):
-        lines.append("✓ Done:")
-        for r in done[:5]:
-            lines.append(f"  • [{r.id}] {r.title}")
+    if done and status_filter in ("done", "all"):
+        lines.append("✓ DONE")
+        for r in done[:5]:  # Limit to 5
+            lines.append(f"  {_format_reminder_line(r)}")
+        if len(done) > 5:
+            lines.append(f"  ... and {len(done) - 5} more")
         lines.append("")
     
-    return _base_response(cmd_name, "\n".join(lines), {
-        "count": len(reminders),
-        "pinned": len(pinned),
-        "due_now": len(due_now),
-        "due_today": len(due_today),
-        "upcoming": len(upcoming),
-    })
+    lines.append(f"Total: {len(reminders)} reminder(s)")
+    
+    return _base_response(cmd_name, "\n".join(lines), {"count": len(reminders)})
 
 
-def handle_reminders_due(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_due(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Show reminders that are currently due.
+    Show reminders that are due now + today + pinned.
     
     Usage: #reminders-due
     """
@@ -374,421 +410,380 @@ def handle_reminders_due(cmd_name, args, session_id, context, kernel, meta) -> D
     tz = DEFAULT_TIMEZONE
     now = datetime.now(ZoneInfo(tz))
     
+    # Get due reminders
     due_now = manager.get_due_now(now)
-    due_today = [r for r in manager.get_due_today(now) if r not in due_now]
-    pinned = [r for r in manager.get_pinned() if r not in due_now]
+    due_today = manager.get_due_today(now)
+    pinned = manager.get_pinned()
     
-    lines = [
-        "╔══ Reminders — Due ══╗",
-        f"Now: {_now_string(tz)}",
-        "",
-    ]
+    # Remove duplicates (pinned items might also be due)
+    due_now_ids = {r.id for r in due_now}
+    due_today = [r for r in due_today if r.id not in due_now_ids]
+    pinned = [r for r in pinned if r.id not in due_now_ids and r.id not in {r2.id for r2 in due_today}]
+    
+    if not due_now and not due_today and not pinned:
+        return _base_response(cmd_name, "╔══ Due Reminders ══╗\n\nNo reminders due right now. 🎉", {"count": 0})
+    
+    lines = ["╔══ Due Reminders ══╗", ""]
     
     if due_now:
-        lines.append("Due now:")
+        lines.append("🔴 DUE NOW")
         for r in due_now:
-            line = f"  • {_format_reminder_line(r)}"
-            lines.append(line)
-        lines.append("")
-    else:
-        lines.append("Due now: None")
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
     if due_today:
-        lines.append("Today:")
+        lines.append("🟡 LATER TODAY")
         for r in due_today:
-            lines.append(f"  • {_format_reminder_line(r)}")
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
     if pinned:
-        lines.append("📌 Pinned:")
+        lines.append("📌 PINNED")
         for r in pinned:
-            lines.append(f"  • {_format_reminder_line(r)}")
+            lines.append(f"  {_format_reminder_line(r)}")
         lines.append("")
     
-    return _base_response(cmd_name, "\n".join(lines), {
-        "due_now": len(due_now),
-        "due_today": len(due_today),
-        "pinned": len(pinned),
-    })
+    total = len(due_now) + len(due_today) + len(pinned)
+    return _base_response(cmd_name, "\n".join(lines), {"count": total, "due_now": len(due_now)})
 
 
-def handle_reminders_show(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_show(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Show full details for a specific reminder.
+    Show full details for a reminder.
     
     Usage: #reminders-show id=rem_001
+    
+    If called without args, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
-    # Parse ID
-    rid = None
+    # Get reminder ID
+    reminder_id = None
     if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-    elif isinstance(args, str):
-        rid = args.strip()
+        reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
     
-    if not rid:
-        return _error_response(cmd_name, "Usage: #reminders-show id=<id>", "MISSING_ID")
+    # No ID provided - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    reminder = manager.get(rid)
+    reminder = manager.get(reminder_id)
     if not reminder:
-        return _error_response(cmd_name, f"Reminder '{rid}' not found.", "NOT_FOUND")
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
-    tz = reminder.timezone
-    
-    lines = [
-        f"╔══ Reminder: {reminder.title} ══╗",
-        "",
-        f"ID: {reminder.id}",
-        f"Status: {reminder.status}",
-        f"Priority: {reminder.priority}",
-        f"Pinned: {'Yes' if reminder.pinned else 'No'}",
-        "",
-        f"Due at: {_format_time(reminder.due_at, tz)}",
-        f"Timezone: {tz}",
-    ]
-    
-    if reminder.repeat:
-        lines.append(f"Repeat: {_format_repeat(reminder.repeat)}")
-        if reminder.repeat.window:
-            lines.append(f"Window: {_format_window(reminder.repeat.window)}")
-    
-    if reminder.snoozed_until:
-        lines.append(f"Snoozed until: {_format_time(reminder.snoozed_until, tz)}")
-    
-    if reminder.notes:
-        lines.append("")
-        lines.append(f"Notes: {reminder.notes}")
-    
-    lines.append("")
-    lines.append(f"Created: {_format_time(reminder.created_at, tz)}")
-    lines.append(f"Updated: {_format_time(reminder.updated_at, tz)}")
-    
-    if reminder.last_fired_at:
-        lines.append(f"Last fired: {_format_time(reminder.last_fired_at, tz)}")
-    
-    if reminder.missed_count > 0:
-        lines.append(f"Missed: {reminder.missed_count} times")
-    
-    return _base_response(cmd_name, "\n".join(lines), {"reminder": reminder.to_dict()})
+    detail = _format_reminder_detail(reminder)
+    return _base_response(cmd_name, detail, {"reminder": reminder.to_dict()})
 
 
-def handle_reminders_add(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_add(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Add a new reminder.
+    Create a new reminder.
     
-    Usage: #reminders-add title="Call mom" due="2025-12-15 17:00"
-           #reminders-add title="Weekly sync" due="sunday 10am" repeat=weekly window=10am-12pm
+    Usage: #reminders-add title="Call mom" due="5pm" [repeat=daily] [window=5pm-11pm] [notes="..."] [priority=high]
+    
+    If called without args, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
     if not isinstance(args, dict):
-        return _error_response(
-            cmd_name,
-            'Usage: #reminders-add title="..." due="YYYY-MM-DD HH:MM"',
-            "INVALID_ARGS"
-        )
+        args = {}
     
-    # Required fields
-    title = args.get("title") or args.get("_", [None])[0]
+    title = args.get("title")
     due = args.get("due") or args.get("at") or args.get("when")
     
-    if not title:
-        return _error_response(cmd_name, "Missing title. Usage: #reminders-add title=\"...\" due=\"...\"", "MISSING_TITLE")
+    # No required args - start wizard
+    if not title or not due:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    if not due:
-        return _error_response(cmd_name, "Missing due time. Usage: #reminders-add title=\"...\" due=\"...\"", "MISSING_DUE")
-    
-    # Optional fields
+    # Parse optional args
+    repeat = _parse_repeat_arg(args.get("repeat", ""))
+    window = _parse_window_arg(args.get("window", ""))
     notes = args.get("notes")
     priority = args.get("priority", "normal")
-    pinned = args.get("pinned", "").lower() in ("true", "yes", "1")
-    timezone = args.get("timezone", DEFAULT_TIMEZONE)
+    pinned = args.get("pinned", "").lower() in ("true", "yes", "1") if isinstance(args.get("pinned"), str) else bool(args.get("pinned"))
     
-    # Parse repeat
-    repeat_config = None
-    repeat_str = args.get("repeat")
-    if repeat_str:
-        repeat_config = _parse_repeat_arg(repeat_str)
-    
-    # Parse window
-    window_config = None
-    window_str = args.get("window")
-    if window_str:
-        window_config = _parse_window_arg(window_str)
-    
-    # Create reminder
     try:
         reminder = manager.add(
             title=title,
             due=due,
             notes=notes,
             priority=priority,
-            repeat=repeat_config,
-            window=window_config,
+            repeat=repeat,
+            window=window,
             pinned=pinned,
-            timezone=timezone,
         )
+        
+        summary = f"✓ Reminder created: {reminder.title}\n\nDue: {_format_time(reminder.due_at, reminder.timezone)}"
+        if reminder.is_recurring:
+            summary += f"\nRepeat: {_format_repeat(reminder.repeat)}"
+        
+        return _base_response(cmd_name, summary, {"id": reminder.id, "reminder": reminder.to_dict()})
+    
     except Exception as e:
-        return _error_response(cmd_name, f"Failed to create reminder: {e}", "CREATE_ERROR")
-    
-    lines = [
-        "╔══ Reminder Created ══╗",
-        "",
-        f"ID: {reminder.id}",
-        f"Title: {reminder.title}",
-        f"Due: {_format_time(reminder.due_at, reminder.timezone)}",
-    ]
-    
-    if reminder.repeat:
-        lines.append(f"Repeat: {_format_repeat(reminder.repeat)}")
-        if reminder.repeat.window:
-            lines.append(f"Window: {_format_window(reminder.repeat.window)}")
-    
-    if reminder.notes:
-        lines.append(f"Notes: {reminder.notes}")
-    
-    return _base_response(cmd_name, "\n".join(lines), {"reminder": reminder.to_dict()})
+        return _error_response(cmd_name, f"Failed to create reminder: {str(e)}", "CREATE_FAILED")
 
 
-def handle_reminders_update(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_update(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Update an existing reminder.
+    Update a reminder's fields.
     
-    Usage: #reminders-update id=rem_001 title="New title"
-           #reminders-update id=rem_001 due="tomorrow 9am" priority=high
+    Usage: #reminders-update id=rem_001 [title="..."] [due="..."] [notes="..."] [priority=...]
+    
+    If called without id, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
     if not isinstance(args, dict):
-        return _error_response(cmd_name, "Usage: #reminders-update id=<id> field=value ...", "INVALID_ARGS")
+        args = {}
     
-    rid = args.get("id") or args.get("_", [None])[0]
-    if not rid:
-        return _error_response(cmd_name, "Missing id. Usage: #reminders-update id=<id> ...", "MISSING_ID")
+    reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
+    
+    # No ID - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
+    
+    # Get current reminder
+    reminder = manager.get(reminder_id)
+    if not reminder:
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
     # Build update fields
-    fields = {}
-    for key in ["title", "notes", "priority", "pinned", "timezone"]:
-        if key in args:
-            value = args[key]
-            if key == "pinned":
-                value = str(value).lower() in ("true", "yes", "1")
-            fields[key] = value
-    
-    if "due" in args or "due_at" in args:
-        fields["due"] = args.get("due") or args.get("due_at")
-    
+    updates = {}
+    if "title" in args:
+        updates["title"] = args["title"]
+    if "notes" in args:
+        updates["notes"] = args["notes"]
+    if "priority" in args:
+        updates["priority"] = args["priority"]
+    if "due" in args or "at" in args or "when" in args:
+        updates["due"] = args.get("due") or args.get("at") or args.get("when")
     if "repeat" in args:
-        repeat_config = _parse_repeat_arg(args["repeat"])
-        if repeat_config:
-            fields["repeat"] = repeat_config
+        updates["repeat"] = _parse_repeat_arg(args["repeat"])
+    if "window" in args:
+        updates["window"] = _parse_window_arg(args["window"])
     
-    if not fields:
-        return _error_response(cmd_name, "No fields to update.", "NO_FIELDS")
+    if not updates:
+        return _error_response(cmd_name, "No fields to update.", "NO_UPDATES")
     
-    reminder = manager.update(rid, fields)
-    if not reminder:
-        return _error_response(cmd_name, f"Reminder '{rid}' not found.", "NOT_FOUND")
+    try:
+        updated = manager.update(reminder_id, updates)
+        if not updated:
+            return _error_response(cmd_name, f"Failed to update reminder '{reminder_id}'.", "UPDATE_FAILED")
+        
+        summary = f"✓ Reminder updated: {updated.title}\n\nDue: {_format_time(updated.due_at, updated.timezone)}"
+        return _base_response(cmd_name, summary, {"id": updated.id, "reminder": updated.to_dict()})
     
-    lines = [
-        "╔══ Reminder Updated ══╗",
-        "",
-        f"ID: {reminder.id}",
-        f"Title: {reminder.title}",
-        f"Due: {_format_time(reminder.due_at, reminder.timezone)}",
-    ]
-    
-    return _base_response(cmd_name, "\n".join(lines), {"reminder": reminder.to_dict()})
+    except Exception as e:
+        return _error_response(cmd_name, f"Failed to update reminder: {str(e)}", "UPDATE_FAILED")
 
 
-def handle_reminders_delete(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_delete(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
     Delete a reminder.
     
     Usage: #reminders-delete id=rem_001
+    
+    If called without id, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
-    rid = None
+    reminder_id = None
     if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-    elif isinstance(args, str):
-        rid = args.strip()
+        reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
     
-    if not rid:
-        return _error_response(cmd_name, "Usage: #reminders-delete id=<id>", "MISSING_ID")
+    # No ID - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    # Get reminder first for confirmation message
-    reminder = manager.get(rid)
+    # Get reminder info before deleting
+    reminder = manager.get(reminder_id)
     if not reminder:
-        return _error_response(cmd_name, f"Reminder '{rid}' not found.", "NOT_FOUND")
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
     title = reminder.title
-    success = manager.delete(rid)
+    ok = manager.delete(reminder_id)
     
-    if success:
-        return _base_response(
-            cmd_name,
-            f"╔══ Reminder Deleted ══╗\n\nDeleted: [{rid}] {title}",
-            {"id": rid, "title": title}
-        )
-    else:
-        return _error_response(cmd_name, f"Failed to delete reminder '{rid}'.", "DELETE_ERROR")
+    if not ok:
+        return _error_response(cmd_name, f"Failed to delete reminder '{reminder_id}'.", "DELETE_FAILED")
+    
+    return _base_response(cmd_name, f"✓ Reminder deleted: {title}", {"id": reminder_id})
 
 
-def handle_reminders_done(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_done(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Mark a reminder as done/completed.
+    Mark a reminder as done. For recurring reminders, advances to next occurrence.
     
     Usage: #reminders-done id=rem_001
+    
+    If called without id, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
-    rid = None
+    reminder_id = None
     if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-    elif isinstance(args, str):
-        rid = args.strip()
+        reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
     
-    if not rid:
-        return _error_response(cmd_name, "Usage: #reminders-done id=<id>", "MISSING_ID")
+    # No ID - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    # Get reminder before completing for status message
-    reminder = manager.get(rid)
+    reminder = manager.get(reminder_id)
     if not reminder:
-        return _error_response(cmd_name, f"Reminder '{rid}' not found.", "NOT_FOUND")
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
     was_recurring = reminder.is_recurring
+    title = reminder.title
     
-    completed = manager.complete(rid)
-    if not completed:
-        return _error_response(cmd_name, f"Failed to complete reminder '{rid}'.", "COMPLETE_ERROR")
+    try:
+        completed = manager.complete(reminder_id)
+        
+        if was_recurring:
+            summary = f"✓ Completed: {title}\n\nNext due: {_format_time(completed.due_at, completed.timezone)}"
+        else:
+            summary = f"✓ Done: {title}"
+        
+        return _base_response(cmd_name, summary, {"id": reminder_id, "recurring": was_recurring})
     
-    lines = ["╔══ Reminder Completed ══╗", ""]
-    
-    if was_recurring:
-        lines.append(f"✓ [{completed.id}] {completed.title}")
-        lines.append(f"  Next occurrence: {_format_time(completed.due_at, completed.timezone)}")
-    else:
-        lines.append(f"✓ [{completed.id}] {completed.title} — Done!")
-    
-    return _base_response(cmd_name, "\n".join(lines), {
-        "id": completed.id,
-        "recurring": was_recurring,
-        "next_due": completed.due_at if was_recurring else None,
-    })
+    except Exception as e:
+        return _error_response(cmd_name, f"Failed to complete reminder: {str(e)}", "COMPLETE_FAILED")
 
 
-def handle_reminders_snooze(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_snooze(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Snooze a reminder for a specified duration.
+    Snooze a reminder for a duration.
     
-    Usage: #reminders-snooze id=rem_001 duration=10m
-           #reminders-snooze id=rem_001 duration=1h
-           #reminders-snooze id=rem_001 duration=1d
+    Usage: #reminders-snooze id=rem_001 [duration=1h]
+    
+    Durations: 10m, 30m, 1h, 3h, 1d
+    
+    If called without id, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
     if not isinstance(args, dict):
-        return _error_response(cmd_name, "Usage: #reminders-snooze id=<id> duration=10m|1h|3h|1d", "INVALID_ARGS")
+        args = {}
     
-    rid = args.get("id") or args.get("_", [None])[0]
-    duration = args.get("duration") or args.get("for") or args.get("_", [None, None])[1] if len(args.get("_", [])) > 1 else None
+    reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
     
-    if not rid:
-        return _error_response(cmd_name, "Missing id. Usage: #reminders-snooze id=<id> duration=...", "MISSING_ID")
+    # No ID - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    if not duration:
-        return _error_response(cmd_name, "Missing duration. Usage: #reminders-snooze id=<id> duration=10m|1h|3h|1d", "MISSING_DURATION")
+    duration = args.get("duration", "1h")
     
-    snoozed = manager.snooze(rid, duration)
-    if not snoozed:
-        return _error_response(cmd_name, f"Failed to snooze reminder '{rid}'. Check duration format (10m, 1h, 3h, 1d).", "SNOOZE_ERROR")
+    reminder = manager.get(reminder_id)
+    if not reminder:
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
-    lines = [
-        "╔══ Reminder Snoozed ══╗",
-        "",
-        f"⏰ [{snoozed.id}] {snoozed.title}",
-        f"   Snoozed until: {_format_time(snoozed.snoozed_until, snoozed.timezone)}",
-    ]
+    try:
+        snoozed = manager.snooze(reminder_id, duration)
+        
+        summary = f"💤 Snoozed: {snoozed.title}\n\nUntil: {_format_time(snoozed.snoozed_until, snoozed.timezone)}"
+        return _base_response(cmd_name, summary, {"id": reminder_id, "snoozed_until": snoozed.snoozed_until})
     
-    return _base_response(cmd_name, "\n".join(lines), {
-        "id": snoozed.id,
-        "snoozed_until": snoozed.snoozed_until,
-    })
+    except Exception as e:
+        return _error_response(cmd_name, f"Failed to snooze reminder: {str(e)}", "SNOOZE_FAILED")
 
 
-def handle_reminders_pin(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_pin(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
-    Pin a reminder.
+    Pin a reminder so it always shows in due view.
     
     Usage: #reminders-pin id=rem_001
+    
+    If called without id, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
-    rid = None
+    reminder_id = None
     if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-    elif isinstance(args, str):
-        rid = args.strip()
+        reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
     
-    if not rid:
-        return _error_response(cmd_name, "Usage: #reminders-pin id=<id>", "MISSING_ID")
+    # No ID - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    reminder = manager.pin(rid)
+    reminder = manager.get(reminder_id)
     if not reminder:
-        return _error_response(cmd_name, f"Reminder '{rid}' not found.", "NOT_FOUND")
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
-    return _base_response(
-        cmd_name,
-        f"╔══ Reminder Pinned ══╗\n\n📌 [{reminder.id}] {reminder.title}",
-        {"id": reminder.id}
-    )
+    try:
+        pinned = manager.pin(reminder_id)
+        return _base_response(cmd_name, f"📌 Pinned: {pinned.title}", {"id": reminder_id})
+    
+    except Exception as e:
+        return _error_response(cmd_name, f"Failed to pin reminder: {str(e)}", "PIN_FAILED")
 
 
-def handle_reminders_unpin(cmd_name, args, session_id, context, kernel, meta) -> Dict[str, Any]:
+def handle_reminders_unpin(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     """
     Unpin a reminder.
     
     Usage: #reminders-unpin id=rem_001
+    
+    If called without id, starts interactive wizard.
     """
     manager = _get_manager(kernel)
     if not manager:
         return _error_response(cmd_name, "Reminders system not available.", "NO_MANAGER")
     
-    rid = None
+    reminder_id = None
     if isinstance(args, dict):
-        rid = args.get("id") or args.get("_", [None])[0]
-    elif isinstance(args, str):
-        rid = args.strip()
+        reminder_id = args.get("id") or (args.get("_", [None])[0] if args.get("_") else None)
     
-    if not rid:
-        return _error_response(cmd_name, "Usage: #reminders-unpin id=<id>", "MISSING_ID")
+    # No ID - start wizard
+    if not reminder_id:
+        return start_reminders_wizard(session_id, cmd_name, kernel)
     
-    reminder = manager.unpin(rid)
+    reminder = manager.get(reminder_id)
     if not reminder:
-        return _error_response(cmd_name, f"Reminder '{rid}' not found.", "NOT_FOUND")
+        return _error_response(cmd_name, f"Reminder '{reminder_id}' not found.", "NOT_FOUND")
     
+    try:
+        unpinned = manager.unpin(reminder_id)
+        return _base_response(cmd_name, f"Unpinned: {unpinned.title}", {"id": reminder_id})
+    
+    except Exception as e:
+        return _error_response(cmd_name, f"Failed to unpin reminder: {str(e)}", "UNPIN_FAILED")
+
+
+def handle_reminders_settings(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
+    """
+    Open reminder notification settings.
+    
+    Usage: #reminders-settings
+    
+    Opens the settings panel in the UI where you can:
+    - Enable/disable push notifications (ntfy.sh)
+    - Set your ntfy topic
+    - Configure notification priority
+    - Send test notifications
+    """
+    # Return a special response that tells the frontend to open settings
     return _base_response(
         cmd_name,
-        f"╔══ Reminder Unpinned ══╗\n\n[{reminder.id}] {reminder.title} — unpinned",
-        {"id": reminder.id}
+        "Opening reminder settings...\n\n"
+        "Configure push notifications to your phone via ntfy.sh:\n"
+        "1. Install ntfy app (iOS/Android)\n"
+        "2. Subscribe to your topic\n"
+        "3. Enable notifications in settings",
+        {
+            "action": "open_settings",
+            "ui_command": "openReminderSettings()",
+        }
     )
 
 
@@ -807,29 +802,24 @@ REMINDERS_HANDLERS = {
     "handle_reminders_snooze": handle_reminders_snooze,
     "handle_reminders_pin": handle_reminders_pin,
     "handle_reminders_unpin": handle_reminders_unpin,
+    "handle_reminders_settings": handle_reminders_settings,
 }
 
 
-def get_reminders_handlers() -> Dict[str, Any]:
-    """Get all reminders handlers for registration in SYS_HANDLERS."""
+def get_reminders_handlers():
+    """Return the reminders handlers dict for registration."""
     return REMINDERS_HANDLERS
 
 
-# =============================================================================
-# MODULE EXPORTS
-# =============================================================================
-
+# Re-export wizard functions for kernel integration
 __all__ = [
-    "handle_reminders_list",
-    "handle_reminders_due",
-    "handle_reminders_show",
-    "handle_reminders_add",
-    "handle_reminders_update",
-    "handle_reminders_delete",
-    "handle_reminders_done",
-    "handle_reminders_snooze",
-    "handle_reminders_pin",
-    "handle_reminders_unpin",
     "get_reminders_handlers",
     "REMINDERS_HANDLERS",
+    # Wizard exports
+    "is_reminders_wizard_command",
+    "has_active_wizard",
+    "start_reminders_wizard",
+    "process_reminders_wizard_input",
+    "clear_wizard_session",
+    "WIZARD_COMMANDS",
 ]

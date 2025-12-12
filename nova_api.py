@@ -69,6 +69,22 @@ from persona.nova_persona import NovaPersona
 # v0.9.0: Import mode router
 from core.mode_router import handle_user_message, get_or_create_state
 
+# v2.0.0: Reminder service and API
+try:
+    from kernel.reminder_service import init_reminder_service, stop_reminder_service, get_reminder_service
+    from kernel.reminders_api import (
+        init_reminders_api,
+        get_due_reminders_for_ui,
+        dismiss_reminder_notification,
+        quick_snooze,
+        quick_done,
+    )
+    from kernel.reminder_settings import init_reminder_settings, get_reminder_settings
+    _HAS_REMINDER_SERVICE = True
+except ImportError as e:
+    print(f"[NovaAPI] Reminder service not available: {e}", flush=True)
+    _HAS_REMINDER_SERVICE = False
+
 
 app = Flask(
     __name__,
@@ -91,6 +107,33 @@ kernel = NovaKernel(config=config, llm_client=llm_client)
 
 # Persona (for both modes) - uses the SAME llm_client
 persona = NovaPersona(llm_client)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.0.0: REMINDER SERVICE INITIALIZATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+if _HAS_REMINDER_SERVICE:
+    # Initialize settings (loads from data/reminder_settings.json)
+    reminder_settings = init_reminder_settings(config.data_dir)
+    
+    # Initialize the reminders API (for in-app notifications)
+    init_reminders_api(kernel.reminders)
+    
+    # Get config from saved settings
+    reminder_config = reminder_settings.to_service_config()
+    
+    # Start the background reminder service
+    init_reminder_service(
+        reminders_manager=kernel.reminders,
+        config=reminder_config,
+        data_dir=config.data_dir,
+        auto_start=True,
+    )
+    print(f"[NovaAPI] Reminder service started (ntfy: {reminder_settings.get('ntfy_enabled', False)})", flush=True)
+    
+    # Register shutdown handler
+    import atexit
+    atexit.register(stop_reminder_service)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -716,6 +759,173 @@ def health_endpoint():
         "streaming_enabled": True,
         "quest_compose_streaming": True,  # v0.10.3
     })
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v2.0.0: REMINDER API ROUTES (for in-app notifications)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/reminders/due")
+def api_reminders_due():
+    """
+    Frontend polls this to check for due reminders.
+    Returns reminders that are currently due for in-app notification display.
+    """
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"has_due": False, "count": 0, "reminders": [], "error": "Reminder service not available"})
+    return jsonify(get_due_reminders_for_ui())
+
+
+@app.route("/api/reminders/dismiss/<reminder_id>", methods=["POST"])
+def api_reminders_dismiss(reminder_id):
+    """
+    Dismiss a reminder notification (hide it, don't mark done).
+    Called when user clicks X on the in-app notification.
+    """
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    return jsonify(dismiss_reminder_notification(reminder_id))
+
+
+@app.route("/api/reminders/snooze/<reminder_id>", methods=["POST"])
+def api_reminders_snooze(reminder_id):
+    """
+    Quick snooze from the in-app notification.
+    Body: {"duration": "30m"} (optional, defaults to 30m)
+    """
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    duration = "30m"
+    if request.is_json and request.json:
+        duration = request.json.get("duration", "30m")
+    return jsonify(quick_snooze(reminder_id, duration))
+
+
+@app.route("/api/reminders/done/<reminder_id>", methods=["POST"])
+def api_reminders_done(reminder_id):
+    """
+    Quick mark done from the in-app notification.
+    For recurring reminders, advances to next occurrence.
+    """
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    return jsonify(quick_done(reminder_id))
+
+
+@app.route("/api/reminders/status")
+def api_reminders_status():
+    """Get reminder service status (for debugging)."""
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    service = get_reminder_service()
+    if service:
+        return jsonify({"ok": True, **service.get_status()})
+    return jsonify({"ok": False, "error": "Service not running"})
+
+
+@app.route("/api/reminders/settings", methods=["GET"])
+def api_reminders_settings_get():
+    """Get current reminder settings."""
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    
+    settings = get_reminder_settings()
+    return jsonify({
+        "ok": True,
+        "settings": settings.get_all(),
+    })
+
+
+@app.route("/api/reminders/settings", methods=["POST"])
+def api_reminders_settings_update():
+    """
+    Update reminder settings.
+    
+    Body: {
+        "ntfy_enabled": true,
+        "ntfy_topic": "novaos-vant-reminders",
+        ...
+    }
+    
+    After updating, restarts the reminder service with new config.
+    """
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    
+    try:
+        data = request.get_json(force=True) or {}
+    except:
+        return jsonify({"ok": False, "error": "Invalid JSON"}), 400
+    
+    # Update settings
+    settings = get_reminder_settings()
+    settings.update(data)
+    
+    # Restart service with new config
+    service = get_reminder_service()
+    if service:
+        # Stop current service
+        service.stop()
+        
+        # Reinitialize with new settings
+        new_config = settings.to_service_config()
+        init_reminder_service(
+            reminders_manager=kernel.reminders,
+            config=new_config,
+            data_dir=config.data_dir,
+            auto_start=True,
+        )
+        print(f"[NovaAPI] Reminder service restarted with new settings", flush=True)
+    
+    return jsonify({
+        "ok": True,
+        "message": "Settings updated",
+        "settings": settings.get_all(),
+    })
+
+
+@app.route("/api/reminders/settings/test-ntfy", methods=["POST"])
+def api_reminders_test_ntfy():
+    """
+    Send a test notification via ntfy.
+    Useful for verifying the topic is set up correctly.
+    """
+    if not _HAS_REMINDER_SERVICE:
+        return jsonify({"ok": False, "error": "Reminder service not available"})
+    
+    settings = get_reminder_settings()
+    
+    if not settings.get("ntfy_enabled"):
+        return jsonify({"ok": False, "error": "ntfy is not enabled"})
+    
+    topic = settings.get("ntfy_topic")
+    if not topic:
+        return jsonify({"ok": False, "error": "ntfy_topic is not set"})
+    
+    server = settings.get("ntfy_server", "https://ntfy.sh")
+    
+    try:
+        import requests
+        response = requests.post(
+            f"{server}/{topic}",
+            data="🧪 Test notification from NovaOS!\n\nIf you see this, ntfy is working correctly.",
+            headers={
+                "Title": "NovaOS Test",
+                "Priority": "default",
+                "Tags": "white_check_mark,test",
+            },
+            timeout=10,
+        )
+        
+        if response.status_code == 200:
+            return jsonify({"ok": True, "message": "Test notification sent!"})
+        else:
+            return jsonify({"ok": False, "error": f"ntfy returned status {response.status_code}"})
+    
+    except ImportError:
+        return jsonify({"ok": False, "error": "requests package not installed"})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

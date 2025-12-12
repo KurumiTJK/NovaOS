@@ -243,6 +243,11 @@
     "category": "reminders",
     "description": "Unpin a reminder."
   },
+  "reminders-settings": {
+    "handler": "handle_reminders_settings",
+    "category": "core",
+    "description": "Open reminder notification settings (ntfy push, in-app alerts)."
+  },
 
   "identity-show": {
     "handler": "handle_identity_show",
