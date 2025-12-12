@@ -72,6 +72,22 @@ from core.mode_router import handle_user_message, get_or_create_state
 # v0.12.0: Dashboard auto-show on launch
 from kernel.dashboard_handlers import get_auto_dashboard_on_launch
 
+# Nova Council integration
+try:
+    from council import (
+        get_council_state,
+        clear_all_states as clear_council_states,
+        CouncilMode,
+    )
+    from providers.gemini_client import get_gemini_status, is_gemini_available
+    _HAS_COUNCIL = True
+except ImportError:
+    _HAS_COUNCIL = False
+    get_council_state = None
+    clear_council_states = None
+    get_gemini_status = None
+    is_gemini_available = None
+
 # v2.0.0: Reminder service and API
 try:
     from kernel.reminder_service import init_reminder_service, stop_reminder_service, get_reminder_service
@@ -977,6 +993,95 @@ def api_reminders_test_ntfy():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# NOVA COUNCIL API ROUTES
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.route("/api/council/status", methods=["GET"])
+def api_council_status():
+    """
+    Get Nova Council status and configuration.
+    
+    Query params:
+        session_id: Optional session ID (defaults to "default")
+    
+    Returns:
+        {
+            "ok": true,
+            "council_available": true,
+            "session_id": "...",
+            "state": { "mode": "OFF", "used": false, ... },
+            "gemini": { "available": true, ... }
+        }
+    """
+    if not _HAS_COUNCIL:
+        return jsonify({
+            "ok": False,
+            "error": "Nova Council not installed",
+            "council_available": False,
+        })
+    
+    session_id = request.args.get("session_id", "default")
+    
+    try:
+        state = get_council_state(session_id)
+        gemini_status = get_gemini_status() if get_gemini_status else {}
+        
+        return jsonify({
+            "ok": True,
+            "council_available": True,
+            "session_id": session_id,
+            "state": {
+                "mode": state.get_display_mode(),
+                "used": state.used,
+                "gemini_calls": state.gemini_calls,
+                "cache_hits": state.cache_hits,
+                "errors": state.errors,
+            },
+            "gemini": gemini_status,
+        })
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "error": str(e),
+            "council_available": True,
+        })
+
+
+@app.route("/api/council/reset", methods=["POST"])
+def api_council_reset():
+    """
+    Reset Council state for a session or all sessions.
+    
+    Body:
+        {"session_id": "..."} - Reset specific session
+        {"all": true} - Reset all sessions
+    """
+    if not _HAS_COUNCIL:
+        return jsonify({
+            "ok": False,
+            "error": "Nova Council not installed",
+        })
+    
+    try:
+        data = request.get_json() or {}
+        session_id = data.get("session_id")
+        reset_all = data.get("all", False)
+        
+        if reset_all:
+            clear_council_states()
+            return jsonify({"ok": True, "message": "All Council states reset"})
+        elif session_id:
+            from council import reset_council_state
+            reset_council_state(session_id)
+            return jsonify({"ok": True, "message": f"Council state reset for session {session_id}"})
+        else:
+            return jsonify({"ok": False, "error": "Provide session_id or all=true"})
+            
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -984,6 +1089,15 @@ if __name__ == "__main__":
     print(f"[NovaAPI] Starting server...", flush=True)
     print(f"[NovaAPI] Base directory: {BASE_DIR}", flush=True)
     print(f"[NovaAPI] Static folder: {BASE_DIR / 'web'}", flush=True)
+    
+    # Reset Council state on fresh app launch
+    if _HAS_COUNCIL and clear_council_states:
+        clear_council_states()
+        print("[NovaAPI] Council state cleared (fresh launch)", flush=True)
+        if is_gemini_available and is_gemini_available():
+            print("[NovaAPI] Gemini API available", flush=True)
+        else:
+            print("[NovaAPI] Gemini API not available (check GEMINI_API_KEY)", flush=True)
     
     # Run with debug=False in production
     app.run(host="0.0.0.0", port=5000, debug=True)

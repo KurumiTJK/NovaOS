@@ -69,6 +69,21 @@ if TYPE_CHECKING:
     from kernel.nova_kernel import NovaKernel
     from persona.nova_persona import NovaPersona
 
+# Nova Council integration
+try:
+    from council.mode_router_integration import (
+        process_with_council,
+        inject_council_context,
+    )
+    from council.state import get_council_state, CouncilMode
+    _HAS_COUNCIL = True
+except ImportError:
+    _HAS_COUNCIL = False
+    process_with_council = None
+    inject_council_context = None
+    get_council_state = None
+    CouncilMode = None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
@@ -79,6 +94,27 @@ STRICT_MODE_ERROR_MESSAGE = (
     "Nova cannot complete this request at this time. "
     "Please exit NovaOS mode to continue."
 )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COUNCIL HELPER FUNCTIONS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _is_in_quest_flow(session_id: str) -> bool:
+    """Check if session is in quest composition flow."""
+    try:
+        from kernel.quest_compose_wizard import get_compose_session
+        session = get_compose_session(session_id)
+        return session is not None and session.stage is not None
+    except Exception:
+        return False
+
+
+def _is_in_command_composer(session_id: str) -> bool:
+    """Check if session is in command composer flow."""
+    # Currently no command composer wizard exists
+    # This is a placeholder for future implementation
+    return False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,10 +538,42 @@ def _handle_novaos_mode_strict(
                 return wizard_result
     
     # ─────────────────────────────────────────────────────────────────────
-    # ROUTE THROUGH KERNEL
+    # NOVA COUNCIL INTEGRATION
+    # ─────────────────────────────────────────────────────────────────────
+    # Process through council to detect mode and get Gemini context
+    
+    council_result = None
+    clean_message = message
+    council_context = {}
+    
+    if _HAS_COUNCIL and process_with_council:
+        try:
+            # Check if we're in a quest flow or command composer
+            in_quest_flow = _is_in_quest_flow(state.session_id)
+            in_command_composer = _is_in_command_composer(state.session_id)
+            
+            # Process through council
+            council_result, clean_message, council_context = process_with_council(
+                user_text=message,
+                session_id=state.session_id,
+                kernel=kernel,
+                in_quest_flow=in_quest_flow,
+                in_command_composer=in_command_composer,
+            )
+            
+            # Log council mode
+            print(f"[ModeRouter] council_mode={council_result.mode.value} gemini_used={council_result.gemini_used}", flush=True)
+            
+        except Exception as e:
+            print(f"[ModeRouter] Council processing error (continuing without): {e}", flush=True)
+            import traceback
+            traceback.print_exc()
+    
+    # ─────────────────────────────────────────────────────────────────────
+    # ROUTE THROUGH KERNEL (use clean_message with flags stripped)
     # ─────────────────────────────────────────────────────────────────────
     
-    kernel_result = kernel.handle_input(message, state.session_id)
+    kernel_result = kernel.handle_input(clean_message, state.session_id)
     
     # Normalize to dict
     if hasattr(kernel_result, "to_dict"):
@@ -549,7 +617,7 @@ def _handle_novaos_mode_strict(
         }
     
     # ─────────────────────────────────────────────────────────────────────
-    # KERNEL HANDLED IT - Return the result
+    # KERNEL HANDLED IT - Return the result with Council metadata
     # ─────────────────────────────────────────────────────────────────────
     
     text = (
@@ -560,7 +628,7 @@ def _handle_novaos_mode_strict(
         ""
     )
     
-    return {
+    response = {
         "text": text,
         "mode": state.mode_name,
         "handled_by": "kernel",
@@ -569,6 +637,15 @@ def _handle_novaos_mode_strict(
         "type": kernel_type,
         "data": result_dict.get("data") or result_dict.get("extra") or result_dict.get("content"),
     }
+    
+    # Add council metadata if available
+    if council_result:
+        response["council"] = {
+            "mode": council_result.mode.value,
+            "gemini_used": council_result.gemini_used,
+        }
+    
+    return response
 
 
 # ─────────────────────────────────────────────────────────────────────────────

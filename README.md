@@ -1,314 +1,288 @@
-# NovaOS
+# Nova Council — Multi-Model Orchestration for NovaOS
 
-**A Life RPG Operating System for Personal Growth**
+Nova Council is a multi-model orchestration system that integrates Gemini AI alongside GPT-5 to provide:
+- **Cheap quest ideation** via Gemini Flash
+- **High-powered research** via Gemini Pro
+- **Command design pipeline** with full LIVE-MAX mode
 
-NovaOS is a personal AI companion and life-operating system that helps you grow, learn, and manage your life through intelligent assistance, narrative structure, and light RPG mechanics. It turns your real goals into quests, tracks your XP and skill progress, understands your state and priorities, and guides you with strategic, emotionally aware support — all while keeping you immersed in a personalized life-RPG experience.
+## Non-Negotiable Rules
 
----
+1. **Only GPT-5 speaks to the user** — Gemini never produces final user-facing output
+2. **Gemini output is ephemeral** — Never stored to long-term memory
+3. **Mode selection is explicit** — Flags override heuristics
+4. **LIVE-MAX is mandatory for command design** — No budget guardrails
+5. **Terminal-friendly output** — No stray markdown, preserve NovaOS style
 
-## ✨ Features
+## Modes
 
-### 🎮 Quest Engine
-- **Gamified Learning**: Complete quests to earn XP and level up
-- **Multi-step Questlines**: Break down goals into manageable steps
-- **Skill Domains**: Track progress across different life areas
-- **Streaks & Rewards**: Stay motivated with completion streaks and unlockable titles
+| Mode | Trigger | Pipeline |
+|------|---------|----------|
+| **SOLO** | Default, `@solo` | GPT-5 only |
+| **QUEST** | Quest creation, `@explore` in quest flow | Gemini Flash → GPT-5 synthesis |
+| **LIVE** | Research triggers, `@live`, `@explore` | Gemini Pro → GPT-5 final |
+| **LIVE-MAX** | Command design, `@max` | Gemini Pro → GPT-5 Design → GPT-5 Verify |
 
-### 📥 Inbox System (GTD-style)
-- **Quick Capture**: Instantly capture thoughts, ideas, and tasks
-- **Smart Processing**: Convert inbox items to quests or reminders
-- **Priority Tagging**: Organize by urgency and importance
+## Explicit Flags
 
-### 🧠 Intelligent Assistant
-- **Natural Language**: Talk to Nova naturally, no commands required
-- **Strategist Mode**: Get personalized recommendations (read-only, never auto-executes)
-- **Story/Utility Modes**: Choose your preferred interaction style
+Add these flags to your message to force a specific mode (stripped before model calls):
 
-### ⏰ Time Rhythm
-- **Daily Presence**: Time-aware greetings and suggestions
-- **Weekly Reviews**: Structured reflection and planning
-- **Focus Tracking**: Know when you're in your productive hours
+- `@solo` — Force SOLO (GPT-5 only)
+- `@explore` — Force QUEST (in quest flow) or LIVE (general)
+- `@live` — Force LIVE mode
+- `@max` — Force LIVE-MAX (only applies to command-intent queries)
 
-### 🗺️ Dynamic Modules
-- **Create Your World**: Define custom skill domains/regions
-- **No Defaults**: Your life, your categories
-- **XP Tracking**: Progress per domain
+## Heuristic Detection
 
-### 💾 Memory Systems
-- **Working Memory**: Context-aware conversations
-- **Long-term Storage**: Semantic, procedural, and episodic memory
-- **Identity Profile**: Track your growth over time
+If no flags are provided, mode is detected by content:
 
----
+### Command-Intent → LIVE-MAX (mandatory)
+- "create a command", "design a command", "add a command"
+- "modify command", "refactor command", "implement command"
+- Mentions: SYS_HANDLERS, handler, router, registry
 
-## 🚀 Quick Start
+### Quest-Intent → QUEST
+- "create a quest", "quest-compose", "quest"
+- "lesson plan", "steps for learning"
+- `#quest-compose` command
 
-### Prerequisites
-- Python 3.10 or higher
-- OpenAI API key
+### Live-Intent → LIVE
+- "latest", "current", "today"
+- "docs", "pricing", "status", "verify"
 
-### Installation
+## Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/NovaOS.git
-cd NovaOS
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
-```
-
-### Running NovaOS
-
-**Desktop UI (Tkinter)**
-```bash
-python main.py
-```
-
-**Web API Server**
-```bash
-python nova_api.py
-# Opens at http://localhost:5000
-```
-
----
-
-## 📁 Project Structure
-
-```
-NovaOS/
-├── backend/
-│   ├── llm_client.py        # OpenAI API wrapper
-│   └── model_router.py      # Model tier selection
-├── data/
-│   ├── commands.json        # Command registry
-│   ├── inbox.json           # Inbox items
-│   ├── modules.json         # User-defined domains
-│   ├── player_profile.json  # XP, level, titles
-│   ├── quests.json          # Quest definitions
-│   ├── quest_progress.json  # Quest completion state
-│   ├── reminders.json       # Time-based reminders
-│   └── rhythm.json          # Time rhythm state
-├── kernel/
-│   ├── nova_kernel.py       # Core kernel
-│   ├── quest_engine.py      # Quest system
-│   ├── quest_handlers.py    # Quest commands
-│   ├── inbox_manager.py     # Inbox storage
-│   ├── inbox_handlers.py    # Inbox commands
-│   ├── player_profile.py    # XP/level system
-│   ├── module_manager.py    # Domain management
-
-│   ├── time_rhythm.py       # Time awareness
-│   ├── assistant_mode.py    # Story/utility modes
-│   ├── syscommands.py       # All system commands
-│   ├── section_defs.py      # Help sections
-│   └── ...
-├── persona/
-│   └── nova_persona.py      # Nova's personality
-├── system/
-│   ├── config.py            # Configuration
-│   └── nova_registry.py     # Command registry
-├── ui/
-│   └── nova_ui.py           # Desktop interface
-├── web/
-│   ├── index.html           # Web interface
-│   └── nova-avatar.png      # Nova's avatar
-├── main.py                  # Desktop entry point
-├── nova_api.py              # Web API entry point
-├── requirements.txt         # Python dependencies
-└── README.md
-```
-
----
-
-## 🎯 Command Reference
-
-NovaOS uses 13 sections to organize commands. Type `#help` for an overview or `#help <section>` for details.
-
-### Core Sections
-
-| Section | Description | Key Commands |
-|---------|-------------|--------------|
-| **core** | OS control center | `#boot`, `#status`, `#help` |
-| **inbox** | Quick capture | `#capture`, `#inbox`, `#inbox-to-quest` |
-| **workflow** | Quest Engine | `#quest`, `#next`, `#quest-log` |
-| **modules** | Skill domains | `#modules`, `#module-create` |
-| **identity** | Player profile | `#identity-show` |
-| **timerhythm** | Time awareness | `#presence`, `#align` |
-| **reminders** | Time-based pins | `#remind-add`, `#remind-list` |
-
-| **system** | Configuration | `#mode`, `#assistant-mode` |
-| **memory** | Knowledge store | `#store`, `#recall` |
-
-### Quick Examples
+### 1. Copy Files to NovaOS
 
 ```bash
-# Capture an idea
-#capture Learn about JWT security
-
-# Start a quest
-#quest
-
-# Advance to next step
-#next
-
-# Check your progress
-#quest-log
-
-# Set story mode for full RPG experience
-#assistant-mode story
+# Copy the council and providers directories to your NovaOS root
+cp -r council/ /path/to/nova-os/
+cp -r providers/ /path/to/nova-os/
 ```
 
----
+### 2. Install Dependencies
 
-## 🎮 Assistant Modes
-
-### Story Mode
-Full RPG experience with celebratory messages, XP fanfare, and immersive framing.
-
-```
-🎉 **Quest Complete: JWT Mastery**
-═══════════════════════════════
-🎊 **LEVEL UP!** You are now level 5! 🎊
-Total XP earned: **150**
+```bash
+pip install google-generativeai --break-system-packages
 ```
 
-### Utility Mode
-Clean, minimal output for productivity-focused sessions.
+### 3. Set Environment Variables
 
-```
-Quest complete: JWT Mastery
-Level up: 5
-XP: 150
-```
+Add to your `.env` file:
 
----
+```env
+# Required
+GEMINI_API_KEY=your-gemini-api-key-here
 
-## 🔌 API Reference
-
-### POST /nova
-Send a message to Nova.
-
-**Request:**
-```json
-{
-  "text": "What should I work on today?",
-  "session_id": "my-session"
-}
+# Optional (defaults shown)
+GEMINI_ENABLED=true
+COUNCIL_CACHE_DIR=/tmp/nova-council-cache
 ```
 
-**Response:**
+### 4. Apply Patches
+
+Apply the patches in the `patches/` directory to your existing NovaOS files:
+
+- `patch_dashboard_handlers.py` → Modify `kernel/dashboard_handlers.py`
+- `patch_mode_router.py` → Modify `core/mode_router.py`
+- `patch_nova_api.py` → Modify `nova_api.py`
+
+See each patch file for detailed instructions.
+
+## Configuration
+
+### Kill Switch
+
+To disable Gemini entirely (silent fallback to SOLO):
+
+```env
+GEMINI_ENABLED=false
+```
+
+### Cache Settings
+
+Quest ideation results are cached for 24 hours by default:
+
+```env
+COUNCIL_CACHE_DIR=/custom/cache/path
+```
+
+## Dashboard Display
+
+The dashboard MODE section now shows:
+
+```
+MODE
+  Persona: OFF | Council: OFF
+```
+
+After using Gemini:
+
+```
+MODE
+  Persona: OFF | Council: QUEST
+```
+
+Or for command design:
+
+```
+MODE
+  Persona: OFF | Council: LIVE-MAX
+```
+
+## API Endpoints
+
+### GET /api/council/status
+
+Returns council status and Gemini configuration:
+
 ```json
 {
   "ok": true,
-  "content": {
-    "summary": "Based on your current quests and energy level..."
+  "council_available": true,
+  "session_id": "default",
+  "state": {
+    "mode": "QUEST",
+    "used": true,
+    "gemini_calls": 2,
+    "cache_hits": 1,
+    "errors": 0
+  },
+  "gemini": {
+    "available": true,
+    "sdk_installed": true,
+    "enabled": true,
+    "api_key_set": true
   }
 }
 ```
 
----
+### POST /api/council/reset
 
-## 🛠️ Configuration
-
-### Environment Variables
-
-Create a `.env` file in the project root:
-
-```env
-OPENAI_API_KEY=sk-your-key-here
-```
-
-### Config Options
-
-Edit `data/config.json`:
+Reset council state:
 
 ```json
-{
-  "env": "dev",
-  "debug": false
-}
+{"session_id": "abc123"}  // Reset specific session
+{"all": true}             // Reset all sessions
 ```
 
----
+## Acceptance Tests
 
-## 🏗️ Architecture
-
-NovaOS follows a modular kernel architecture:
+### Test 1: Normal Chat → SOLO
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    UI Layer                      │
-│         (nova_ui.py / index.html)               │
-└────────────────────┬────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────┐
-│                 Nova Kernel                      │
-│    (nova_kernel.py + syscommand_router.py)      │
-└────────────────────┬────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────┐
-│               Command Handlers                   │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐        │
-│  │  Quest   │ │  Inbox   │ │ Strate-  │  ...   │
-│  │ Handlers │ │ Handlers │ │   gist   │        │
-│  └──────────┘ └──────────┘ └──────────┘        │
-└────────────────────┬────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────┐
-│                 Data Layer                       │
-│        (JSON files in data/ directory)          │
-└─────────────────────────────────────────────────┘
+User: Hello, how are you?
+Expected: Council: OFF in dashboard, no Gemini calls
 ```
 
----
+### Test 2: Quest Request → QUEST
 
-## 📊 Version History
+```
+User: Create a quest for learning Python basics
+Expected:
+- Gemini Flash called once
+- GPT-5 outputs final quest
+- Dashboard shows Council: QUEST
+```
 
-| Version | Highlights |
-|---------|------------|
-| **v0.8.1** | Section-based help system, cleanup |
-| **v0.8.0** | Life RPG architecture: Quest Engine, Player Profile, Modules, Inbox, Strategist, TimeRhythm |
-| **v0.7.x** | Working Memory, Behavior Layer |
-| **v0.6.x** | Section navigation, custom commands |
-| **v0.5.x** | Memory systems, identity profile |
+### Test 3: Research Request → LIVE
 
----
+```
+User: What's the latest pricing for AWS Lambda?
+Expected:
+- Gemini Pro called
+- GPT-5 synthesizes final answer
+- Dashboard shows Council: LIVE
+```
 
-## 🤝 Contributing
+### Test 4: Command Design → LIVE-MAX
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+```
+User: Design a new #dashboard-view command that shows memory stats
+Expected:
+- Gemini Pro called (research)
+- GPT-5 design pass (spec)
+- GPT-5 verify pass (validation)
+- Dashboard shows Council: LIVE-MAX
+```
 
----
+## Logging
 
-## 📄 License
+All council operations are logged:
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```
+[CouncilRouter] mode=QUEST reason=heuristic_quest_intent
+[GeminiClient] gemini_quest_ideate: model=gemini-1.5-flash
+[GeminiClient] gemini_quest_ideate: SUCCESS
+[CouncilValidate] quest_ideation: VALID (4 steps)
+[CouncilCache] STORED hash=a1b2c3d4
+[CouncilPipeline] QUEST - SUCCESS
+[CouncilOrchestrator] mode=QUEST reason=heuristic_quest_intent
+```
 
----
+## Files Structure
 
-## 🙏 Acknowledgments
+```
+nova-council/
+├── council/
+│   ├── __init__.py           # Package exports
+│   ├── state.py              # Session state management
+│   ├── router.py             # Mode detection and routing
+│   ├── orchestrator.py       # Pipeline execution
+│   ├── validate.py           # JSON schema validation
+│   ├── dashboard_integration.py  # Dashboard helpers
+│   └── mode_router_integration.py # mode_router.py integration
+├── providers/
+│   ├── __init__.py           # Package exports
+│   └── gemini_client.py      # Gemini API client
+├── patches/
+│   ├── patch_dashboard_handlers.py
+│   ├── patch_mode_router.py
+│   └── patch_nova_api.py
+└── README.md
+```
 
-- OpenAI for the GPT API
-- The GTD methodology for inbox/capture inspiration
-- RPG game design for gamification concepts
+## Troubleshooting
 
----
+### Gemini Not Available
 
-<p align="center">
-  <img src="web/nova-avatar.png" alt="Nova" width="100" />
-  <br>
-  <em>Nova — Your AI companion for life's quests</em>
-</p>
+Check:
+1. `GEMINI_API_KEY` is set in `.env`
+2. `GEMINI_ENABLED` is not set to `false`
+3. `google-generativeai` package is installed
+
+### Cache Issues
+
+Clear the cache directory:
+
+```bash
+rm -rf /tmp/nova-council-cache/*
+```
+
+### Mode Not Detected
+
+If your message isn't triggering the expected mode:
+1. Use explicit flags (`@quest`, `@live`, `@max`)
+2. Check the logs for `[CouncilRouter]` entries
+3. Verify heuristic patterns match your text
+
+### Gemini Returns Invalid JSON
+
+The system will fall back to SOLO mode if:
+- Gemini returns empty response
+- JSON schema validation fails
+- Network/timeout errors
+
+Check logs for `[CouncilValidate]` and `[GeminiClient]` errors.
+
+## Version History
+
+- **v1.0.0** — Initial implementation
+  - Gemini Flash for quest ideation
+  - Gemini Pro for live research
+  - LIVE-MAX pipeline for command design
+  - Dashboard indicator
+  - 24h cache for QUEST mode
+
+## License
+
+Part of NovaOS. Internal use only.

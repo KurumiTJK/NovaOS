@@ -29,6 +29,15 @@ python-dotenv>=1.0.0,<2.0.0
 sentence-transformers>=2.2.0,<4.0.0
 
 # =============================================================================
+# NOVA COUNCIL (Multi-Model Orchestration)
+# =============================================================================
+
+# Google Generative AI SDK - used for Gemini Flash/Pro integration
+# Provides cheap quest ideation (Flash) and research (Pro) capabilities
+# Falls back gracefully to GPT-5 only if not configured
+google-generativeai>=0.8.0,<1.0.0
+
+# =============================================================================
 # REMINDERS SYSTEM (v2.0.0)
 # =============================================================================
 
