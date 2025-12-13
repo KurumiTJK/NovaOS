@@ -697,6 +697,133 @@
     let SESSION_ID = 'web-' + Date.now();
 
     // ═══════════════════════════════════════════════════════════════════════
+    // v1.0.0: ASYNC JOB SYSTEM CONFIG
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    // Set to true to use async job polling instead of SSE streaming
+    // Async mode creates a background job and polls for progress
+    const USE_ASYNC_JOBS = true;  // Toggle this to test async mode (true = async jobs, false = SSE streaming)
+    
+    // Polling interval in milliseconds
+    const ASYNC_POLL_INTERVAL = 2000;
+
+    /**
+     * Send a QuestCompose "generate" command via async job API.
+     * 
+     * v1.0.0: Alternative to SSE streaming - uses Redis-backed job queue.
+     * 
+     * @param {string} sessionId - Session ID
+     * @param {Object} callbacks - Event callbacks
+     */
+    async function sendQuestComposeAsync(sessionId, callbacks = {}) {
+      const { onLog, onProgress, onComplete, onError } = callbacks;
+      
+      console.log('[NovaOS] Starting QuestCompose via async job');
+      
+      try {
+        // Step 1: Create the job
+        onLog?.('Creating async job...');
+        
+        const createResponse = await fetch('/api/quests/compose/async', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            text: 'generate', 
+            session_id: sessionId,
+          }),
+        });
+        
+        if (!createResponse.ok) {
+          const errText = await createResponse.text();
+          onError?.(`Failed to create job: ${errText}`);
+          return;
+        }
+        
+        const createData = await createResponse.json();
+        
+        if (!createData.job_id) {
+          onError?.(createData.error || 'No job_id returned');
+          return;
+        }
+        
+        const jobId = createData.job_id;
+        console.log('[NovaOS] Async job created:', jobId);
+        onLog?.(`Job created: ${jobId}`);
+        onProgress?.('Job queued...', 5);
+        
+        // Step 2: Poll for status
+        let attempts = 0;
+        const maxAttempts = 150;  // 5 minutes at 2s intervals
+        
+        const pollJob = async () => {
+          attempts++;
+          
+          try {
+            const statusResponse = await fetch(`/api/jobs/${jobId}`);
+            const job = await statusResponse.json();
+            
+            console.log('[NovaOS] Job status:', job.status, job.progress);
+            
+            switch (job.status) {
+              case 'queued':
+                onProgress?.('Waiting in queue...', 10);
+                break;
+                
+              case 'running':
+                // Show progress from job
+                if (job.progress) {
+                  const msg = job.progress.message || `Step ${job.progress.step || job.progress.pass || '?'}`;
+                  const pct = job.progress.percent || Math.min(20 + attempts * 2, 90);
+                  onProgress?.(msg, pct);
+                  onLog?.(msg);
+                } else {
+                  onProgress?.('Processing...', Math.min(20 + attempts * 2, 90));
+                }
+                break;
+                
+              case 'done':
+                console.log('[NovaOS] Async job complete:', job.result);
+                onProgress?.('Complete!', 100);
+                onComplete?.(job.result);
+                return;  // Stop polling
+                
+              case 'error':
+                console.error('[NovaOS] Async job error:', job.error);
+                onError?.(job.error?.message || 'Job failed');
+                return;  // Stop polling
+                
+              default:
+                console.warn('[NovaOS] Unknown job status:', job.status);
+            }
+            
+            // Continue polling if not done/error
+            if (attempts < maxAttempts) {
+              setTimeout(pollJob, ASYNC_POLL_INTERVAL);
+            } else {
+              onError?.('Job timed out after 5 minutes');
+            }
+            
+          } catch (err) {
+            console.error('[NovaOS] Poll error:', err);
+            if (attempts < 3) {
+              // Retry a few times on network errors
+              setTimeout(pollJob, ASYNC_POLL_INTERVAL);
+            } else {
+              onError?.(`Failed to check job status: ${err.message}`);
+            }
+          }
+        };
+        
+        // Start polling after a brief delay
+        setTimeout(pollJob, ASYNC_POLL_INTERVAL);
+        
+      } catch (error) {
+        console.error('[NovaOS] Async job error:', error);
+        onError?.(error.message || 'Failed to create async job');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
     // SESSION INITIALIZATION — v0.12.0: Auto-show dashboard on launch
     // ═══════════════════════════════════════════════════════════════════════
 
@@ -1508,6 +1635,7 @@
     /**
      * Send a message to Nova.
      * 
+     * v1.0.0: Added async job support (toggle USE_ASYNC_JOBS).
      * v0.10.3: Updated to detect QuestCompose "generate" action and use streaming.
      * v0.10.2: Uses callNova() helper for robust error handling.
      */
@@ -1524,52 +1652,63 @@
       // Disable send while processing
       sendButton.disabled = true;
 
-      // === v0.10.3: Check if this is a QuestCompose generate action ===
+      // === v0.10.3 / v1.0.0: Check if this is a QuestCompose generate action ===
       if (isQuestComposeGenerateAction(text)) {
-        console.log('[NovaOS] Detected QuestCompose generate action, using streaming');
+        // Choose between async jobs or SSE streaming
+        const useAsync = USE_ASYNC_JOBS;
+        console.log(`[NovaOS] Detected QuestCompose generate action, using ${useAsync ? 'async jobs' : 'streaming'}`);
         
         // Show progress UI instead of typing indicator
         showQuestComposeProgress('Initializing...', 0);
         
+        // Common callbacks for both modes
+        const callbacks = {
+          onLog: (msg) => {
+            appendQuestComposeLog(msg);
+          },
+          onProgress: (msg, pct) => {
+            showQuestComposeProgress(msg, pct);
+          },
+          onUpdate: (content) => {
+            console.log('[NovaOS] QuestCompose update:', content);
+          },
+          onComplete: (result) => {
+            console.log('[NovaOS] QuestCompose complete:', result);
+            
+            hideQuestComposeProgress();
+            
+            if (result && result.data) {
+              updateQuestComposeState({ data: result.data });
+            }
+            
+            const reply = result?.text || result?.summary || result?.message || 'Steps generated successfully!';
+            appendNovaMessage(reply);
+            
+            sendButton.disabled = false;
+            inputField.focus();
+          },
+          onError: (err) => {
+            console.error('[NovaOS] QuestCompose error:', err);
+            
+            hideQuestComposeProgress();
+            appendNovaMessage(`Error generating steps: ${err}. Please try again or use manual mode.`);
+            
+            sendButton.disabled = false;
+            inputField.focus();
+          },
+        };
+        
         try {
-          await sendQuestComposeGenerate(SESSION_ID, {
-            onLog: (msg) => {
-              appendQuestComposeLog(msg);
-            },
-            onProgress: (msg, pct) => {
-              showQuestComposeProgress(msg, pct);
-            },
-            onUpdate: (content) => {
-              console.log('[NovaOS] QuestCompose update:', content);
-            },
-            onComplete: (result) => {
-              console.log('[NovaOS] QuestCompose complete:', result);
-              
-              hideQuestComposeProgress();
-              
-              if (result && result.data) {
-                updateQuestComposeState({ data: result.data });
-              }
-              
-              const reply = result.text || result.summary || 'Steps generated successfully!';
-              appendNovaMessage(reply);
-              
-              sendButton.disabled = false;
-              inputField.focus();
-            },
-            onError: (err) => {
-              console.error('[NovaOS] QuestCompose error:', err);
-              
-              hideQuestComposeProgress();
-              appendNovaMessage(`Error generating steps: ${err}. Please try again or use manual mode.`);
-              
-              sendButton.disabled = false;
-              inputField.focus();
-            },
-          });
+          if (useAsync) {
+            // v1.0.0: Use async job API
+            await sendQuestComposeAsync(SESSION_ID, callbacks);
+          } else {
+            // v0.10.3: Use SSE streaming
+            await sendQuestComposeGenerate(SESSION_ID, callbacks);
+          }
           
         } catch (error) {
-          console.error('[NovaOS] QuestCompose streaming error:', error);
+          console.error('[NovaOS] QuestCompose error:', error);
           
           hideQuestComposeProgress();
           appendNovaMessage(`Connection error: ${error.message}. Please try again.`);

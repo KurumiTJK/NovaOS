@@ -88,6 +88,14 @@ except ImportError as e:
     print(f"[NovaAPI] Reminder service not available: {e}", flush=True)
     _HAS_REMINDER_SERVICE = False
 
+# v1.0.0: Async Job System
+try:
+    from kernel.jobs_api import register_jobs_routes
+    _HAS_JOBS_API = True
+except ImportError as e:
+    print(f"[NovaAPI] Jobs API not available: {e}", flush=True)
+    _HAS_JOBS_API = False
+
 
 app = Flask(
     __name__,
@@ -137,6 +145,14 @@ if _HAS_REMINDER_SERVICE:
     # Register shutdown handler
     import atexit
     atexit.register(stop_reminder_service)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# v1.0.0: ASYNC JOB SYSTEM ROUTES
+# ─────────────────────────────────────────────────────────────────────────────
+
+if _HAS_JOBS_API:
+    register_jobs_routes(app)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

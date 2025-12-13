@@ -1,5 +1,5 @@
 # NovaOS Requirements
-# Updated: 2025-12-12
+# Updated: 2025-12-13
 # Python 3.10+ required
 
 # =============================================================================
@@ -51,6 +51,17 @@ google-genai>=1.0.0,<2.0.0
 google-generativeai>=0.8.0,<1.0.0
 
 # =============================================================================
+# ASYNC JOB SYSTEM (v1.0.0) - Redis/KV Backend
+# =============================================================================
+
+# Upstash Redis SDK - used for async job queue and KV storage
+# Provides REST-based Redis access (serverless-friendly)
+# Used by: kernel/utils/kv_upstash.py, kernel/utils/job_queue.py
+# Required env vars: KV_URL, KV_TOKEN
+# Falls back gracefully if not configured (sync mode still works)
+upstash-redis>=1.0.0,<2.0.0
+
+# =============================================================================
 # REMINDERS SYSTEM (v2.0.0)
 # =============================================================================
 
@@ -82,6 +93,11 @@ tzdata>=2024.1
 #   - google-genai: NEW SDK for Gemini with web grounding (Lesson Engine)
 #   - google-generativeai: OLD SDK for basic Gemini calls (Nova Council)
 #   Both can coexist. Lesson Engine prefers google-genai for grounding support.
+#
+# ASYNC JOB SYSTEM:
+#   - upstash-redis: REST-based Redis for Upstash (current provider)
+#   - To switch to Redis Cloud later, implement kv_rediscloud.py and
+#     change KV_PROVIDER=rediscloud in .env (no other code changes needed)
 #
 # For development/testing, consider also installing:
 #   pytest>=7.0.0
