@@ -1,10 +1,13 @@
 # backend/model_router.py
 """
-v0.10.0 — Model Routing Engine (DETERMINISTIC, NO FALLBACK)
+v0.10.1 — Model Routing Engine (DETERMINISTIC, NO FALLBACK)
 
 Model Tiers (TWO tiers only):
 - MINI:     gpt-4.1-mini  — lightweight syscommands
 - THINKING: gpt-5.1       — heavy LLM-intensive commands, persona
+
+v0.10.1 CHANGES:
+- Removed command-* entries from LIGHT_SYSCOMMANDS (Commands feature removed)
 
 v0.10.0 CHANGES:
 - Added #complete and #halt to LIGHT_SYSCOMMANDS
@@ -79,7 +82,6 @@ HEAVY_LLM_COMMANDS: Set[str] = {
     # Custom command execution (may need deep reasoning)
     "prompt_command",
     "prompt-command",
-    "command-wizard",
     
     # Any kernel planner or long structured output
     "interpret",
@@ -166,13 +168,7 @@ LIGHT_SYSCOMMANDS: Set[str] = {
     "remind-update",
     "remind-delete",
     
-    # Custom command management (not execution)
-    "command-add",
-    "command-list",
-    "command-inspect",
-    "command-enable",
-    "command-disable",
-    "command-delete",
+    # v0.10.1: Custom command management REMOVED (Commands feature removed)
     
     # Module commands
     "bind-module",

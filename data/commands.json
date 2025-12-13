@@ -75,11 +75,6 @@
     "category": "section",
     "description": "Open the REMINDERS section menu"
   },
-  "commands": {
-    "handler": "handle_section_commands",
-    "category": "section",
-    "description": "Open the COMMANDS (Ability Forge) section menu"
-  },
   "debug": {
     "handler": "handle_section_debug",
     "category": "section",
@@ -341,78 +336,6 @@
     "handler": "handle_time_clear",
     "category": "timerhythm",
     "description": "DEV: Clear all timerhythm data (streaks, HP history, habits). Use 'confirm' to execute."
-  },
-
-  "_comment_commands": "v1.0.0 Ability Forge - replaces legacy command-add/list/etc",
-  "commands-list": {
-    "handler": "handle_commands_list",
-    "category": "commands",
-    "description": "List all saved abilities."
-  },
-  "commands-forge": {
-    "handler": "handle_commands_forge",
-    "category": "commands",
-    "description": "Create or edit an ability interactively.",
-    "args": ["name"]
-  },
-  "commands-edit": {
-    "handler": "handle_commands_edit",
-    "category": "commands",
-    "description": "Edit an existing ability.",
-    "args": ["name"]
-  },
-  "commands-preview": {
-    "handler": "handle_commands_preview",
-    "category": "commands",
-    "description": "Preview current forge draft."
-  },
-  "commands-diff": {
-    "handler": "handle_commands_diff",
-    "category": "commands",
-    "description": "Show edit history for current draft."
-  },
-  "commands-confirm": {
-    "handler": "handle_commands_confirm",
-    "category": "commands",
-    "description": "Save draft and exit forge mode."
-  },
-  "commands-cancel": {
-    "handler": "handle_commands_cancel",
-    "category": "commands",
-    "description": "Discard draft and exit forge mode."
-  },
-  "commands-delete": {
-    "handler": "handle_commands_delete",
-    "category": "commands",
-    "description": "Delete a saved ability.",
-    "args": ["name"]
-  },
-
-  "_comment_legacy_commands": "Legacy command-* handlers kept for backward compatibility",
-  "command-add": {
-    "handler": "handle_command_add",
-    "category": "commands",
-    "description": "(Legacy) Add a new custom command. Use #commands-forge instead."
-  },
-  "command-list": {
-    "handler": "handle_command_list",
-    "category": "commands",
-    "description": "(Legacy) List all commands. Use #commands-list instead."
-  },
-  "command-inspect": {
-    "handler": "handle_command_inspect",
-    "category": "commands",
-    "description": "(Legacy) Inspect a custom command's configuration."
-  },
-  "command-remove": {
-    "handler": "handle_command_remove",
-    "category": "commands",
-    "description": "(Legacy) Remove a custom command. Use #commands-delete instead."
-  },
-  "command-toggle": {
-    "handler": "handle_command_toggle",
-    "category": "commands",
-    "description": "(Legacy) Enable or disable a custom command."
   },
 
   "wm-debug": {

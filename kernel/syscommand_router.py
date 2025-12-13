@@ -1,6 +1,9 @@
 # kernel/syscommand_router.py
 """
-v0.9.0 — Syscommand Router (DETERMINISTIC, NO FALLBACK)
+v0.9.1 — Syscommand Router (DETERMINISTIC, NO FALLBACK)
+
+v0.9.1 CHANGES:
+- Removed "command-wizard" from SKIP_LLM_POSTPROCESS (Commands feature removed)
 
 🔥 v0.9.0 CHANGES:
 - Enhanced logging: logs command + model for every syscommand
@@ -41,7 +44,6 @@ SKIP_LLM_POSTPROCESS = {
     "compose",
     "prompt_command",
     "prompt-command",
-    "command-wizard",
     "quest-compose",
     "quest-delete",
     "flow",

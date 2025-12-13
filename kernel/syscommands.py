@@ -304,7 +304,7 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         #help              — Show section overview
         #help memory       — Show commands in the MEMORY section
     """
-    # Canonical section order for display (v0.11.0: 11 sections)
+    # Canonical section order for display (v2.1.1: 9 sections, commands removed)
     SECTION_ORDER = [
         "core",
         "memory",
@@ -314,11 +314,10 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         "workflow",
         "timerhythm",
         "reminders",
-        "commands",
         "debug",
     ]
     
-    # RPG-style section descriptions
+    # RPG-style section descriptions (v2.1.1: commands removed)
     SECTION_DESCRIPTIONS = {
         "core": "Nova's heart & OS control center",
         "memory": "Lore & knowledge store (semantic/procedural/episodic)",
@@ -328,7 +327,6 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         "workflow": "Quest Engine: quests, XP, skills, streaks",
         "timerhythm": "Daily reviews (HP, readiness, habits) + weekly goals",
         "reminders": "Time-based reminders & pins",
-        "commands": "Custom commands & macros (abilities)",
         "debug": "Diagnostics & dev tools",
     }
     
@@ -395,7 +393,7 @@ def handle_help(cmd_name, args, session_id, context, kernel, meta) -> CommandRes
         "║           NovaOS Help — Section Overview               ║",
         "╚════════════════════════════════════════════════════════╝",
         "",
-        "NovaOS is organized into 11 sections. Type the section",
+        "NovaOS is organized into 9 sections. Type the section",
         "name to enter its menu, or use #help <section> for details.",
         "",
     ]
@@ -838,127 +836,14 @@ def handle_remind_delete(cmd_name, args, session_id, context, kernel, meta) -> C
     )
 
 
+
 # =============================================================================
-# CUSTOM COMMAND HANDLERS
+# CUSTOM COMMAND HANDLERS - REMOVED (v2.1.1)
 # =============================================================================
-
-def handle_prompt_command(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Execute a custom prompt command."""
-    template = meta.get("prompt_template")
-    if not template:
-        return _base_response(cmd_name, f"Custom command '{cmd_name}' missing prompt_template.", {"ok": False})
-
-    full_input = args.get("full_input", "") if isinstance(args, dict) else ""
-    user_prompt = template.replace("{{full_input}}", full_input)
-
-    result = kernel.llm_client.complete(
-        system="You are Nova, a helpful AI assistant.",
-        user=user_prompt,
-        session_id=session_id,
-    )
-
-    output_text = result.get("text", "")
-    summary = F.header(f"Custom command: {cmd_name}") + output_text.strip()
-    return _base_response(cmd_name, summary, {"result": output_text})
-
-
-def handle_command_add(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Add a new custom command."""
-    if not isinstance(args, dict):
-        return _base_response(cmd_name, "command-add requires structured arguments.", {"ok": False})
-
-    name = args.get("name")
-    kind = args.get("kind", "prompt")
-    prompt_template = args.get("prompt_template")
-
-    if not name:
-        return _base_response(cmd_name, "command-add requires name=<name>.", {"ok": False})
-
-    if kind == "prompt" and not prompt_template:
-        return _base_response(cmd_name, "Prompt commands require prompt_template=<template>.", {"ok": False})
-
-    entry = {
-        "kind": kind,
-        "prompt_template": prompt_template,
-        "enabled": True,
-        "description": args.get("description", ""),
-    }
-
-    kernel.custom_registry.add(name, entry)
-    summary = F.header("Custom Command Added") + f"Created '{name}' ({kind})."
-    return _base_response(cmd_name, summary, {"name": name, "kind": kind})
-
-
-def handle_command_list(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """List all custom commands."""
-    commands = kernel.custom_registry.list()
-
-    if not commands:
-        return _base_response(cmd_name, "No custom commands defined.", {"commands": []})
-
-    lines = [F.header("Custom Commands")]
-    for name, entry in commands.items():
-        status = "✓" if entry.get("enabled", True) else "✗"
-        kind = entry.get("kind", "prompt")
-        lines.append(f"  {status} #{name} ({kind})")
-
-    return _base_response(cmd_name, "\n".join(lines), {"commands": list(commands.keys())})
-
-
-def handle_command_inspect(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Inspect a custom command's metadata."""
-    name = None
-    if isinstance(args, dict):
-        name = args.get("name") or args.get("_", [None])[0]
-
-    if not name:
-        return _base_response(cmd_name, "Usage: command-inspect name=<cmd>", {"ok": False})
-
-    entry = kernel.custom_registry.get(name)
-    if not entry:
-        return _base_response(cmd_name, f"No such custom command '{name}'.", {"ok": False})
-
-    summary = F.header(f"Command: #{name}") + json.dumps(entry, indent=2)
-    return _base_response(cmd_name, summary, {"command": entry})
-
-
-def handle_command_remove(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Remove a custom command."""
-    name = None
-    if isinstance(args, dict):
-        name = args.get("name") or args.get("_", [None])[0]
-
-    if not name:
-        return _base_response(cmd_name, "Usage: command-remove name=<cmd>", {"ok": False})
-
-    ok = kernel.custom_registry.remove(name)
-    if not ok:
-        return _base_response(cmd_name, f"No such custom command '{name}'.", {"ok": False})
-
-    return _base_response(cmd_name, f"'{name}' removed.", {"ok": True})
-
-
-def handle_command_toggle(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Enable or disable a custom command."""
-    name = None
-    if isinstance(args, dict):
-        name = args.get("name") or args.get("_", [None])[0]
-
-    if not name:
-        return _base_response(cmd_name, "Usage: command-toggle name=<cmd>", {"ok": False})
-
-    ok = kernel.custom_registry.toggle(name)
-    if not ok:
-        return _base_response(cmd_name, f"No such custom command '{name}'.", {"ok": False})
-
-    status = "enabled" if kernel.custom_registry.get(name).get("enabled", True) else "disabled"
-    return _base_response(cmd_name, f"'{name}' → {status}", {"name": name, "status": status})
-
-
-def handle_command_wizard(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    """Start the command creation wizard."""
-    return _base_response(cmd_name, "Command wizard not yet implemented.", {"ok": False})
-
+# The Commands/Ability Forge feature has been removed.
+# Legacy handlers removed: handle_prompt_command, handle_command_add,
+# handle_command_list, handle_command_inspect, handle_command_remove,
+# handle_command_toggle, handle_command_wizard
 
 # =============================================================================
 # SELF-TEST / DIAGNOSTICS
@@ -1093,8 +978,8 @@ def handle_section_timerhythm(cmd_name, args, session_id, context, kernel, meta)
 def handle_section_reminders(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("reminders", cmd_name, args, session_id, context, kernel, meta)
 
-def handle_section_commands(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
-    return _handle_section_menu("commands", cmd_name, args, session_id, context, kernel, meta)
+
+# v2.1.1: handle_section_commands REMOVED (Commands feature removed)
 
 def handle_section_debug(cmd_name, args, session_id, context, kernel, meta) -> CommandResponse:
     return _handle_section_menu("debug", cmd_name, args, session_id, context, kernel, meta)
@@ -1444,21 +1329,15 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_remind_update": handle_remind_update,
     "handle_remind_delete": handle_remind_delete,
     
-    # Custom Commands
-    "handle_prompt_command": handle_prompt_command,
-    "handle_command_add": handle_command_add,
-    "handle_command_list": handle_command_list,
-    "handle_command_inspect": handle_command_inspect,
-    "handle_command_remove": handle_command_remove,
-    "handle_command_toggle": handle_command_toggle,
-    "handle_command_wizard": handle_command_wizard,
-    "handle_macro": handle_macro,
+    "handle_remind_delete": handle_remind_delete,
+    
+    # v2.1.1: Custom Commands section REMOVED (Commands feature removed)
     
     # Self-Test
     "handle_self_test": handle_self_test,
     "handle_diagnostics": handle_diagnostics,
     
-    # Section Menus (v0.11.0: removed continuity, inbox; v3.0.0: removed human_state)
+    # Section Menus (v0.11.0: removed continuity, inbox; v3.0.0: removed human_state; v2.1.1: removed commands)
     "handle_section_core": handle_section_core,
     "handle_section_memory": handle_section_memory,
     "handle_section_modules": handle_section_modules,
@@ -1467,7 +1346,7 @@ SYS_HANDLERS: Dict[str, Callable[..., CommandResponse]] = {
     "handle_section_workflow": handle_section_workflow,
     "handle_section_timerhythm": handle_section_timerhythm,
     "handle_section_reminders": handle_section_reminders,
-    "handle_section_commands": handle_section_commands,
+    # v2.1.1: "handle_section_commands" REMOVED
     "handle_section_debug": handle_section_debug,
 }
 
@@ -1514,37 +1393,10 @@ if _HAS_REMINDERS:
 # HP, readiness, sleep/energy tracking now via #daily-review phases
 
 # =============================================================================
-# v1.0.0: ABILITY FORGE INTEGRATION
+# v1.0.0: ABILITY FORGE INTEGRATION - REMOVED (v2.1.1)
 # =============================================================================
-
-# Import Ability Forge handlers
-try:
-    from .ability_forge import (
-        get_ability_forge_handlers,
-        handle_section_commands as handle_section_commands_forge,
-    )
-    _HAS_ABILITY_FORGE = True
-except ImportError:
-    _HAS_ABILITY_FORGE = False
-    def get_ability_forge_handlers(): return {}
-    def handle_section_commands_forge(*args, **kwargs): 
-        return _base_response("commands", "Ability Forge not available.", {"ok": False})
-
-# Register Ability Forge handlers
-if _HAS_ABILITY_FORGE:
-    _forge_handlers = get_ability_forge_handlers()
-    
-    # Register each handler with the handler name format
-    SYS_HANDLERS["handle_commands_list"] = _forge_handlers.get("commands-list")
-    SYS_HANDLERS["handle_commands_forge"] = _forge_handlers.get("commands-forge")
-    SYS_HANDLERS["handle_commands_edit"] = _forge_handlers.get("commands-edit")
-    SYS_HANDLERS["handle_commands_preview"] = _forge_handlers.get("commands-preview")
-    SYS_HANDLERS["handle_commands_diff"] = _forge_handlers.get("commands-diff")
-    SYS_HANDLERS["handle_commands_confirm"] = _forge_handlers.get("commands-confirm")
-    SYS_HANDLERS["handle_commands_cancel"] = _forge_handlers.get("commands-cancel")
-    SYS_HANDLERS["handle_commands_delete"] = _forge_handlers.get("commands-delete")
-    
-    # Override section menu for commands with Ability Forge version
-    SYS_HANDLERS["handle_section_commands"] = handle_section_commands_forge
-    
-    print("[syscommands] Ability Forge handlers registered", flush=True)
+# The Commands/Ability Forge feature has been completely removed.
+# The following imports and registrations have been deleted:
+# - ability_forge imports
+# - Ability Forge handler registrations
+# - handle_section_commands_forge override

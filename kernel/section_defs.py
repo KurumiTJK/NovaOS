@@ -1,6 +1,10 @@
 # kernel/section_defs.py
 """
-v2.1.0 — Section Definitions for NovaOS Life RPG
+v2.1.1 — Section Definitions for NovaOS Life RPG
+
+v2.1.1 COMMANDS FEATURE REMOVED:
+- Removed "commands" section entirely (Ability Forge feature removed)
+- Section count: 10 -> 9
 
 v2.1.0 ABILITY FORGE UPDATE:
 - Commands section completely replaced with Ability Forge
@@ -19,7 +23,6 @@ v0.11.0 CHANGES:
 - Moved snapshot/restore to system section
 - Removed mode and assistant-mode from system section
 - Updated timerhythm: removed pulse, presence, align; added daily-review
-- Section count: 13 -> 11
 
 Sections:
 1. core          — Nova's heart & OS control center
@@ -30,8 +33,7 @@ Sections:
 6. workflow      — Quest Engine (quests, steps, XP, streaks, bosses)
 7. timerhythm    — Daily/weekly reviews, HP, readiness, habits
 8. reminders     — Time-based reminders / quest pins
-9. commands      — Ability Forge (custom abilities)
-10. debug        — Diagnostics & dev tools
+9. debug         — Diagnostics & dev tools
 """
 
 from dataclasses import dataclass, field
@@ -162,29 +164,13 @@ SECTION_DEFS: Dict[str, Section] = {
             CommandInfo("reminders-add", "Create a new reminder", '#reminders-add title="Call mom" due="5pm"'),
             CommandInfo("reminders-update", "Update a reminder's fields", "#reminders-update id=rem_001 title=\"...\""),
             CommandInfo("reminders-done", "Mark reminder as done (advances recurrence if recurring)", "#reminders-done id=rem_001"),
-            CommandInfo("reminders-snooze", "Snooze a reminder (10m, 1h, 3h, 1d)", "#reminders-snooze id=rem_001 duration=1h"),
+            CommandInfo("reminders-snooze", "Snooze a reminder for a duration (10m, 1h, 3h, 1d)", "#reminders-snooze id=rem_001 duration=1h"),
             CommandInfo("reminders-delete", "Delete a reminder", "#reminders-delete id=rem_001"),
             CommandInfo("reminders-pin", "Pin a reminder", "#reminders-pin id=rem_001"),
             CommandInfo("reminders-unpin", "Unpin a reminder", "#reminders-unpin id=rem_001"),
         ]
     ),
-    # =========================================================================
-    # COMMANDS SECTION — v1.0.0 ABILITY FORGE
-    # =========================================================================
-    "commands": Section(
-        title="Commands (Ability Forge)",
-        description="Custom abilities built by conversation refinement. Start forging with #commands-forge.",
-        commands=[
-            CommandInfo("commands-list", "List all saved abilities", "#commands-list"),
-            CommandInfo("commands-forge", "Create or edit an ability interactively", '#commands-forge name="market-scan"'),
-            CommandInfo("commands-edit", "Edit an existing ability", '#commands-edit name="quadrant-status"'),
-            CommandInfo("commands-preview", "Preview current draft (during forge mode)", "#commands-preview"),
-            CommandInfo("commands-diff", "Show changes from last saved version", "#commands-diff"),
-            CommandInfo("commands-confirm", "Save draft and exit forge mode", "#commands-confirm"),
-            CommandInfo("commands-cancel", "Discard draft and exit forge mode", "#commands-cancel"),
-            CommandInfo("commands-delete", "Delete a saved ability", '#commands-delete name="old-ability"'),
-        ]
-    ),
+    # v2.1.1: "commands" section REMOVED (Ability Forge feature removed)
     "debug": Section(
         title="Debug",
         description="Diagnostics and dev tools.",
