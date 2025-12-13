@@ -37,7 +37,7 @@ ViewMode = Literal["compact", "full"]
 # LAYOUT CONSTANTS — Single source of truth for alignment
 # =============================================================================
 
-DASH_WIDTH = 66  # Total width including border characters (increased for module names)
+DASH_WIDTH = 46  # Total width - mobile friendly (fits ~45 chars on iPhone)
 CONTENT_WIDTH = DASH_WIDTH - 4  # Width between "║  " and "║" (2 space indent + 1 border each side)
 
 # Box drawing characters
@@ -495,7 +495,7 @@ def _render_module_status(view: ViewMode, kernel: Any) -> str:
                 level = 1
             
             module_info.append({
-                "name": name[:14],  # Truncate to 14 chars to fit Cybersecurity
+                "name": name[:13],  # Show full Cybersecurity (13 chars)
                 "status_icon": _status_icon(status),
                 "xp": int(xp),
                 "level": int(level),
@@ -512,7 +512,7 @@ def _render_module_status(view: ViewMode, kernel: Any) -> str:
     for m in module_info:
         target = 50 * m["level"]
         # Format: name xp/target L# icon
-        line_content = f"  {m['name']:<14} {m['xp']}/{target} L{m['level']} {m['status_icon']}"
+        line_content = f"  {m['name']} {m['xp']}/{target} L{m['level']} {m['status_icon']}"
         lines.append(_line(line_content))
     
     return "\n".join(lines)
@@ -524,20 +524,21 @@ def _render_finance_snapshot(view: ViewMode, kernel: Any) -> str:
     lines.append(_line("FINANCE"))
     
     if view == "compact":
-        # Compact: Key rules on separate lines for clarity
-        lines.append(_line("  $425/wk stocks | $200/wk SPAXX | Buy: Wed"))
-        lines.append(_line("  LEAPS: Q-C only | FHA: Apr-Dec 2027"))
+        # Compact: Shortened for mobile
+        lines.append(_line("  $425 stocks | $200 SPAXX"))
+        lines.append(_line("  Wed | LEAPS Q-C | FHA 2027"))
     else:
         # Full: Detailed breakdown
-        lines.append(_line("  Weekly: $425 -> Stocks, $200 -> SPAXX"))
-        lines.append(_line("  Buy Day: Wednesday"))
-        lines.append(_line("  LEAPS: Quadrant C only (Apr-Sep 2026 target)"))
-        lines.append(_line("  FHA Goal: Apr-Dec 2027"))
+        lines.append(_line("  $425/wk -> Stocks"))
+        lines.append(_line("  $200/wk -> SPAXX"))
+        lines.append(_line("  Buy: Wednesday"))
+        lines.append(_line("  LEAPS: Q-C only"))
+        lines.append(_line("  FHA: Apr-Dec 2027"))
     
     return "\n".join(lines)
 
 
-def _render_system_health(view: ViewMode, kernel: Any, state: Any = None, session_id: str = None) -> str:
+def _render_system_health(view: ViewMode, kernel: Any, state: Any = None) -> str:
     """Render the System/Mode section."""
     # Get persona status
     persona_on = False
@@ -568,7 +569,6 @@ def render_dashboard(
     kernel: Any = None,
     state: Any = None,
     sections: Optional[list] = None,
-    session_id: str = None,
 ) -> str:
     """
     Render the full dashboard.
@@ -578,7 +578,6 @@ def render_dashboard(
         kernel: NovaKernel instance (for data access)
         state: NovaState instance (for mode info)
         sections: List of section names to include (uses config if None)
-        session_id: Session ID
     
     Returns:
         Complete dashboard string
@@ -598,7 +597,7 @@ def render_dashboard(
         "today_readiness": lambda: _render_today_readiness(view, kernel),
         "module_status": lambda: _render_module_status(view, kernel),
         "finance_snapshot": lambda: _render_finance_snapshot(view, kernel),
-        "system_health": lambda: _render_system_health(view, kernel, state, session_id),
+        "system_health": lambda: _render_system_health(view, kernel, state),
     }
     
     parts = []
@@ -682,7 +681,7 @@ def handle_dashboard(
         except Exception:
             pass
     
-    dashboard_text = render_dashboard(view=view, kernel=kernel, state=state, session_id=session_id)
+    dashboard_text = render_dashboard(view=view, kernel=kernel, state=state)
     
     return _base_response(cmd_name, dashboard_text, {"view": view})
 
@@ -738,7 +737,7 @@ def handle_dashboard_view(
         except Exception:
             pass
     
-    dashboard_text = render_dashboard(view=new_view, kernel=kernel, state=state, session_id=session_id)
+    dashboard_text = render_dashboard(view=new_view, kernel=kernel, state=state)
     full_output = f"View: {new_view.upper()}\n\n{dashboard_text}"
     
     return _base_response(cmd_name, full_output, {"view": new_view})
