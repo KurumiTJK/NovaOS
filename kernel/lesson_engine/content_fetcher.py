@@ -264,15 +264,31 @@ def _summarize_content_with_llm(
     if len(content) > 8000:
         content = content[:8000] + "..."
     
-    system = """You are a learning content summarizer. Extract the KEY learning points from educational content.
+    system = """You are a learning content summarizer. Your job is to extract the most important learning points from technical documentation.
 
-OUTPUT FORMAT:
-Return a concise summary with:
-1. MAIN CONCEPTS (3-5 bullet points of what this teaches)
-2. KEY TERMS (important vocabulary/concepts defined)
-3. PRACTICAL TAKEAWAYS (what someone can DO after reading this)
+Read the content and extract:
+- What are the 3-5 most important concepts someone needs to understand?
+- What key terms or definitions are introduced?
+- What can someone DO or APPLY after learning this?
 
-Keep total response under 500 words. Focus on actionable learning."""
+FORMAT RULES:
+- Return bullet points only (use • or -)
+- Each bullet should be a complete, specific fact from the document
+- NO headers like "Main Concepts:" or "Key Terms:" - just the bullets
+- NO generic placeholders - every bullet must contain actual information
+- Keep each bullet under 150 characters
+
+GOOD example:
+• IAM roles define permissions for AWS services to act on your behalf
+• Execution roles are attached to Lambda functions at creation time
+• Resource-based policies control which principals can invoke the function
+
+BAD example:
+• Main concepts of IAM
+• Key terms to know
+• Practical takeaways
+
+Keep total response under 500 words."""
 
     prompt = f"""Summarize this educational content about "{subdomain}":
 
@@ -289,9 +305,8 @@ Extract the key learning points:"""
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
-            model="gpt-4.1-mini",  # Use mini for cost efficiency
-            temperature=0.3,
-            max_tokens=800,
+            model="gpt-5-mini",
+            command="content-summarize",
         )
         
         if response and hasattr(response, 'content'):

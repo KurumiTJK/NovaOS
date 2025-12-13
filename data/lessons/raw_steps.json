@@ -2,24 +2,24 @@
   {
     "step_id": "day-01",
     "step_type": "INFO",
-    "title": "AWS IAM Policy Structure and Evaluation Logic",
-    "estimated_time_minutes": 25,
-    "goal": "Learn about AWS IAM Policy Structure and Evaluation Logic and understand: MAIN CONCEPTS.",
+    "title": "Temporary Security Credentials in Cloud STS",
+    "estimated_time_minutes": 28,
+    "goal": "Learn about Temporary Security Credentials in Cloud STS and understand: Temporary security credentials from AWS STS are short‑lived, configurable from minutes up to hours.",
     "actions": [
-      "Read: Policy evaluation logic - https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html (5 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • AWS IAM policy evaluation involves multiple policy types: identity-based policies, resource-based policies, permissions boundaries, and AWS Organizations policies (SCPs and RCPs).\n   • AWS evaluates requests by authenticating the principal, processing the request context, and then applying policy evaluation logic to allow or deny access.",
-      "Practice: Review a sample AWS IAM Policy Structure and Evaluation Logic policy and identify what it allows/denies (15 min)",
-      "Self-test: Without looking at notes, explain AWS IAM Policy Structure and Evaluation Logic to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: Temporary security credentials in IAM - https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html (8 min)\n   Key concepts to note:\n   • Temporary security credentials from AWS STS are short‑lived, configurable from minutes up to hours\n   • Temporary credentials are generated dynamically, not stored with the user, and expire so they can't be reused\n   • Temporary credentials form the basis for IAM roles, identity federation, cross‑account access, and delegation",
+      "Practice: Follow along with a basic Temporary Security Credentials in Cloud STS configuration example (15 min)",
+      "Self-test: Without looking at notes, explain Temporary Security Credentials in Cloud STS to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain AWS IAM Policy Structure and Evaluation Logic in your own words and completed the practice exercise",
+    "completion_check": "Can explain Temporary Security Credentials in Cloud STS in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html",
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_managed-policies.html",
-      "https://explore.skillbuilder.aws/learn/course/external/view/elearning/13454/deep-dive-with-security-aws-identity-and-access-management-iam"
+      "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html",
+      "https://adamtheautomator.com/aws-sts-assume-role/",
+      "https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials"
     ],
-    "domain": "Identity Management",
-    "subdomain": "AWS IAM Policy Structure and Evaluation Logic",
+    "domain": "Cloud Security",
+    "subdomain": "Temporary Security Credentials in Cloud STS",
     "subdomains_covered": [
-      "AWS IAM Policy Structure and Evaluation Logic"
+      "Temporary Security Credentials in Cloud STS"
     ],
     "subtopics": [],
     "day_number": null
@@ -27,24 +27,24 @@
   {
     "step_id": "day-02",
     "step_type": "INFO",
-    "title": "AWS IAM Roles, AssumeRole, and STS Temporary Credentials",
-    "estimated_time_minutes": 32,
-    "goal": "Learn about AWS IAM Roles, AssumeRole, and STS Temporary Credentials and understand: MAIN CONCEPTS.",
+    "title": "Privilege Escalation via STS Role Assumption",
+    "estimated_time_minutes": 31,
+    "goal": "Learn about Privilege Escalation via STS Role Assumption and understand: AssumeRole returns temporary credentials: access key ID, secret access key, and a security token.",
     "actions": [
-      "Read: IAM roles - https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html (12 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • IAM roles are AWS identities with specific permissions, designed to be assumed temporarily by users, applications, or services rather than tied to a single individual.\n   • Roles do not have long-term credentials; instead, assuming a role provides temporary security credentials via AWS Security Token Service (STS).",
-      "Practice: Follow along with a basic AWS IAM Roles, AssumeRole, and STS Temporary Credentials configuration example (15 min)",
-      "Self-test: Without looking at notes, explain AWS IAM Roles, AssumeRole, and STS Temporary Credentials to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: AssumeRole - AWS Security Token Service - https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html (11 min)\n   Key concepts to note:\n   • AssumeRole returns temporary credentials: access key ID, secret access key, and a security token\n   • Temporary credentials can call any AWS API except STS GetFederationToken or GetSessionToken\n   • Role trust policy specifies who can assume the role; permissions policy specifies what the role can do",
+      "Practice: Review a sample Privilege Escalation via STS Role Assumption policy and identify what it allows/denies (15 min)",
+      "Self-test: Without looking at notes, explain Privilege Escalation via STS Role Assumption to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain AWS IAM Roles, AssumeRole, and STS Temporary Credentials in your own words and completed the practice exercise",
+    "completion_check": "Can explain Privilege Escalation via STS Role Assumption in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html",
       "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
-      "https://explore.skillbuilder.aws/learn/course/external/view/elearning/134/deep-dive-with-security-aws-identity-and-access-management-iam"
+      "https://www.hackingarticles.in/aws-iam-assumerole-privilege-escalation/",
+      "https://rhinosecuritylabs.com/aws/aws-privilege-escalation-methods-mitigation/"
     ],
-    "domain": "Identity Management",
-    "subdomain": "AWS IAM Roles, AssumeRole, and STS Temporary Credentials",
+    "domain": "Cloud Security",
+    "subdomain": "Privilege Escalation via STS Role Assumption",
     "subdomains_covered": [
-      "AWS IAM Roles, AssumeRole, and STS Temporary Credentials"
+      "Privilege Escalation via STS Role Assumption"
     ],
     "subtopics": [],
     "day_number": null
@@ -52,24 +52,24 @@
   {
     "step_id": "day-03",
     "step_type": "INFO",
-    "title": "AWS IAM Privilege Escalation Primitives and Misconfigurations",
-    "estimated_time_minutes": 30,
-    "goal": "Learn about AWS IAM Privilege Escalation Primitives and Misconfigurations and understand: MAIN CONCEPTS.",
+    "title": "Token Hijacking and Replay Attacks on STS Credentials",
+    "estimated_time_minutes": 31,
+    "goal": "Learn about Token Hijacking and Replay Attacks on STS Credentials and understand: CloudGoat is Rhino Security Labs' \"Vulnerable by Design\" cloud deployment tool.",
     "actions": [
-      "Read: Permissions boundaries for IAM entities - https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html (10 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Permissions boundaries in AWS IAM define the maximum permissions an IAM user or role can have, acting as a ceiling on allowed actions regardless of identity-based policies.\n   • Effective permissions for an IAM entity are the intersection of identity-based policies, permissions boundaries, resource-based policies, AWS Organizations SCPs, and session policies.",
-      "Practice: Review a sample AWS IAM Privilege Escalation Primitives and Misconfigurations policy and identify what it allows/denies (15 min)",
-      "Self-test: Without looking at notes, explain AWS IAM Privilege Escalation Primitives and Misconfigurations to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: CloudGoat: Rhino Security Labs' \"Vulnerable by Design\" AWS deployment tool - https://github.com/RhinoSecurityLabs/cloudgoat (11 min)\n   Key concepts to note:\n   • CloudGoat is Rhino Security Labs' \"Vulnerable by Design\" cloud deployment tool\n   • It deploys capture-the-flag style AWS/Azure scenarios composed of cloud resources\n   • Scenarios are modular and can be started, reset, or destroyed independently",
+      "Practice: Try 2-3 of the commands mentioned in the Token Hijacking and Replay Attacks on STS Credentials documentation (15 min)",
+      "Self-test: Without looking at notes, explain Token Hijacking and Replay Attacks on STS Credentials to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain AWS IAM Privilege Escalation Primitives and Misconfigurations in your own words and completed the practice exercise",
+    "completion_check": "Can explain Token Hijacking and Replay Attacks on STS Credentials in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html",
-      "https://cybr.com/courses/aws-iam-privilege-escalation-labs/",
-      "https://github.com/BishopFox/iam-vulnerable"
+      "https://docs.aws.amazon.com/IAM/latest/UserGuide/security-iam-sts.html",
+      "https://github.com/RhinoSecurityLabs/cloudgoat",
+      "https://www.netskope.com/blog/securing-aws-temporary-tokens"
     ],
-    "domain": "Identity Management",
-    "subdomain": "AWS IAM Privilege Escalation Primitives and Misconfigurations",
+    "domain": "Cloud Security",
+    "subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
     "subdomains_covered": [
-      "AWS IAM Privilege Escalation Primitives and Misconfigurations"
+      "Token Hijacking and Replay Attacks on STS Credentials"
     ],
     "subtopics": [],
     "day_number": null
@@ -77,24 +77,24 @@
   {
     "step_id": "day-04",
     "step_type": "INFO",
-    "title": "AWS IAM Resource-Based Policies and Cross-Account Access",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about AWS IAM Resource-Based Policies and Cross-Account Access and understand: MAIN CONCEPTS.",
+    "title": "STS Misconfiguration and Overly Permissive Trust Policies",
+    "estimated_time_minutes": 32,
+    "goal": "Learn about STS Misconfiguration and Overly Permissive Trust Policies and understand: IAM roles provide temporary credentials and cannot have long-term AWS credentials attached.",
     "actions": [
-      "Read: IAM tutorial: Delegate access across AWS accounts using IAM roles - https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html (11 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Cross-account access in AWS allows users in one AWS account (Originating) to access resources in another account (Destination) without creating separate IAM users in each account.\n   • IAM roles enable delegation of permissions across AWS accounts by establishing trust relationships and defining specific permissions.",
-      "Practice: Try 2-3 of the commands mentioned in the AWS IAM Resource-Based Policies and Cross-Account Access documentation (15 min)",
-      "Self-test: Without looking at notes, explain AWS IAM Resource-Based Policies and Cross-Account Access to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: How to use trust policies with IAM roles - https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/ (12 min)\n   Key concepts to note:\n   • IAM roles provide temporary credentials and cannot have long-term AWS credentials attached\n   • A trust policy is a resource-based policy that defines which principals can assume a role\n   • sts:AssumeRole is the API action used to assume an IAM role and appears in trust policies",
+      "Practice: Review a sample STS Misconfiguration and Overly Permissive Trust Policies policy and identify what it allows/denies (15 min)",
+      "Self-test: Without looking at notes, explain STS Misconfiguration and Overly Permissive Trust Policies to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain AWS IAM Resource-Based Policies and Cross-Account Access in your own words and completed the practice exercise",
+    "completion_check": "Can explain STS Misconfiguration and Overly Permissive Trust Policies in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_cross-account-with-roles.html",
-      "https://iam-immersionday.workshop.aws/en/",
-      "https://www.youtube.com/watch?v=fppuWc2bZac"
+      "https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/",
+      "https://eventengine.run/workshops/b2526514-db42-42e9-82a1-321b3a35500c/en-US/modules/m4/m4-lab",
+      "https://www.trendmicro.com/cloudoneconformity/knowledge-base/aws/IAM/iam-role-policy-too-permissive.html"
     ],
-    "domain": "Identity Management",
-    "subdomain": "AWS IAM Resource-Based Policies and Cross-Account Access",
+    "domain": "Cloud Security",
+    "subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
     "subdomains_covered": [
-      "AWS IAM Resource-Based Policies and Cross-Account Access"
+      "STS Misconfiguration and Overly Permissive Trust Policies"
     ],
     "subtopics": [],
     "day_number": null
@@ -102,420 +102,23 @@
   {
     "step_id": "day-05",
     "step_type": "BOSS",
-    "title": "BOSS: Identity Management Synthesis",
+    "title": "BOSS: Cloud Security Synthesis",
     "estimated_time_minutes": 55,
-    "goal": "Put your Identity Management knowledge together with a practical challenge.",
+    "goal": "Put your Cloud Security knowledge together with a practical challenge.",
     "actions": [
-      "Quick review: Skim your notes from previous Identity Management days. What are the key concepts?",
-      "Mini-scenario: Diagram an OAuth2 login flow for a web app. Show: user, app, authorization server, and what tokens move where",
+      "Quick review: Skim your notes from previous Cloud Security days. What are the key concepts?",
+      "Mini-scenario: Apply your Cloud Security knowledge to a realistic problem. Design a simple solution using 3-4 concepts you learned",
       "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
     ],
-    "completion_check": "Completed the Identity Management challenge and can connect different concepts together",
+    "completion_check": "Completed the Cloud Security challenge and can connect different concepts together",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers.html",
-      "https://explore.skillbuilder.aws/learn/course/external/view/elearning/13454/deep-dive-with-security-aws-identity-and-access-management-iam"
+      "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html",
+      "https://aws.amazon.com/blogs/security/how-to-detect-suspicious-activity-in-your-aws-account-by-using-private-decoy-resources/"
     ],
-    "domain": "Identity Management",
-    "subdomain": "AWS IAM Identity Federation and External Identity Providers",
+    "domain": "Cloud Security",
+    "subdomain": "Detection and Monitoring of Suspicious STS Usage",
     "subdomains_covered": [
-      "AWS IAM Identity Federation and External Identity Providers"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-06",
-    "step_type": "INFO",
-    "title": "Serverless Function Runtime and Permissions Model (AWS Lambda)",
-    "estimated_time_minutes": 30,
-    "goal": "Learn about Serverless Function Runtime and Permissions Model (AWS Lambda) and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: AWS Lambda execution environment - https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html (10 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • AWS Lambda execution environment provides a secure, isolated runtime for functions, managing resources, lifecycle, and extensions.\n   • Lambda functions have lifecycle phases: Init (initialization), Restore (SnapStart only), Invoke (execution), Wait/Resume (Durable Functions), and Shutdown.",
-      "Practice: Draw a simple diagram showing the key Serverless Function Runtime and Permissions Model (AWS Lambda) components (15 min)",
-      "Self-test: Without looking at notes, explain Serverless Function Runtime and Permissions Model (AWS Lambda) to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Serverless Function Runtime and Permissions Model (AWS Lambda) in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtime-environment.html",
-      "https://docs.aws.amazon.com/lambda/latest/dg/lambda-permissions.html",
-      "https://medium.com/aws-serverless-microservices-at-scale/aws-lambda-serverless-developer-guide-with-hands-on-labs-5c13b0193d69"
-    ],
-    "domain": "Serverless And Containers",
-    "subdomain": "Serverless Function Runtime and Permissions Model (AWS Lambda)",
-    "subdomains_covered": [
-      "Serverless Function Runtime and Permissions Model (AWS Lambda)"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-07",
-    "step_type": "INFO",
-    "title": "Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes)",
-    "estimated_time_minutes": 25,
-    "goal": "Learn about Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes) and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Best Practices for Security - Amazon EKS - https://docs.aws.amazon.com/eks/latest/userguide/best-practices-security.html (5 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Amazon EKS clusters require specific security best practices to protect both the control plane and worker nodes.\n   • The EKS control plane is managed by AWS and includes components like the Kubernetes API server, etcd, and controller manager.",
-      "Practice: Review a sample Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes) policy and identify what it allows/denies (15 min)",
-      "Self-test: Without looking at notes, explain Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes) to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes) in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/eks/latest/userguide/best-practices-security.html",
-      "https://catalog.workshops.aws/eks-security-immersion-day",
-      "https://www.eksworkshop.com/docs/security/"
-    ],
-    "domain": "Serverless And Containers",
-    "subdomain": "Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes)",
-    "subdomains_covered": [
-      "Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes)"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-08",
-    "step_type": "INFO",
-    "title": "Container Task and Role Isolation in AWS ECS",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about Container Task and Role Isolation in AWS ECS and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: IAM roles for Amazon ECS tasks - https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html (11 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Amazon ECS task IAM roles allow containers within a task to securely access AWS services with fine-grained permissions separate from the underlying EC2 instance roles.\n   • Task IAM roles provide separation of concerns, auditability via CloudTrail, and uniform credential delivery across ECS launch types (EC2, Fargate, External).",
-      "Practice: Try 2-3 of the commands mentioned in the Container Task and Role Isolation in AWS ECS documentation (15 min)",
-      "Self-test: Without looking at notes, explain Container Task and Role Isolation in AWS ECS to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Container Task and Role Isolation in AWS ECS in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-iam-roles.html",
-      "https://www.youtube.com/watch?v=k_nNn8zOMYc",
-      "https://docs.aws.amazon.com/AmazonECS/latest/bestpracticesguide/security.html"
-    ],
-    "domain": "Serverless And Containers",
-    "subdomain": "Container Task and Role Isolation in AWS ECS",
-    "subdomains_covered": [
-      "Container Task and Role Isolation in AWS ECS"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-09",
-    "step_type": "INFO",
-    "title": "Serverless Event Sources and Invocation Models (Lambda Triggers)",
-    "estimated_time_minutes": 25,
-    "goal": "Learn about Serverless Event Sources and Invocation Models (Lambda Triggers) and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Invoking Lambda with events from other AWS services - https://docs.aws.amazon.com/lambda/latest/dg/lambda-services.html (5 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • AWS Lambda functions can be invoked automatically by various AWS services through triggers, enabling event-driven, real-time processing.\n   • Triggers are configured and managed by the event-generating AWS service, not by Lambda itself.",
-      "Practice: Follow along with a basic Serverless Event Sources and Invocation Models (Lambda Triggers) configuration example (15 min)",
-      "Self-test: Without looking at notes, explain Serverless Event Sources and Invocation Models (Lambda Triggers) to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Serverless Event Sources and Invocation Models (Lambda Triggers) in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/lambda/latest/dg/lambda-services.html",
-      "https://catalog.workshops.aws/sde/en-US",
-      "https://explore.skillbuilder.aws/learn/course/external/view/elearning/13331/developing-serverless-solutions-on-aws"
-    ],
-    "domain": "Serverless And Containers",
-    "subdomain": "Serverless Event Sources and Invocation Models (Lambda Triggers)",
-    "subdomains_covered": [
-      "Serverless Event Sources and Invocation Models (Lambda Triggers)"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-10",
-    "step_type": "BOSS",
-    "title": "BOSS: Serverless And Containers Synthesis",
-    "estimated_time_minutes": 55,
-    "goal": "Put your Serverless And Containers knowledge together with a practical challenge.",
-    "actions": [
-      "Quick review: Skim your notes from previous Serverless And Containers days. What are the key concepts?",
-      "Mini-scenario: Design a containerized app with web frontend, API, and database. Sketch the docker-compose structure (don't need to write full YAML)",
-      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
-    ],
-    "completion_check": "Completed the Serverless And Containers challenge and can connect different concepts together",
-    "resource_refs": [
-      "https://github.com/opencontainers/image-spec",
-      "https://learn.microsoft.com/en-us/azure/container-registry/container-registry-concepts"
-    ],
-    "domain": "Serverless And Containers",
-    "subdomain": "Container Image Structure and Registry Concepts for Cloud Runtimes",
-    "subdomains_covered": [
-      "Container Image Structure and Registry Concepts for Cloud Runtimes"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-11",
-    "step_type": "INFO",
-    "title": "Object Storage Core Concepts and Threat Model",
-    "estimated_time_minutes": 30,
-    "goal": "Learn about Object Storage Core Concepts and Threat Model and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Security recommendations for Blob storage - https://learn.microsoft.com/en-us/azure/storage/blobs/security-recommendations (10 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Azure Blob Storage security relies on a shared responsibility model between Microsoft and users.\n   • Azure Resource Manager (ARM) deployment model enhances security through RBAC, auditing, and integration with managed identities and Azure Key Vault.",
-      "Practice: Follow along with a basic Object Storage Core Concepts and Threat Model configuration example (15 min)",
-      "Self-test: Without looking at notes, explain Object Storage Core Concepts and Threat Model to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Object Storage Core Concepts and Threat Model in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://learn.microsoft.com/en-us/azure/storage/blobs/security-recommendations",
-      "https://research.nccgroup.com/2023/01/31/threat-modelling-cloud-platform-services-by-example-google-cloud-storage/",
-      "https://learn.microsoft.com/en-us/training/paths/secure-storage-azure-files-azure-blob-storage/"
-    ],
-    "domain": "Object Storage",
-    "subdomain": "Object Storage Core Concepts and Threat Model",
-    "subdomains_covered": [
-      "Object Storage Core Concepts and Threat Model"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-12",
-    "step_type": "INFO",
-    "title": "Bucket Policies and Public Access Controls in Object Storage",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about Bucket Policies and Public Access Controls in Object Storage and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Blocking public access to your Amazon S3 storage - https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html (11 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Public access can be granted through ACLs, bucket policies, access point policies, or object permissions, and Block Public Access prevents public access granted by these mechanisms.\n   • Organization-level Block Public Access policies propagate to member accounts and override account-level settings, ensuring centralized, consistent enforcement.",
-      "Practice: Draw a simple diagram showing the key Bucket Policies and Public Access Controls in Object Storage components (15 min)",
-      "Self-test: Without looking at notes, explain Bucket Policies and Public Access Controls in Object Storage to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Bucket Policies and Public Access Controls in Object Storage in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html",
-      "https://learn.microsoft.com/en-us/training/paths/secure-storage-azure-files-azure-blob-storage/",
-      "https://www.cloudskillsboost.google/focuses/578?parent=catalog"
-    ],
-    "domain": "Object Storage",
-    "subdomain": "Bucket Policies and Public Access Controls in Object Storage",
-    "subdomains_covered": [
-      "Bucket Policies and Public Access Controls in Object Storage"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-13",
-    "step_type": "INFO",
-    "title": "Object-Level Permissions and ACL Abuse in Object Storage",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about Object-Level Permissions and ACL Abuse in Object Storage and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Access control list (ACL) overview - https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html (11 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Amazon S3 Access Control Lists (ACLs) manage access permissions at the bucket and object level by specifying which AWS accounts or predefined groups (grantees) have what type of access.\n   • ACLs are attached as subresources to buckets and objects, defining access rights such as READ, WRITE, READ_ACP, and WRITE_ACP.",
-      "Practice: Review a sample Object-Level Permissions and ACL Abuse in Object Storage policy and identify what it allows/denies (15 min)",
-      "Self-test: Without looking at notes, explain Object-Level Permissions and ACL Abuse in Object Storage to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Object-Level Permissions and ACL Abuse in Object Storage in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html",
-      "https://blog.intigriti.com/2021/09/02/hacking-misconfigured-aws-s3-buckets-a-complete-guide/",
-      "https://thesecopsgroup.com/the-anatomy-of-aws-misconfigurations-how-to-stay-safe/"
-    ],
-    "domain": "Object Storage",
-    "subdomain": "Object-Level Permissions and ACL Abuse in Object Storage",
-    "subdomains_covered": [
-      "Object-Level Permissions and ACL Abuse in Object Storage"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-14",
-    "step_type": "INFO",
-    "title": "Pre-Signed URLs and Temporary Access Exposure in Object Storage",
-    "estimated_time_minutes": 26,
-    "goal": "Learn about Pre-Signed URLs and Temporary Access Exposure in Object Storage and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Sharing objects with presigned URLs - https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html (6 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Amazon S3 objects are private by default; presigned URLs enable temporary, controlled access.\n   • Presigned URLs embed AWS user credentials to grant time-limited permissions for object download.",
-      "Practice: Try 2-3 of the commands mentioned in the Pre-Signed URLs and Temporary Access Exposure in Object Storage documentation (15 min)",
-      "Self-test: Without looking at notes, explain Pre-Signed URLs and Temporary Access Exposure in Object Storage to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Pre-Signed URLs and Temporary Access Exposure in Object Storage in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/ShareObjectPreSignedURL.html",
-      "https://cloud.google.com/storage/docs/access-control/signed-urls",
-      "https://docs.microsoft.com/en-us/azure/storage/common/storage-sas-overview"
-    ],
-    "domain": "Object Storage",
-    "subdomain": "Pre-Signed URLs and Temporary Access Exposure in Object Storage",
-    "subdomains_covered": [
-      "Pre-Signed URLs and Temporary Access Exposure in Object Storage"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-15",
-    "step_type": "INFO",
-    "title": "Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage",
-    "estimated_time_minutes": 25,
-    "goal": "Learn about Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Tutorial: Configuring a static website on Amazon S3 - https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html (5 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Amazon S3 can be used to host static websites containing static content and client-side scripts.\n   • AWS Amplify Hosting is recommended for static websites on S3, providing managed CDN deployment, HTTPS URLs, and global availability.",
-      "Practice: Try 2-3 of the commands mentioned in the Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage documentation (15 min)",
-      "Self-test: Without looking at notes, explain Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html",
-      "https://pwnedlabs.io/labs/aws-s3-enumeration-basics",
-      "https://blog.intigriti.com/2024/09/05/hacking-misconfigured-aws-s3-buckets-a-complete-guide/"
-    ],
-    "domain": "Object Storage",
-    "subdomain": "Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage",
-    "subdomains_covered": [
-      "Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-16",
-    "step_type": "BOSS",
-    "title": "BOSS: Object Storage Synthesis",
-    "estimated_time_minutes": 55,
-    "goal": "Put your Object Storage knowledge together with a practical challenge.",
-    "actions": [
-      "Quick review: Skim your notes from previous Object Storage days. What are the key concepts?",
-      "Mini-scenario: Apply your Object Storage knowledge to a realistic problem. Design a simple solution using 3-4 concepts you learned",
-      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
-    ],
-    "completion_check": "Completed the Object Storage challenge and can connect different concepts together",
-    "resource_refs": [
-      "https://www.microsoft.com/en-us/security/blog/2023/10/20/inside-the-attack-chain-threat-activity-targeting-azure-blob-storage/",
-      "https://cybr.com/labs/s3-bucket-backdoor-attack-simulation-with-stratus-red-team/"
-    ],
-    "domain": "Object Storage",
-    "subdomain": "Persistence and Lateral Movement Using Object Storage Features",
-    "subdomains_covered": [
-      "Persistence and Lateral Movement Using Object Storage Features"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-17",
-    "step_type": "INFO",
-    "title": "Log Sources and Event Types in Cloud Environments",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about Log Sources and Event Types in Cloud Environments and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Cloud Audit Logs overview - https://cloud.google.com/logging/docs/audit (11 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • Cloud Audit Logs provide detailed records of administrative activities and accesses within Google Cloud resources, enabling transparency and accountability.\n   • Audit logs answer critical security questions: \"Who did what, where, and when?\" across cloud environments.",
-      "Practice: Follow along with a basic Log Sources and Event Types in Cloud Environments configuration example (15 min)",
-      "Self-test: Without looking at notes, explain Log Sources and Event Types in Cloud Environments to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Log Sources and Event Types in Cloud Environments in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://cloud.google.com/logging/docs/audit",
-      "https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log-schema",
-      "https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-analytics-tutorial"
-    ],
-    "domain": "Logging/SIEM",
-    "subdomain": "Log Sources and Event Types in Cloud Environments",
-    "subdomains_covered": [
-      "Log Sources and Event Types in Cloud Environments"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-18",
-    "step_type": "INFO",
-    "title": "SIEM Data Normalization and Field Mapping",
-    "estimated_time_minutes": 26,
-    "goal": "Learn about SIEM Data Normalization and Field Mapping and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Normalization and the Advanced Security Information Model (ASIM) - https://learn.microsoft.com/en-us/azure/sentinel/normalization (6 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • SIEM data normalization standardizes diverse security telemetry into uniform schemas, enabling consistent analysis across multiple sources.\n   • The Advanced Security Information Model (ASIM) acts as an intermediary layer that normalizes proprietary data into a common format, simplifying analytics and investigations.",
-      "Practice: Follow along with a basic SIEM Data Normalization and Field Mapping configuration example (15 min)",
-      "Self-test: Without looking at notes, explain SIEM Data Normalization and Field Mapping to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain SIEM Data Normalization and Field Mapping in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://learn.microsoft.com/en-us/azure/sentinel/normalization",
-      "https://docs.splunk.com/Documentation/CIM/latest/User/UsetheCIMtonormalizedataatsearchtime",
-      "https://www.youtube.com/watch?v=L9k0Y_iG-xM"
-    ],
-    "domain": "Logging/SIEM",
-    "subdomain": "SIEM Data Normalization and Field Mapping",
-    "subdomains_covered": [
-      "SIEM Data Normalization and Field Mapping"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-19",
-    "step_type": "INFO",
-    "title": "Log Parsing and Enrichment for Security Analytics",
-    "estimated_time_minutes": 26,
-    "goal": "Learn about Log Parsing and Enrichment for Security Analytics and understand: MAIN CONCEPTS.",
-    "actions": [
-      "Read: Normalization and the Advanced Security Information Model (ASIM) - https://learn.microsoft.com/en-us/azure/sentinel/normalization (6 min)\n   Key concepts to note:\n   • MAIN CONCEPTS\n   • ASIM enables cross-source detection and source-agnostic analytics rules, allowing seamless correlation and investigation across on-premises and cloud environments.\n   • ASIM uses query-time parsers and ingest-time normalization to transform proprietary, non-normalized event data into normalized schemas, balancing flexibility and query performance.",
-      "Practice: Complete one hands-on exercise related to Log Parsing and Enrichment for Security Analytics (15 min)",
-      "Self-test: Without looking at notes, explain Log Parsing and Enrichment for Security Analytics to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Log Parsing and Enrichment for Security Analytics in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://learn.microsoft.com/en-us/azure/sentinel/normalization",
-      "https://docs.splunk.com/Documentation/Splunk/latest/Deploy/Datapipeline",
-      "https://www.elastic.co/guide/en/elasticsearch/reference/current/enrich-your-data.html"
-    ],
-    "domain": "Logging/SIEM",
-    "subdomain": "Log Parsing and Enrichment for Security Analytics",
-    "subdomains_covered": [
-      "Log Parsing and Enrichment for Security Analytics"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-20",
-    "step_type": "INFO",
-    "title": "Detection Logic and SIEM Rule Design",
-    "estimated_time_minutes": 40,
-    "goal": "Learn the fundamentals of Detection Logic and SIEM Rule Design and practice with a small exercise.",
-    "actions": [
-      "Read/skim: Tutorial: Detect threats by using analytics rules in Microsoft Sentinel (20 min)",
-      "Find a sample log entry (CloudTrail, Syslog, or any log). Identify: timestamp, source, event type, relevant details (15 min)",
-      "Self-test: Without looking at notes, explain Detection Logic and SIEM Rule Design to an imaginary coworker in 2-3 sentences (5 min)"
-    ],
-    "completion_check": "Can explain Detection Logic and SIEM Rule Design in your own words and completed the practice exercise",
-    "resource_refs": [
-      "https://learn.microsoft.com/en-us/azure/sentinel/detect-threats-with-analytics-rules",
-      "https://docs.splunk.com/Documentation/ES/latest/Tutorials/Createcorrelationsearch",
-      "https://www.elastic.co/guide/en/security/current/rules-ui-create.html"
-    ],
-    "domain": "Logging/SIEM",
-    "subdomain": "Detection Logic and SIEM Rule Design",
-    "subdomains_covered": [
-      "Detection Logic and SIEM Rule Design"
-    ],
-    "subtopics": [],
-    "day_number": null
-  },
-  {
-    "step_id": "day-21",
-    "step_type": "BOSS",
-    "title": "BOSS: Logging/SIEM Synthesis",
-    "estimated_time_minutes": 55,
-    "goal": "Put your Logging/SIEM knowledge together with a practical challenge.",
-    "actions": [
-      "Quick review: Skim your notes from previous Logging/SIEM days. What are the key concepts?",
-      "Mini-scenario: Design a log collection strategy. What 5 log sources would you collect first? Where would they go? One detection rule you'd create",
-      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
-    ],
-    "completion_check": "Completed the Logging/SIEM challenge and can connect different concepts together",
-    "resource_refs": [
-      "https://www.elastic.co/guide/en/security/current/tune-detection-rules.html",
-      "https://itpro-tips.com/stop-sentinel-alert-noise-a-practical-rule-tuning-guide/"
-    ],
-    "domain": "Logging/SIEM",
-    "subdomain": "Alert Tuning, Noise Reduction, and Signal Quality in SIEM",
-    "subdomains_covered": [
-      "Alert Tuning, Noise Reduction, and Signal Quality in SIEM"
+      "Detection and Monitoring of Suspicious STS Usage"
     ],
     "subtopics": [],
     "day_number": null
