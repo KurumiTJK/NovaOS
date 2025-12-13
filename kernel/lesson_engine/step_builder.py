@@ -171,6 +171,22 @@ def _build_daily_step(
         return _build_learning_step(pack, step_num, llm_client)
 
 
+def _get_fetched_content(pack: EvidencePack) -> Optional[Dict[str, Any]]:
+    """Get fetched content from evidence pack if available."""
+    for resource in pack.resources:
+        fetched = getattr(resource, '_fetched', None)
+        if fetched and (fetched.get('summary') or fetched.get('content')):
+            return {
+                "title": resource.title if hasattr(resource, 'title') else "",
+                "url": resource.url if hasattr(resource, 'url') else "",
+                "summary": fetched.get('summary', ''),
+                "content": fetched.get('content', ''),
+                "headings": fetched.get('headings', []),
+                "read_time": fetched.get('read_time', 20),
+            }
+    return None
+
+
 def _build_learning_step(
     pack: EvidencePack,
     step_num: int,
@@ -183,10 +199,15 @@ def _build_learning_step(
         Learn (20 min): ONE focused resource
         Practice (15 min): ONE small hands-on exercise
         Check (5 min): Quick self-test
+    
+    If fetched content is available, uses it to create more specific actions.
     """
     
     subdomain = pack.subdomain
     domain = pack.domain or "General"
+    
+    # Check for fetched content
+    fetched = _get_fetched_content(pack)
     
     # Select best resource for learning
     learn_resource = _select_best_resource(pack.resources)
@@ -195,7 +216,26 @@ def _build_learning_step(
     actions = []
     
     # 1. LEARN (20 min)
-    if learn_resource:
+    if fetched and fetched.get('summary'):
+        # We have actual content - use it!
+        resource_title = fetched.get('title', subdomain)
+        resource_url = fetched.get('url', '')
+        
+        learn_action = {
+            "type": "learn",
+            "description": f"Read: {resource_title}" + (f" - {resource_url}" if resource_url else ""),
+            "time_minutes": min(fetched.get('read_time', 20), 25),
+            "deliverable": f"Based on this resource, note the key concepts",
+        }
+        
+        # Add key points from summary if available
+        summary = fetched.get('summary', '')
+        if summary and len(summary) > 50:
+            # Extract first few bullet points or sentences
+            key_points = _extract_key_points_from_summary(summary)
+            if key_points:
+                learn_action["key_points"] = key_points
+    elif learn_resource:
         learn_action = _create_learn_action(learn_resource, subdomain, 20)
     else:
         learn_action = {
@@ -207,7 +247,11 @@ def _build_learning_step(
     actions.append(learn_action)
     
     # 2. PRACTICE (15 min) - ONE small exercise
-    practice_action = _create_practice_action(subdomain, domain, 15)
+    # Use fetched content to make practice more specific if available
+    if fetched and fetched.get('summary'):
+        practice_action = _create_content_aware_practice(subdomain, domain, fetched, 15)
+    else:
+        practice_action = _create_practice_action(subdomain, domain, 15)
     actions.append(practice_action)
     
     # 3. CHECK (5 min) - Quick verification
@@ -217,15 +261,21 @@ def _build_learning_step(
     # Calculate total time
     total_time = sum(a.get("time_minutes", 0) for a in actions)
     
-    # Convert actions to simple string list for LessonStep
-    action_strings = [a.get("description", str(a)) for a in actions]
+    # Build goal with content awareness
+    if fetched and fetched.get('summary'):
+        goal = _build_content_aware_goal(subdomain, fetched)
+    else:
+        goal = f"Learn the fundamentals of {subdomain} and practice with a small exercise."
+    
+    # Convert actions to rich string format
+    action_strings = _format_actions_with_content(actions, fetched)
     
     return LessonStep(
         step_id=f"day-{step_num:02d}",
         title=f"{subdomain}",
         step_type="INFO",
         estimated_time_minutes=total_time,
-        goal=f"Learn the fundamentals of {subdomain} and practice with a small exercise.",
+        goal=goal,
         actions=action_strings,
         completion_check=f"Can explain {subdomain} in your own words and completed the practice exercise",
         resource_refs=[r.url for r in pack.resources if r.url][:3],
@@ -233,6 +283,111 @@ def _build_learning_step(
         domain=domain,
         subdomains_covered=[subdomain],
     )
+
+
+def _extract_key_points_from_summary(summary: str) -> List[str]:
+    """Extract key learning points from a content summary."""
+    points = []
+    lines = summary.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        # Look for bullet points or numbered items
+        if line.startswith(('-', '•', '*', '1.', '2.', '3.', '4.', '5.')):
+            point = line.lstrip('-•* 0123456789.').strip()
+            if len(point) > 10 and len(point) < 200:
+                points.append(point)
+        # Or sentences that look like key concepts
+        elif 'is ' in line.lower() and len(line) < 150 and len(line) > 20:
+            points.append(line)
+    
+    return points[:5]  # Max 5 key points
+
+
+def _create_content_aware_practice(
+    subdomain: str,
+    domain: str,
+    fetched: Dict[str, Any],
+    time_minutes: int,
+) -> Dict[str, Any]:
+    """Create a practice action based on actual content."""
+    summary = fetched.get('summary', '')
+    headings = fetched.get('headings', [])
+    
+    # Try to extract practical elements from summary
+    practical_hints = []
+    
+    summary_lower = summary.lower()
+    
+    # Look for practical keywords
+    if any(word in summary_lower for word in ['configure', 'setup', 'create', 'deploy', 'install']):
+        practical_hints.append("configuration")
+    if any(word in summary_lower for word in ['command', 'cli', 'terminal', 'shell']):
+        practical_hints.append("commands")
+    if any(word in summary_lower for word in ['policy', 'permission', 'access', 'role']):
+        practical_hints.append("permissions")
+    if any(word in summary_lower for word in ['diagram', 'architecture', 'design', 'structure']):
+        practical_hints.append("diagram")
+    
+    # Build practice based on content
+    if "commands" in practical_hints:
+        description = f"Practice: Try 2-3 of the commands mentioned in the {subdomain} documentation"
+    elif "configuration" in practical_hints:
+        description = f"Practice: Follow along with a basic {subdomain} configuration example"
+    elif "diagram" in practical_hints:
+        description = f"Practice: Draw a simple diagram showing the key {subdomain} components"
+    elif "permissions" in practical_hints:
+        description = f"Practice: Review a sample {subdomain} policy and identify what it allows/denies"
+    else:
+        description = f"Practice: Complete one hands-on exercise related to {subdomain}"
+    
+    return {
+        "type": "practice",
+        "description": description,
+        "time_minutes": time_minutes,
+        "deliverable": f"Screenshot or notes showing your {subdomain} practice work",
+    }
+
+
+def _build_content_aware_goal(subdomain: str, fetched: Dict[str, Any]) -> str:
+    """Build a goal statement based on actual content."""
+    summary = fetched.get('summary', '')
+    headings = fetched.get('headings', [])
+    
+    # Try to extract specific concepts from summary
+    if headings and len(headings) >= 2:
+        concepts = ', '.join(headings[:3])
+        return f"Understand {subdomain}, including: {concepts}."
+    elif summary:
+        # Extract first key concept from summary
+        first_point = _extract_key_points_from_summary(summary)
+        if first_point:
+            return f"Learn about {subdomain} and understand: {first_point[0][:100]}."
+    
+    return f"Learn the fundamentals of {subdomain} and practice with a small exercise."
+
+
+def _format_actions_with_content(actions: List[Dict], fetched: Optional[Dict]) -> List[str]:
+    """Format actions into strings, including content-based details."""
+    result = []
+    
+    for action in actions:
+        desc = action.get("description", str(action))
+        time_min = action.get("time_minutes", 0)
+        
+        # Format with time
+        formatted = f"{desc} ({time_min} min)"
+        
+        # Add key points if available
+        key_points = action.get("key_points", [])
+        if key_points and len(key_points) > 0:
+            formatted += "\n   Key concepts to note:"
+            for point in key_points[:3]:
+                formatted += f"\n   • {point}"
+        
+        result.append(formatted)
+    
+    return result
 
 
 def _build_boss_step(

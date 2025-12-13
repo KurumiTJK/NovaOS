@@ -1,44 +1,13 @@
 {
   "domains": [
     {
-      "name": "Networking",
-      "subdomains": [
-        "IP Addressing and Subnetting Fundamentals",
-        "Routing Concepts and Routing Table Interpretation",
-        "VLANs and 802.1Q Trunking Basics",
-        "Network Segmentation and Isolation Techniques",
-        "DNS Resolution Process and Record Types"
-      ],
-      "required_resource_types": [
-        "official_docs",
-        "hands_on",
-        "reference"
-      ]
-    },
-    {
-      "name": "Active Directory",
-      "subdomains": [
-        "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
-        "Active Directory Objects and Attributes: Users, Computers, Groups, and Schema Basics",
-        "Active Directory Trust Relationships and Authentication Flow within a Forest",
-        "Group Policy Objects: Structure, Processing Order, and Scope of Management",
-        "Active Directory Delegation of Control and Role Separation"
-      ],
-      "required_resource_types": [
-        "official_docs",
-        "hands_on",
-        "reference"
-      ]
-    },
-    {
       "name": "Identity Management",
       "subdomains": [
-        "Digital Identity Concepts and Terminology",
-        "Authentication Methods and Factors",
-        "Authorization Models and Access Control",
-        "Identity Lifecycle and Provisioning Concepts",
-        "Federated Identity and Single Sign-On Fundamentals",
-        "Credential Management and Session Handling"
+        "AWS IAM Policy Structure and Evaluation Logic",
+        "AWS IAM Roles, AssumeRole, and STS Temporary Credentials",
+        "AWS IAM Privilege Escalation Primitives and Misconfigurations",
+        "AWS IAM Resource-Based Policies and Cross-Account Access",
+        "AWS IAM Identity Federation and External Identity Providers"
       ],
       "required_resource_types": [
         "official_docs",
@@ -47,13 +16,13 @@
       ]
     },
     {
-      "name": "AWS",
+      "name": "Serverless And Containers",
       "subdomains": [
-        "AWS Global Infrastructure and Core Concepts",
-        "AWS Identity and Access Management (IAM) Fundamentals",
-        "Amazon EC2 Core Components and Instance Lifecycle",
-        "Amazon S3 Storage Classes, Objects, and Buckets",
-        "AWS CloudWatch Metrics, Logs, and Alarms"
+        "Serverless Function Runtime and Permissions Model (AWS Lambda)",
+        "Container Orchestration Security Concepts (EKS Control Plane and Worker Nodes)",
+        "Container Task and Role Isolation in AWS ECS",
+        "Serverless Event Sources and Invocation Models (Lambda Triggers)",
+        "Container Image Structure and Registry Concepts for Cloud Runtimes"
       ],
       "required_resource_types": [
         "official_docs",
@@ -62,13 +31,14 @@
       ]
     },
     {
-      "name": "Azure",
+      "name": "Object Storage",
       "subdomains": [
-        "Azure Resource Manager and Resource Groups",
-        "Azure Virtual Machines and Compute SKUs",
-        "Azure Storage Accounts and Data Redundancy Options",
-        "Azure Role-Based Access Control (RBAC) Model",
-        "Azure Virtual Networks and Subnets"
+        "Object Storage Core Concepts and Threat Model",
+        "Bucket Policies and Public Access Controls in Object Storage",
+        "Object-Level Permissions and ACL Abuse in Object Storage",
+        "Pre-Signed URLs and Temporary Access Exposure in Object Storage",
+        "Data Exposure via Static Website Hosting and Directory Enumeration in Object Storage",
+        "Persistence and Lateral Movement Using Object Storage Features"
       ],
       "required_resource_types": [
         "official_docs",
@@ -79,26 +49,11 @@
     {
       "name": "Logging/SIEM",
       "subdomains": [
-        "Log Types and Event Taxonomy in SIEM Systems",
-        "Log Collection Methods and Agents",
-        "Log Parsing, Normalization, and Field Mapping",
-        "SIEM Correlation Rules and Alert Logic",
-        "Log Retention, Storage, and Indexing Concepts"
-      ],
-      "required_resource_types": [
-        "official_docs",
-        "hands_on",
-        "reference"
-      ]
-    },
-    {
-      "name": "Threat Modeling",
-      "subdomains": [
-        "Threat Modeling Terminology and Core Concepts",
-        "Attack Surface Identification and Decomposition",
-        "Threat Enumeration Using Structured Frameworks (e.g., STRIDE)",
-        "Risk Assessment and Prioritization within Threat Models",
-        "Abuse Case and Misuse Case Development"
+        "Log Sources and Event Types in Cloud Environments",
+        "SIEM Data Normalization and Field Mapping",
+        "Log Parsing and Enrichment for Security Analytics",
+        "Detection Logic and SIEM Rule Design",
+        "Alert Tuning, Noise Reduction, and Signal Quality in SIEM"
       ],
       "required_resource_types": [
         "official_docs",
@@ -116,5 +71,5 @@
     "max_resources_per_subdomain": 5,
     "max_patch_attempts_per_subdomain": 2
   },
-  "created_at": "2025-12-13T05:23:29.342413+00:00"
+  "created_at": "2025-12-13T05:45:22.631224+00:00"
 }

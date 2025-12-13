@@ -1,17 +1,18 @@
 # kernel/lesson_engine/__init__.py
 """
-v3.0.0 — Lesson Engine
+v3.1.0 — Lesson Engine
 
 Retrieval-backed, step-sized lesson generation for NovaOS Quest Compose.
 
-4-Phase Pipeline:
-  Phase A1 (Retrieval): Gemini 2.5 Pro with Google Search (web grounding)
-  Phase A2 (Gap Fill): Detect gaps and patch with targeted retrieval
-  Phase B (Step Builder): Convert evidence to daily steps
+5-Phase Pipeline:
+  Phase A1 (Retrieval): Gemini 2.5 Pro with Google Search (find URLs)
+  Phase A2 (Gap Detection): Find gaps and patch with better resources
+  Phase A3 (Fetch): Actually read the documents (fetch AFTER patching!)
+  Phase B (Step Builder): Convert evidence to daily steps (uses real content!)
   Phase C (Plan Refiner): GPT-5.1 (reorder only, cannot add content)
 
-IMPORTANT: Requires google-genai package for web grounding:
-  pip install google-genai
+IMPORTANT: Requires:
+  pip install google-genai httpx beautifulsoup4
 """
 
 from __future__ import annotations
@@ -52,6 +53,11 @@ from .gap_detector import (
     load_manifest,
     save_gap_report,
     load_gap_report,
+)
+from .content_fetcher import (
+    fetch_content_for_evidence_packs,
+    get_content_for_subdomain,
+    has_fetched_content,
 )
 
 
@@ -158,13 +164,13 @@ def generate_lesson_plan_streaming(
             yield _error("No evidence packs generated - cannot proceed")
             return []
         
-        yield _progress("Phase A1 complete", 30)
+        yield _progress("Phase A1 complete", 25)
         
         # ═══════════════════════════════════════════════════════════════════════
-        # PHASE A2: GAP DETECTION & PATCHING
+        # PHASE A2: GAP DETECTION & PATCHING (before fetching!)
         # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase A2: Gap Detection...", 32)
-        yield _log("Detecting coverage gaps...")
+        yield _progress("Phase A2: Gap Detection...", 27)
+        yield _log("Detecting coverage gaps and finding better resources...")
         
         gap_gen = detect_gaps_and_patch(manifest, evidence_packs, kernel)
         
@@ -174,7 +180,7 @@ def generate_lesson_plan_streaming(
                 if event.get("type") == "log":
                     print(event.get("message", ""), flush=True)
                 if event.get("type") == "progress":
-                    event["percent"] = 32 + int(event["percent"] * 0.13)
+                    event["percent"] = 27 + int(event["percent"] * 0.13)
                 yield event
         except StopIteration as e:
             if e.value:
@@ -190,13 +196,44 @@ def generate_lesson_plan_streaming(
             if gap_report.has_unresolved():
                 yield _log(f"⚠️ {len(gap_report.unresolved_gaps)} unresolved gaps remain")
         
-        yield _progress("Phase A2 complete", 45)
+        yield _progress("Phase A2 complete", 40)
         
         # ═══════════════════════════════════════════════════════════════════════
-        # PHASE B: STEP BUILDER
+        # PHASE A3: CONTENT FETCHING (Now fetch ALL URLs including patched ones)
         # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase B: Building Steps...", 50)
-        yield _log("Converting evidence to daily learning steps...")
+        yield _progress("Phase A3: Fetching Document Content...", 42)
+        yield _log("Reading actual document content from URLs...")
+        
+        fetch_gen = fetch_content_for_evidence_packs(evidence_packs, kernel, max_per_subdomain=2)
+        
+        try:
+            while True:
+                event = next(fetch_gen)
+                if event.get("type") == "log":
+                    print(event.get("message", ""), flush=True)
+                if event.get("type") == "progress":
+                    # Scale to 42-55%
+                    event["percent"] = 42 + int(event["percent"] * 0.13)
+                yield event
+        except StopIteration as e:
+            if e.value:
+                evidence_packs = e.value
+        
+        # Count how many have fetched content
+        fetched_count = sum(1 for p in evidence_packs if has_fetched_content(p))
+        yield _log(f"Fetched content for {fetched_count}/{len(evidence_packs)} subdomains")
+        
+        # Save updated evidence with content
+        if evidence_packs:
+            save_evidence_packs(evidence_packs, data_dir)
+        
+        yield _progress("Phase A3 complete", 55)
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # PHASE B: STEP BUILDER (Uses fetched content!)
+        # ═══════════════════════════════════════════════════════════════════════
+        yield _progress("Phase B: Building Steps...", 57)
+        yield _log("Converting evidence to daily learning steps (with real content!)...")
         
         # Run step builder
         # NOTE: build_steps_from_evidence expects (evidence_packs, quest_title, manifest, llm_client)
@@ -208,7 +245,7 @@ def generate_lesson_plan_streaming(
                 if event.get("type") == "log":
                     print(event.get("message", ""), flush=True)
                 if event.get("type") == "progress":
-                    event["percent"] = 50 + int(event["percent"] * 0.25)
+                    event["percent"] = 57 + int(event["percent"] * 0.18)
                 yield event
         except StopIteration as e:
             raw_steps = e.value if e.value else []
