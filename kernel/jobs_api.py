@@ -40,7 +40,7 @@ def api_create_quest_compose_job(request_data: Dict[str, Any], user_id: Optional
     Returns:
         {"job_id": "...", "status": "queued"}
     """
-    from kernel.utils.job_queue import create_and_enqueue_job, is_kv_configured
+    from kernel.utils.job_queue import create_and_enqueue_job
     from kernel.utils.kv_factory import is_kv_configured
     
     if not is_kv_configured():
@@ -49,10 +49,35 @@ def api_create_quest_compose_job(request_data: Dict[str, Any], user_id: Optional
             "status": "error",
         }
     
+    # Get the session draft for the worker
+    session_id = request_data.get("session_id", "")
+    draft = None
+    
     try:
+        from kernel.quests.quest_compose_wizard import get_compose_session
+        session = get_compose_session(session_id)
+        if session and session.draft:
+            draft = session.draft
+            print(f"[JobsAPI] Got draft for session {session_id}: {draft.get('title', 'untitled')}", flush=True)
+    except Exception as e:
+        print(f"[JobsAPI] Could not get session draft: {e}", flush=True)
+    
+    if not draft:
+        return {
+            "error": "No active quest compose session found. Start with #quest-compose first.",
+            "status": "error",
+        }
+    
+    try:
+        # Include the draft in the job payload
+        input_payload = {
+            **request_data,
+            "draft": draft,
+        }
+        
         job_id = create_and_enqueue_job(
             job_type="quest_compose",
-            input_payload=request_data,
+            input_payload=input_payload,
             user_id=user_id,
         )
         
@@ -192,6 +217,47 @@ def api_get_job(job_id: str) -> Dict[str, Any]:
     return job
 
 
+def api_sync_quest_steps(session_id: str, steps: list) -> Dict[str, Any]:
+    """
+    Sync generated steps back to the session.
+    
+    Called by frontend after async job completes to update the in-memory session.
+    
+    Args:
+        session_id: Session ID
+        steps: Generated steps from async job
+        
+    Returns:
+        {"ok": True} or error
+    """
+    try:
+        from kernel.quests.quest_compose_wizard import get_compose_session
+        
+        session = get_compose_session(session_id)
+        if not session:
+            return {
+                "ok": False,
+                "error": "No active session found",
+            }
+        
+        # Update session draft with steps
+        session.draft["steps"] = steps
+        session.stage = "review"  # Move to review stage
+        
+        print(f"[JobsAPI] Synced {len(steps)} steps to session {session_id}", flush=True)
+        
+        return {
+            "ok": True,
+            "message": f"Synced {len(steps)} steps",
+        }
+        
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+        }
+
+
 # =============================================================================
 # FLASK ROUTE REGISTRATION
 # =============================================================================
@@ -202,6 +268,7 @@ def register_jobs_routes(app: "Flask") -> None:
     
     Routes added:
         POST /api/quests/compose/async - Create async quest compose job
+        POST /api/quests/compose/sync-steps - Sync steps to session
         POST /api/lessons/generate/async - Create async lesson generate job
         POST /api/jobs/engine - Create generic engine job
         GET /api/jobs/<job_id> - Get job status
@@ -216,6 +283,20 @@ def register_jobs_routes(app: "Flask") -> None:
         result = api_create_quest_compose_job(data, user_id)
         
         status_code = 202 if "job_id" in result else 500
+        return jsonify(result), status_code
+    
+    @app.route("/api/quests/compose/sync-steps", methods=["POST"])
+    def route_sync_steps():
+        """Sync generated steps back to session."""
+        data = request.get_json() or {}
+        session_id = data.get("session_id")
+        steps = data.get("steps", [])
+        
+        if not session_id:
+            return jsonify({"ok": False, "error": "session_id required"}), 400
+        
+        result = api_sync_quest_steps(session_id, steps)
+        status_code = 200 if result.get("ok") else 400
         return jsonify(result), status_code
     
     @app.route("/api/lessons/generate/async", methods=["POST"])

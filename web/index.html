@@ -1672,10 +1672,28 @@
           onUpdate: (content) => {
             console.log('[NovaOS] QuestCompose update:', content);
           },
-          onComplete: (result) => {
+          onComplete: async (result) => {
             console.log('[NovaOS] QuestCompose complete:', result);
             
             hideQuestComposeProgress();
+            
+            // v1.0.0: Sync steps back to server session (for async jobs)
+            if (useAsync && result?.steps) {
+              try {
+                console.log('[NovaOS] Syncing steps to session...');
+                await fetch('/api/quests/compose/sync-steps', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    session_id: SESSION_ID,
+                    steps: result.steps,
+                  }),
+                });
+                console.log('[NovaOS] Steps synced to session');
+              } catch (e) {
+                console.warn('[NovaOS] Failed to sync steps:', e);
+              }
+            }
             
             if (result && result.data) {
               updateQuestComposeState({ data: result.data });

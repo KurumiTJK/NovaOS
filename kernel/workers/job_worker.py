@@ -63,11 +63,13 @@ def handle_quest_compose(job: Dict[str, Any]) -> Dict[str, Any]:
     """
     Handle quest_compose job type.
     
+    Uses the streaming generator to produce steps with progress updates.
+    
     Args:
-        job: Job record with input payload
+        job: Job record with input payload containing draft
         
     Returns:
-        Result dict
+        Result dict with generated steps
     """
     job_id = job["id"]
     input_data = job.get("input", {})
@@ -76,7 +78,13 @@ def handle_quest_compose(job: Dict[str, Any]) -> Dict[str, Any]:
     
     # Extract input parameters
     session_id = input_data.get("session_id", "worker")
-    text = input_data.get("text", "")
+    draft = input_data.get("draft")
+    
+    if not draft:
+        raise RuntimeError("No draft in job input. Session may have expired.")
+    
+    print(f"[Worker] Quest: {draft.get('title', 'untitled')}", flush=True)
+    print(f"[Worker] Domains: {len(draft.get('domains', []))}", flush=True)
     
     # Import kernel components
     from system.config import Config
@@ -90,33 +98,57 @@ def handle_quest_compose(job: Dict[str, Any]) -> Dict[str, Any]:
     kernel = NovaKernel(config=config, llm_client=llm_client)
     
     # Update progress
-    set_job_progress(job_id, {"step": 1, "message": "Initializing quest compose..."})
+    set_job_progress(job_id, {"step": 1, "message": "Initializing...", "percent": 5})
     
     try:
-        # Import quest compose handler
-        from kernel.quests.quest_compose_wizard import (
-            handle_quest_compose_wizard,
-            has_active_compose_session,
-            process_compose_wizard_input,
-        )
+        # Import streaming generator
+        from kernel.quests.quest_compose_wizard import _generate_steps_with_llm_streaming
         
-        # Process through the wizard
-        # This is a simplified version - real implementation would need
-        # to handle multi-step wizard state
+        print(f"[Worker] Starting streaming generation...", flush=True)
         
-        set_job_progress(job_id, {"step": 2, "message": "Extracting domains..."})
+        # Run the streaming generator and report progress
+        final_steps = []
         
-        # For now, return a placeholder indicating the job ran
-        # Full implementation would run the complete wizard flow
+        for event in _generate_steps_with_llm_streaming(draft, kernel, session_id):
+            event_type = event.get("type", "")
+            
+            if event_type == "log":
+                msg = event.get("message", "")
+                print(f"[Worker] {msg}", flush=True)
+                
+            elif event_type == "progress":
+                msg = event.get("message", "Processing...")
+                pct = event.get("percent", 50)
+                set_job_progress(job_id, {"message": msg, "percent": pct})
+                
+            elif event_type == "steps":
+                final_steps = event.get("steps", [])
+                print(f"[Worker] Generated {len(final_steps)} steps", flush=True)
+                
+            elif event_type == "error":
+                error_msg = event.get("message", "Unknown error")
+                raise RuntimeError(error_msg)
+        
+        if not final_steps:
+            raise RuntimeError("No steps generated")
+        
+        # Return result
         result = {
             "status": "completed",
-            "message": "Quest compose job processed",
+            "message": f"Generated {len(final_steps)} steps for '{draft.get('title', 'quest')}'",
             "session_id": session_id,
+            "steps": final_steps,
+            "data": {
+                "steps": final_steps,
+                "draft": draft,
+            },
         }
         
         return result
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise RuntimeError(f"Quest compose failed: {str(e)}")
 
 

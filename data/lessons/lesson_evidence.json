@@ -1,545 +1,642 @@
 {
   "version": "2.0.0",
-  "generated_at": "2025-12-13T09:31:47.852368+00:00",
+  "generated_at": "2025-12-13T10:43:57.233905+00:00",
   "packs": [
     {
-      "subdomain": "IP Addressing and Subnetting Fundamentals",
-      "domain": "Networking",
+      "subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
+      "domain": "Active Directory",
       "resources": [
         {
-          "title": "Understand TCP/IP addressing and subnetting basics",
+          "title": "Understanding the Active Directory Logical Model",
           "provider": "Microsoft Learn",
-          "type": "guide",
+          "type": "documentation",
           "estimated_hours": 1.0,
           "difficulty": "foundational",
-          "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/networking/tcpip-addressing-and-subnetting",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model",
           "tags": [
-            "ipv4",
-            "subnet mask",
-            "tcp/ip",
-            "networking basics"
+            "active directory",
+            "forests",
+            "domains",
+            "logical structure",
+            "ad ds"
           ],
-          "description": "Official Microsoft documentation explaining the fundamentals of IP addresses, network classes, and how subnet masks are used to divide networks. It covers binary and dotted-decimal notation.",
-          "retrieved_at": "2025-12-13T09:30:37.976539+00:00",
+          "description": "Official Microsoft documentation explaining the Active Directory logical model. It covers the core components including forests, domains, and organizational units (OUs), and how they form a hierarchical structure for managing network resources.",
+          "retrieved_at": "2025-12-13T10:42:48.950154+00:00",
           "resource_type": "official_docs",
           "estimated_minutes": 60,
-          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
+          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         },
         {
-          "title": "IP Addressing and Subnetting for New Users",
-          "provider": "Cisco",
-          "type": "guide",
-          "estimated_hours": 2.5,
-          "difficulty": "foundational",
-          "url": "https://www.cisco.com/c/en/us/support/docs/ip/routing-information-protocol-rip/13788-3.html",
-          "tags": [
-            "cisco",
-            "subnetting",
-            "vlsm",
-            "cidr",
-            "ipv4"
-          ],
-          "description": "A comprehensive and classic written tutorial from Cisco that covers the basics of IP addressing, network masks, and subnetting with detailed examples and sample exercises, including VLSM and CIDR.",
-          "retrieved_at": "2025-12-13T09:30:37.976561+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 150,
-          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
-          "prereqs": []
-        },
-        {
-          "title": "Subnetting Practice Questions",
-          "provider": "subnettingpractice.com",
-          "type": "guide",
-          "estimated_hours": 2.0,
-          "difficulty": "foundational",
-          "url": "https://www.subnettingpractice.com/",
-          "tags": [
-            "practice",
-            "quiz",
-            "subnetting",
-            "ipv4",
-            "ccna"
-          ],
-          "description": "An interactive website that provides a wide variety of randomly generated subnetting practice questions. Users can practice identifying network addresses, broadcast addresses, and valid host ranges to build speed and accuracy.",
-          "retrieved_at": "2025-12-13T09:30:37.976568+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 120,
-          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
-          "prereqs": []
-        },
-        {
-          "title": "IP Subnetting tutorial | How to subnet IPv4 addresses",
-          "provider": "YouTube (Rich Tech Guy)",
-          "type": "guide",
-          "estimated_hours": 0.75,
-          "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=7hIbzlxbebc",
-          "tags": [
-            "video",
-            "tutorial",
-            "ipv4",
-            "binary",
-            "cidr"
-          ],
-          "description": "A detailed video tutorial that walks through the entire process of subnetting IPv4 addresses. It covers IP address classes, binary numbers, subnet masks, CIDR notation, and how to calculate network and broadcast IPs.",
-          "retrieved_at": "2025-12-13T09:30:37.976571+00:00",
-          "resource_type": "video",
-          "estimated_minutes": 45,
-          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T09:30:37.976650+00:00"
-    },
-    {
-      "subdomain": "Routing Table Concepts and Static Routing",
-      "domain": "Networking",
-      "resources": [
-        {
-          "title": "IP Routing: Static Configuration Guide",
-          "provider": "Cisco",
-          "type": "documentation",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_static/configuration/15-sy/irs-15-sy-book.html",
-          "tags": [
-            "cisco",
-            "static routing",
-            "configuration",
-            "ios"
-          ],
-          "description": "Official Cisco documentation detailing the concepts and commands for configuring static IP routing on Cisco IOS devices. It covers basic static routes, default routes, and floating static routes.",
-          "retrieved_at": "2025-12-13T09:30:51.446727+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 120,
-          "source_subdomain": "Routing Table Concepts and Static Routing",
-          "prereqs": []
-        },
-        {
-          "title": "Configure Static Routes | Junos OS",
-          "provider": "Juniper Networks",
-          "type": "documentation",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://www.juniper.net/documentation/us/en/software/junos/static-routing/topics/topic-map/static-route-configuration.html",
-          "tags": [
-            "juniper",
-            "junos",
-            "static routing",
-            "configuration"
-          ],
-          "description": "Comprehensive official guide from Juniper Networks on understanding and configuring static routes in Junos OS. It covers IPv4 and IPv6 static routing with configuration examples.",
-          "retrieved_at": "2025-12-13T09:30:51.446741+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 120,
-          "source_subdomain": "Routing Table Concepts and Static Routing",
-          "prereqs": []
-        },
-        {
-          "title": "How to configure Static Routes & Default Routes on Cisco Routers",
-          "provider": "YouTube",
+          "title": "Set Up a New Active Directory Forest and Domain on Windows Server",
+          "provider": "The Tech Blacksmith - YouTube",
           "type": "video",
           "estimated_hours": 0.5,
-          "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=kigzt-o-r4c",
+          "difficulty": "intermediate",
+          "url": "https://www.youtube.com/watch?v=jGk42a-aI3c",
           "tags": [
-            "cisco",
-            "static routing",
-            "default route",
-            "video tutorial",
-            "packet tracer"
+            "active directory",
+            "windows server",
+            "domain controller",
+            "forest",
+            "domain",
+            "hands-on"
           ],
-          "description": "A step-by-step video tutorial demonstrating the configuration of static and default routes on Cisco routers using the command-line interface (CLI). The tutorial uses a simple network topology to explain the concepts.",
-          "retrieved_at": "2025-12-13T09:30:51.446745+00:00",
+          "description": "A step-by-step video tutorial that walks through the entire process of creating a new Active Directory forest and domain on Windows Server. This practical guide covers OS preparation, promotion to a domain controller, and post-promotion verification.",
+          "retrieved_at": "2025-12-13T10:42:48.950171+00:00",
           "resource_type": "tutorial",
           "estimated_minutes": 30,
-          "source_subdomain": "Routing Table Concepts and Static Routing",
+          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         },
         {
-          "title": "Static Route Configuration on Cisco Routers",
-          "provider": "IPCisco",
-          "type": "tutorial",
-          "estimated_hours": 1.0,
-          "difficulty": "foundational",
-          "url": "https://ipcisco.com/static-route-configuration-on-cisco-routers/",
-          "tags": [
-            "cisco",
-            "static routing",
-            "tutorial",
-            "configuration",
-            "packet tracer"
-          ],
-          "description": "A written tutorial that walks through a static routing configuration example on Cisco routers. It includes the necessary commands and verification steps, making it a good hands-on exercise for beginners.",
-          "retrieved_at": "2025-12-13T09:30:51.446748+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 60,
-          "source_subdomain": "Routing Table Concepts and Static Routing",
-          "prereqs": []
-        },
-        {
-          "title": "Routing Table Explained",
-          "provider": "Network Direction",
-          "type": "video",
-          "estimated_hours": 0.25,
-          "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=g_2PCd-2g5E",
-          "tags": [
-            "routing table",
-            "networking fundamentals",
-            "cisco",
-            "ccna"
-          ],
-          "description": "A clear and concise video explaining the fundamentals of a routing table. It covers how to read a real routing table on a Cisco router, explaining the different codes (like 'S' for static) and components.",
-          "retrieved_at": "2025-12-13T09:30:51.446751+00:00",
-          "resource_type": "video",
-          "estimated_minutes": 15,
-          "source_subdomain": "Routing Table Concepts and Static Routing",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T09:30:51.446858+00:00"
-    },
-    {
-      "subdomain": "VLAN Configuration and Tagging Basics",
-      "domain": "Networking",
-      "resources": [
-        {
-          "title": "Fundamentals of 802.1Q VLAN Tagging",
-          "provider": "Cisco Meraki",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "foundational",
-          "url": "https://documentation.meraki.com/General_Administration/Tools_and_Troubleshooting/Fundamentals_of_802.1Q_VLAN_Tagging",
-          "tags": [
-            "vlan",
-            "802.1q",
-            "tagging",
-            "trunking",
-            "access ports",
-            "cisco"
-          ],
-          "description": "Official Cisco Meraki documentation explaining the fundamental concepts of VLANs, including the 802.1Q tagging process, common terms like trunk and access ports, and best practices for VLAN configuration.",
-          "retrieved_at": "2025-12-13T09:31:08.001813+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 60,
-          "source_subdomain": "VLAN Configuration and Tagging Basics",
-          "prereqs": []
-        },
-        {
-          "title": "CCNA VLAN Lab: Configuring Segmented and Secured Networks in Cisco Packet Tracer",
-          "provider": "Medium",
-          "type": "tutorial",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://medium.com/@enyelsalas/ccna-vlan-lab-configuring-segmented-and-secured-networks-in-cisco-packet-tracer-a695592a15f7",
-          "tags": [
-            "vlan",
-            "cisco",
-            "packet tracer",
-            "hands-on",
-            "ccna",
-            "trunking"
-          ],
-          "description": "A detailed, step-by-step hands-on lab guide using Cisco Packet Tracer to simulate a real-world scenario. It covers creating VLANs, assigning ports, configuring trunk links between switches, and verifying the configuration.",
-          "retrieved_at": "2025-12-13T09:31:08.001827+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 120,
-          "source_subdomain": "VLAN Configuration and Tagging Basics",
-          "prereqs": []
-        },
-        {
-          "title": "Configuring VLAN Tagging | Junos OS",
-          "provider": "Juniper Networks",
-          "type": "documentation",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://www.juniper.net/documentation/us/en/software/junos/vlan/topics/topic-map/switches-vlans-tagging.html",
-          "tags": [
-            "vlan",
-            "juniper",
-            "junos",
-            "tagging",
-            "official docs"
-          ],
-          "description": "Official Juniper Networks documentation that explains how VLANs work and provides configuration details for single-tagged, dual-tagged (Q-in-Q), and mixed-tagged frames on devices running Junos OS.",
-          "retrieved_at": "2025-12-13T09:31:08.001831+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 90,
-          "source_subdomain": "VLAN Configuration and Tagging Basics",
-          "prereqs": []
-        },
-        {
-          "title": "VLANs Made Easy: Learn This Today!",
-          "provider": "YouTube (Crosstalk Solutions)",
-          "type": "video",
-          "estimated_hours": 0.7,
-          "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=b2w1YL3_single_sign_on",
-          "tags": [
-            "vlan",
-            "networking",
-            "tutorial",
-            "video",
-            "unifi",
-            "aruba"
-          ],
-          "description": "A comprehensive video tutorial that breaks down the basics of what VLANs are, why they are used, and how they work. It covers concepts like tagged vs. untagged traffic and trunk ports, and includes practical demonstrations on both consumer and enterprise-grade equipment.",
-          "retrieved_at": "2025-12-13T09:31:08.001834+00:00",
-          "resource_type": "video",
-          "estimated_minutes": 42,
-          "source_subdomain": "VLAN Configuration and Tagging Basics",
-          "prereqs": []
-        },
-        {
-          "title": "Virtual LANs (VLANs) - EOS",
-          "provider": "Arista",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://www.arista.com/en/um-eos/eos-virtual-lans-vlans",
-          "tags": [
-            "vlan",
-            "arista",
-            "eos",
-            "official docs",
-            "switching"
-          ],
-          "description": "Arista's official documentation for configuring VLANs and Switch Virtual Interfaces (SVIs) on their EOS-based switches. It covers creating VLANs, configuring access and trunk ports, and other related features.",
-          "retrieved_at": "2025-12-13T09:31:08.001837+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 60,
-          "source_subdomain": "VLAN Configuration and Tagging Basics",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T09:31:08.001909+00:00"
-    },
-    {
-      "subdomain": "Network Segmentation and Isolation Techniques",
-      "domain": "Networking",
-      "resources": [
-        {
-          "title": "Azure Virtual Network Integration for Service Network Isolation",
-          "provider": "Microsoft Learn",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/azure/virtual-network/service-integration-and-isolation",
-          "tags": [
-            "azure",
-            "vnet",
-            "network-isolation",
-            "cloud-networking",
-            "security"
-          ],
-          "description": "Official Microsoft documentation explaining how Azure virtual network integration enables secure isolation and control of access to Azure services. It covers various methods like dedicated service deployment, Private Endpoints, and service endpoints.",
-          "retrieved_at": "2025-12-13T09:31:23.588895+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 60,
-          "source_subdomain": "Network Segmentation and Isolation Techniques",
-          "prereqs": []
-        },
-        {
-          "title": "Network Segmentation Virtual Lab",
+          "title": "Active Directory Basics Virtual Lab",
           "provider": "Cybrary",
           "type": "lab",
           "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://www.cybrary.it/lab/network-segmentation/",
+          "difficulty": "foundational",
+          "url": "https://www.cybrary.it/lab/active-directory-basics/",
           "tags": [
-            "network-segmentation",
-            "hands-on",
-            "virtual-lab",
-            "security",
-            "vpn"
+            "active directory",
+            "domain controller",
+            "users",
+            "groups",
+            "hands-on"
           ],
-          "description": "A hands-on virtual lab where you create three distinct network areas, route traffic accordingly, and secure VPN access. This lab helps in understanding how segmentation can protect a network from widespread attacks and improve performance.",
-          "retrieved_at": "2025-12-13T09:31:23.588914+00:00",
+          "description": "A hands-on virtual lab where you can practice configuring a Domain Controller and using Active Directory to manage users and groups. This is a practical exercise to reinforce foundational concepts.",
+          "retrieved_at": "2025-12-13T10:42:48.950177+00:00",
           "resource_type": "hands_on",
           "estimated_minutes": 60,
-          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         },
         {
-          "title": "Network Segmentation in Azure: Step-by-Step Guide",
-          "provider": "Medium",
-          "type": "tutorial",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://medium.com/@chris.yeung.aws/network-segmentation-in-azure-step-by-step-guide-b7a69555254a",
+          "title": "Active Directory structure | active directory tutorial",
+          "provider": "Abe the Techie - YouTube",
+          "type": "video",
+          "estimated_hours": 0.25,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=sW0-w20Qk0s",
           "tags": [
-            "azure",
-            "network-segmentation",
-            "hub-and-spoke",
-            "nsg",
-            "azure-firewall"
+            "active directory",
+            "logical structure",
+            "physical structure",
+            "domains",
+            "forests"
           ],
-          "description": "A detailed, step-by-step written tutorial on implementing a hub-and-spoke network segmentation architecture in Azure using VNets, subnets, Network Security Groups (NSGs), and Azure Firewall.",
-          "retrieved_at": "2025-12-13T09:31:23.588921+00:00",
+          "description": "A concise video explaining both the logical and physical structures of Active Directory. It clearly defines objects, organizational units, domains, trees, and forests in a beginner-friendly format.",
+          "retrieved_at": "2025-12-13T10:42:48.950181+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 15,
+          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory Forest: What it is and best practices for managing it",
+          "provider": "Quest",
+          "type": "guide",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.quest.com/solutions/active-directory/active-directory-forest.aspx",
+          "tags": [
+            "active directory",
+            "forest",
+            "domain",
+            "tree",
+            "best practices"
+          ],
+          "description": "A well-structured article that defines and differentiates the main tiers of Active Directory: domains, trees, and forests. It also explains their purpose, with the domain as a management boundary and the forest as a security boundary.",
+          "retrieved_at": "2025-12-13T10:42:48.950184+00:00",
           "resource_type": "tutorial",
-          "estimated_minutes": 90,
-          "source_subdomain": "Network Segmentation and Isolation Techniques",
-          "prereqs": []
-        },
-        {
-          "title": "Implementing Network Segmentation & Micro-Segmentation on AWS",
-          "provider": "Medium",
-          "type": "tutorial",
-          "estimated_hours": 2.0,
-          "difficulty": "advanced",
-          "url": "https://medium.com/@davebhargavi/implementing-network-segmentation-micro-segmentation-on-aws-using-vpc-lattice-security-groups-c65a0b2718e5",
-          "tags": [
-            "aws",
-            "vpc",
-            "micro-segmentation",
-            "security-groups",
-            "nacl",
-            "vpc-lattice"
-          ],
-          "description": "This tutorial provides a practical walkthrough of implementing both macro-segmentation (VPCs, Subnets, NACLs, Security Groups) and micro-segmentation (using AWS VPC Lattice) in a realistic 3-tier architecture on AWS.",
-          "retrieved_at": "2025-12-13T09:31:23.588925+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 120,
-          "source_subdomain": "Network Segmentation and Isolation Techniques",
-          "prereqs": []
-        },
-        {
-          "title": "SD-Access Segmentation Design Guide",
-          "provider": "Cisco",
-          "type": "documentation",
-          "estimated_hours": 2.5,
-          "difficulty": "advanced",
-          "url": "https://community.cisco.com/t5/security-documents/sd-access-segmentation-design-guide/ta-p/3752327",
-          "tags": [
-            "cisco",
-            "sd-access",
-            "segmentation",
-            "sgt",
-            "zero-trust",
-            "network-design"
-          ],
-          "description": "A comprehensive design guide from Cisco on implementing network segmentation using its Software-Defined Access (SD-Access) solution. It covers Virtual Networks (VNs) and Security Group Tags (SGTs) for macro and micro-segmentation.",
-          "retrieved_at": "2025-12-13T09:31:23.588929+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 150,
-          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T09:31:23.589026+00:00"
+      "retrieved_at": "2025-12-13T10:42:48.950238+00:00"
     },
     {
-      "subdomain": "DNS Resolution Process and Record Types",
-      "domain": "Networking",
+      "subdomain": "Active Directory Objects and Attributes",
+      "domain": "Active Directory",
       "resources": [
         {
-          "title": "What is DNS?",
-          "provider": "Cloudflare",
-          "type": "guide",
+          "title": "Active Directory Schema (AD Schema)",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
           "estimated_hours": 2.0,
-          "difficulty": "foundational",
-          "url": "https://www.cloudflare.com/learning/dns/what-is-dns/",
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows/win32/adschema/active-directory-schema",
           "tags": [
-            "dns",
-            "networking",
-            "dns resolution",
-            "dns records"
+            "active directory",
+            "schema",
+            "objects",
+            "attributes",
+            "classes"
           ],
-          "description": "A comprehensive series of articles from Cloudflare's Learning Center that explains the Domain Name System. It covers the step-by-step DNS lookup process, the roles of different DNS servers, caching, and detailed explanations of common DNS record types.",
-          "retrieved_at": "2025-12-13T09:31:47.849293+00:00",
+          "description": "Official Microsoft documentation detailing the Active Directory schema. It provides formal definitions of every object class and attribute that can be created in an Active Directory forest.",
+          "retrieved_at": "2025-12-13T10:43:01.342607+00:00",
           "resource_type": "official_docs",
           "estimated_minutes": 120,
-          "source_subdomain": "DNS Resolution Process and Record Types",
+          "source_subdomain": "Active Directory Objects and Attributes",
           "prereqs": []
         },
         {
-          "title": "Reviewing DNS Concepts",
+          "title": "Introduction to AD DS",
           "provider": "Microsoft Learn",
-          "type": "guide",
+          "type": "course",
           "estimated_hours": 1.0,
           "difficulty": "foundational",
-          "url": "https://learn.microsoft.com/en-us/training/windows-server/identity/review-dns-concepts",
+          "url": "https://learn.microsoft.com/en-us/training/modules/introduction-to-ad-ds/",
           "tags": [
-            "dns",
-            "windows server",
-            "dns resolution",
-            "name resolution"
+            "active directory",
+            "ad ds",
+            "objects",
+            "users",
+            "groups",
+            "ous"
           ],
-          "description": "Official documentation from Microsoft that clearly explains the process of DNS name resolution, including recursive and iterative queries. It uses helpful diagrams to illustrate how resolution works with both root hints and forwarders.",
-          "retrieved_at": "2025-12-13T09:31:47.849307+00:00",
-          "resource_type": "official_docs",
+          "description": "This Microsoft Learn module covers the fundamentals of Active Directory Domain Services (AD DS), including users, groups, computers, organizational units (OUs), and how to manage these objects and their properties.",
+          "retrieved_at": "2025-12-13T10:43:01.342619+00:00",
+          "resource_type": "course",
           "estimated_minutes": 60,
-          "source_subdomain": "DNS Resolution Process and Record Types",
+          "source_subdomain": "Active Directory Objects and Attributes",
           "prereqs": []
         },
         {
-          "title": "Mess with DNS",
-          "provider": "Julia Evans",
-          "type": "guide",
-          "estimated_hours": 2.5,
-          "difficulty": "intermediate",
-          "url": "https://messwithdns.net/",
+          "title": "Active Directory Lab: Creating OUs, Users, Groups & Computers",
+          "provider": "Global IT PROS",
+          "type": "video",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=2-pr8a_DrI4",
           "tags": [
-            "dns",
-            "hands-on",
+            "active directory",
             "lab",
-            "dns records",
-            "dig"
-          ],
-          "description": "An interactive, hands-on playground where you can experiment with creating and querying DNS records for a real subdomain. This tool allows you to safely learn how different record types work and see the results of your changes using the `dig` command.",
-          "retrieved_at": "2025-12-13T09:31:47.849311+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 150,
-          "source_subdomain": "DNS Resolution Process and Record Types",
-          "prereqs": []
-        },
-        {
-          "title": "How to Use nslookup and dig to Verify and Troubleshoot DNS",
-          "provider": "MorhafSH",
-          "type": "guide",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://morhaf.sh/how-to-use-nslookup-and-dig-to-verify-and-troubleshoot-dns-configurations/",
-          "tags": [
-            "dns",
             "tutorial",
-            "nslookup",
-            "dig",
-            "troubleshooting"
+            "users",
+            "groups",
+            "ous",
+            "computers"
           ],
-          "description": "A practical, step-by-step written guide on using the essential command-line tools `nslookup` and `dig` to query DNS records. It provides clear examples for checking different record types, querying specific servers, and performing reverse lookups.",
-          "retrieved_at": "2025-12-13T09:31:47.849314+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 60,
-          "source_subdomain": "DNS Resolution Process and Record Types",
+          "description": "A step-by-step video tutorial demonstrating how to create and manage essential Active Directory objects like Organizational Units (OUs), users, groups, and computer accounts in a lab environment.",
+          "retrieved_at": "2025-12-13T10:43:01.342623+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Objects and Attributes",
           "prereqs": []
         },
         {
-          "title": "DNS record types",
-          "provider": "Cloudflare",
-          "type": "guide",
-          "estimated_hours": 1.5,
-          "difficulty": "foundational",
-          "url": "https://developers.cloudflare.com/dns/manage-dns-records/reference/dns-record-types/",
+          "title": "All Attributes",
+          "provider": "Microsoft Learn",
+          "type": "reference",
+          "estimated_hours": 3.0,
+          "difficulty": "advanced",
+          "url": "https://learn.microsoft.com/en-us/windows/win32/adschema/attributes-all",
           "tags": [
-            "dns",
-            "dns records",
-            "reference",
-            "a record",
-            "cname",
-            "mx record"
+            "active directory",
+            "attributes",
+            "schema",
+            "reference"
           ],
-          "description": "A detailed reference guide from Cloudflare's official documentation. It provides a clear and extensive list of DNS record types with explanations of what each record does, its required fields, and how it's used.",
-          "retrieved_at": "2025-12-13T09:31:47.849324+00:00",
+          "description": "A comprehensive reference list from Microsoft of all attributes defined by Active Directory. This is a valuable resource for administrators and developers needing detailed information on specific attributes.",
+          "retrieved_at": "2025-12-13T10:43:01.342626+00:00",
           "resource_type": "official_docs",
-          "estimated_minutes": 90,
-          "source_subdomain": "DNS Resolution Process and Record Types",
+          "estimated_minutes": 180,
+          "source_subdomain": "Active Directory Objects and Attributes",
+          "prereqs": []
+        },
+        {
+          "title": "How to View and Change Active Directory Object Attributes",
+          "provider": "TechCrafters",
+          "type": "tutorial",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://techcrafters.com/active-directory-object-attributes/",
+          "tags": [
+            "active directory",
+            "attributes",
+            "adsi edit",
+            "powershell",
+            "aduc"
+          ],
+          "description": "A written, step-by-step guide that explains how to view and modify the attributes of an Active Directory object using various tools like ADSI Edit, Active Directory Users and Computers (ADUC) with Advanced Features enabled, and PowerShell.",
+          "retrieved_at": "2025-12-13T10:43:01.342628+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Objects and Attributes",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T09:31:47.849436+00:00"
+      "retrieved_at": "2025-12-13T10:43:01.342696+00:00"
+    },
+    {
+      "subdomain": "Organizational Units and Delegation of Control in Active Directory",
+      "domain": "Active Directory",
+      "resources": [
+        {
+          "title": "Delegating Administration by Using OU Objects",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegating-administration-by-using-ou-objects",
+          "tags": [
+            "organizational units",
+            "delegation",
+            "active directory",
+            "permissions"
+          ],
+          "description": "Official Microsoft documentation explaining how to use organizational units (OUs) to delegate the administration of objects like users and computers. It covers the principles of delegation and why OUs are used for this purpose.",
+          "retrieved_at": "2025-12-13T10:43:14.707212+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 30,
+          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
+          "prereqs": []
+        },
+        {
+          "title": "Delegation of Control in AD DS on Windows Server",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/delegation-of-control-in-ad-ds-on-windows-server",
+          "tags": [
+            "delegation of control",
+            "active directory",
+            "windows server",
+            "permissions"
+          ],
+          "description": "This official Microsoft guide provides a detailed explanation of delegation of control in Active Directory Domain Services. It outlines the prerequisites and provides step-by-step instructions on how to use the Delegation of Control Wizard to assign administrative tasks.",
+          "retrieved_at": "2025-12-13T10:43:14.707226+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 30,
+          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
+          "prereqs": []
+        },
+        {
+          "title": "Delegate Control in Active Directory (Step-by-Step Guide)",
+          "provider": "Active Directory Pro",
+          "type": "tutorial",
+          "estimated_hours": 1.0,
+          "difficulty": "foundational",
+          "url": "https://activedirectorypro.com/delegate-control-in-active-directory/",
+          "tags": [
+            "delegation",
+            "active directory",
+            "how-to",
+            "permissions",
+            "organizational units"
+          ],
+          "description": "A detailed, step-by-step written tutorial that demonstrates how to use the delegation of control wizard for common scenarios like resetting passwords, modifying group memberships, and managing computer accounts. It also includes best practices for OU design.",
+          "retrieved_at": "2025-12-13T10:43:14.707231+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 60,
+          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
+          "prereqs": []
+        },
+        {
+          "title": "70-742 Lab 3, Creating and Managing Active Directory Groups and Organizational Units OUs",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.75,
+          "difficulty": "intermediate",
+          "url": "https://www.youtube.com/watch?v=k-v-g2k8a8c",
+          "tags": [
+            "lab",
+            "hands-on",
+            "organizational units",
+            "delegation",
+            "active directory"
+          ],
+          "description": "This video lab walks through creating and managing OUs and groups in Active Directory. A key part of the lab is a practical exercise on using OUs to delegate administrative tasks with the Delegation of Control wizard.",
+          "retrieved_at": "2025-12-13T10:43:14.707234+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 45,
+          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
+          "prereqs": []
+        },
+        {
+          "title": "Administer Active Directory Domain Services",
+          "provider": "Microsoft Learn",
+          "type": "course",
+          "estimated_hours": 4.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/training/paths/administer-active-directory-domain-services/",
+          "tags": [
+            "active directory",
+            "course",
+            "administration",
+            "organizational units",
+            "delegation"
+          ],
+          "description": "A comprehensive learning path from Microsoft that covers the creation, deployment, and maintenance of an Active Directory environment. It includes specific modules on defining organizational units and delegating permissions to manage AD objects.",
+          "retrieved_at": "2025-12-13T10:43:14.707236+00:00",
+          "resource_type": "course",
+          "estimated_minutes": 240,
+          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T10:43:14.707279+00:00"
+    },
+    {
+      "subdomain": "Active Directory Group Types and Scopes",
+      "domain": "Active Directory",
+      "resources": [
+        {
+          "title": "Active Directory Security Groups",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-groups",
+          "tags": [
+            "security groups",
+            "group scope",
+            "group types",
+            "ad ds"
+          ],
+          "description": "Official Microsoft documentation explaining the fundamentals of Active Directory security groups. It details the two group types (Security and Distribution) and the three group scopes (Universal, Global, and Domain Local).",
+          "retrieved_at": "2025-12-13T10:43:31.792551+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Group Types and Scopes",
+          "prereqs": []
+        },
+        {
+          "title": "70-742 Lab 3, Creating and Managing Active Directory Groups and Organizational Units OUs",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://www.youtube.com/watch?v=1F2l-y26a-M",
+          "tags": [
+            "active directory",
+            "lab",
+            "group management",
+            "organizational units",
+            "hands-on"
+          ],
+          "description": "A detailed, step-by-step lab video that walks through creating and managing Active Directory groups and Organizational Units (OUs). The lab covers creating different group scopes and delegating management tasks.",
+          "retrieved_at": "2025-12-13T10:43:31.792565+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Group Types and Scopes",
+          "prereqs": []
+        },
+        {
+          "title": "\"Group Types & Group Scopes\" in Active Directory",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.3,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=2njo0u_66yI",
+          "tags": [
+            "group types",
+            "group scopes",
+            "security groups",
+            "distribution groups",
+            "tutorial"
+          ],
+          "description": "A concise video tutorial that clearly explains the differences between Security and Distribution groups, and details the three group scopes: Domain Local, Global, and Universal, including when to use each.",
+          "retrieved_at": "2025-12-13T10:43:31.792568+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 18,
+          "source_subdomain": "Active Directory Group Types and Scopes",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory Groups Tutorial",
+          "provider": "Server Academy",
+          "type": "tutorial",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.serveracademy.com/courses/active-directory-groups-tutorial/",
+          "tags": [
+            "active directory",
+            "groups",
+            "tutorial",
+            "group scope",
+            "group type"
+          ],
+          "description": "A written, step-by-step tutorial on creating and understanding Active Directory groups. It covers the creation process, group types (Security vs. Distribution), and provides a simple breakdown of group scopes (Domain Local, Global, Universal).",
+          "retrieved_at": "2025-12-13T10:43:31.792571+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Group Types and Scopes",
+          "prereqs": []
+        },
+        {
+          "title": "Manage users and groups",
+          "provider": "Microsoft Learn",
+          "type": "course",
+          "estimated_hours": 0.3,
+          "difficulty": "foundational",
+          "url": "https://learn.microsoft.com/en-us/training/modules/manage-users-groups/",
+          "tags": [
+            "active directory",
+            "user management",
+            "group management",
+            "microsoft learn"
+          ],
+          "description": "A short, introductory Microsoft Learn module that covers the basics of managing users and groups in Active Directory. It includes descriptions of Distribution and Security groups as part of its learning objectives.",
+          "retrieved_at": "2025-12-13T10:43:31.792574+00:00",
+          "resource_type": "course",
+          "estimated_minutes": 18,
+          "source_subdomain": "Active Directory Group Types and Scopes",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T10:43:31.792656+00:00"
+    },
+    {
+      "subdomain": "Active Directory Domain Controllers and FSMO Roles",
+      "domain": "Active Directory",
+      "resources": [
+        {
+          "title": "Active Directory Flexible Single Master Operation (FSMO) roles in Windows",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/fsmo-roles",
+          "tags": [
+            "fsmo",
+            "operations master",
+            "active directory",
+            "domain controller",
+            "schema master",
+            "rid master",
+            "pdc emulator",
+            "infrastructure master",
+            "domain naming master"
+          ],
+          "description": "Official Microsoft documentation detailing the five FSMO roles in Active Directory. It explains the purpose of each role, covering both forest-wide and domain-wide operations masters.",
+          "retrieved_at": "2025-12-13T10:43:45.018385+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
+          "prereqs": []
+        },
+        {
+          "title": "Manage AD DS domain controllers and FSMO roles",
+          "provider": "Microsoft Learn",
+          "type": "course",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/training/modules/manage-ad-ds-domain-controllers-fsmo-roles/",
+          "tags": [
+            "fsmo",
+            "active directory",
+            "domain controller",
+            "az-800",
+            "windows server",
+            "operations master"
+          ],
+          "description": "A structured learning module from Microsoft that covers essential management and maintenance tasks for AD DS domain controllers, including deployment, backup, recovery, and managing the five FSMO roles. This module is part of the AZ-800 certification path.",
+          "retrieved_at": "2025-12-13T10:43:45.018399+00:00",
+          "resource_type": "course",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
+          "prereqs": []
+        },
+        {
+          "title": "How to Transfer FSMO Roles (2 Easy Steps)",
+          "provider": "Active Directory Pro",
+          "type": "tutorial",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://activedirectorypro.com/transfer-fsmo-roles/",
+          "tags": [
+            "fsmo",
+            "powershell",
+            "gui",
+            "active directory",
+            "domain controller",
+            "transfer roles"
+          ],
+          "description": "A step-by-step tutorial that demonstrates how to transfer FSMO roles using both PowerShell and the Active Directory GUI tools. This guide is practical for administrators needing to perform maintenance or decommission a domain controller.",
+          "retrieved_at": "2025-12-13T10:43:45.018404+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
+          "prereqs": []
+        },
+        {
+          "title": "AZ-800: Manage AD DS Domain Controllers and FSMO Roles",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.75,
+          "difficulty": "intermediate",
+          "url": "https://www.youtube.com/watch?v=XbY33-P-g_s",
+          "tags": [
+            "fsmo",
+            "az-800",
+            "video tutorial",
+            "active directory",
+            "domain controller",
+            "windows server"
+          ],
+          "description": "A detailed video tutorial that covers the concepts of managing Active Directory Domain Controllers and FSMO roles, aligning with the Microsoft AZ-800 exam. The video explains each role and demonstrates how to transfer or seize them.",
+          "retrieved_at": "2025-12-13T10:43:45.018407+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 45,
+          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T10:43:45.018515+00:00"
+    },
+    {
+      "subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+      "domain": "Active Directory",
+      "resources": [
+        {
+          "title": "Kerberos authentication in Windows Server",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview",
+          "tags": [
+            "kerberos",
+            "active directory",
+            "authentication",
+            "windows server",
+            "security"
+          ],
+          "description": "Official Microsoft documentation providing a comprehensive overview of the Kerberos version 5 authentication protocol implementation in Windows Server. It covers the primary security features, benefits like single sign-on (SSO) and delegated authentication, and how it's integrated with Active Directory Domain Services.",
+          "retrieved_at": "2025-12-13T10:43:57.139917+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+          "prereqs": []
+        },
+        {
+          "title": "HowTo Configure Active Directory for Kerberos Authentication",
+          "provider": "Micro Focus",
+          "type": "video",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://www.youtube.com/watch?v=g-yQc3lq-8Q",
+          "tags": [
+            "kerberos",
+            "active directory",
+            "configuration",
+            "tutorial",
+            "video"
+          ],
+          "description": "A step-by-step video tutorial that walks through the process of configuring Active Directory for Kerberos authentication. It covers creating the necessary user accounts and setting Service Principal Names (SPNs) using PowerShell, which is essential for services to be authenticated via Kerberos.",
+          "retrieved_at": "2025-12-13T10:43:57.139930+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory Exploitation Labs",
+          "provider": "Pluralsight",
+          "type": "lab",
+          "estimated_hours": 4.5,
+          "difficulty": "advanced",
+          "url": "https://www.pluralsight.com/paths/active-directory-exploitation",
+          "tags": [
+            "active directory",
+            "kerberos",
+            "security",
+            "penetration testing",
+            "labs"
+          ],
+          "description": "A hands-on learning path focused on the security aspects of Active Directory. While covering broader exploitation techniques, it includes specific labs like 'Kerberoasting with Rubeus' that provide practical experience with Kerberos-based attacks and vulnerabilities in a controlled lab environment.",
+          "retrieved_at": "2025-12-13T10:43:57.139935+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 270,
+          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+          "prereqs": []
+        },
+        {
+          "title": "Managing and Maintaining Windows Server 2019 Active Directory Domain Services",
+          "provider": "Pluralsight",
+          "type": "course",
+          "estimated_hours": 2.5,
+          "difficulty": "intermediate",
+          "url": "https://www.pluralsight.com/courses/managing-maintaining-windows-server-2019-active-directory-domain-services",
+          "tags": [
+            "active directory",
+            "windows server 2019",
+            "kerberos",
+            "administration",
+            "course"
+          ],
+          "description": "This course covers the essential skills for maintaining an Active Directory environment. A specific module, 'Configuring Service Authentication and Account Policies', delves into managing Service Principal Names (SPNs), Kerberos policy settings, and Kerberos constrained delegation.",
+          "retrieved_at": "2025-12-13T10:43:57.139938+00:00",
+          "resource_type": "course",
+          "estimated_minutes": 150,
+          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T10:43:57.140023+00:00"
     }
   ]
 }
