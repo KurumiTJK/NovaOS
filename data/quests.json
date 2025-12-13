@@ -1,1 +1,248 @@
-{}
+{
+  "test": {
+    "id": "test",
+    "title": "test",
+    "subtitle": null,
+    "description": "active directory",
+    "category": "test",
+    "module_id": "Cybersecurity",
+    "skill_tree_path": "test.test",
+    "difficulty": 3,
+    "estimated_minutes": 15,
+    "tags": [],
+    "steps": [
+      {
+        "id": "day-01",
+        "type": "info",
+        "prompt": "Learn about Active Directory Logical Structure: Forests, Trees, Domains, and OUs and understand: Active Directory Domain Services (AD DS) is a distributed database storing network resources and app.",
+        "title": "Active Directory Logical Structure: Forests, Trees, Domains, and OUs",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Understanding the Active Directory Logical Model - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model (5 min)\n   Key concepts to note:\n   • Active Directory Domain Services (AD DS) is a distributed database storing network resources and app-specific data\n   • Logical model organizes network elements into forest > domains > OUs, independent of physical topology\n   • A forest is one or more domains sharing schema, configuration, and a global catalog",
+          "Practice: Follow along with a basic Active Directory Logical Structure: Forests, Trees, Domains, and OUs configuration example (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Logical Structure: Forests, Trees, Domains, and OUs to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-02",
+        "type": "info",
+        "prompt": "Learn the fundamentals of Active Directory Objects, Attributes, and Naming Standards and practice with a small exercise.",
+        "title": "Active Directory Objects, Attributes, and Naming Standards",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read/skim: Naming conventions in Active Directory for computers, domains, sites, and OUs (20 min)",
+          "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Objects, Attributes, and Naming Standards to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-03",
+        "type": "info",
+        "prompt": "Learn about Active Directory Domain Controllers and Replication Topology and understand: Concept: A connection object represents an inbound replication link from a source domain controller .",
+        "title": "Active Directory Domain Controllers and Replication Topology",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Active Directory Replication Concepts - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/replication/active-directory-replication-concepts (11 min)\n   Key concepts to note:\n   • Concept: A connection object represents an inbound replication link from a source domain controller to a destination DC\n   • Concept: The KCC runs on every DC and automatically generates and adjusts replication topology forest-wide\n   • Concept: Intrasite replication uses a bidirectional ring with shortcut links; intersite uses layered spanning trees per partition",
+          "Practice: Try 2-3 of the commands mentioned in the Active Directory Domain Controllers and Replication Topology documentation (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Domain Controllers and Replication Topology to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-04",
+        "type": "info",
+        "prompt": "Learn about Active Directory Authentication and Kerberos within a Domain and understand: Kerberos is the primary authentication protocol in Windows Server for verifying user and host identi.",
+        "title": "Active Directory Authentication and Kerberos within a Domain",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Kerberos authentication in Windows Server - https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview (5 min)\n   Key concepts to note:\n   • Kerberos is the primary authentication protocol in Windows Server for verifying user and host identity\n   • Windows implements Kerberos v5 with Microsoft extensions for public-key auth, authorization data, and delegation\n   • The Key Distribution Center (KDC) runs on domain controllers and uses Active Directory as its account database",
+          "Practice: Try 2-3 of the commands mentioned in the Active Directory Authentication and Kerberos within a Domain documentation (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Authentication and Kerberos within a Domain to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-05",
+        "type": "info",
+        "prompt": "Learn the fundamentals of Active Directory Group Policy Objects: Scope, Linking, and Processing Order and practice with a small exercise.",
+        "title": "Active Directory Group Policy Objects: Scope, Linking, and Processing Order",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read/skim: Group Policy processing and precedence in Windows (20 min)",
+          "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Group Policy Objects: Scope, Linking, and Processing Order to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-06",
+        "type": "boss",
+        "prompt": "Put your Active Directory knowledge together with a practical challenge.",
+        "title": "BOSS: Active Directory Synthesis",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Quick review: Skim your notes from previous Active Directory days. What are the key concepts?",
+          "Mini-scenario: Design a simple AD structure for a company with 3 departments. Show: OUs, one GPO per department, and delegation for helpdesk",
+          "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+        ]
+      }
+    ],
+    "rewards": {
+      "xp": 30,
+      "titles": [],
+      "shortcuts": [],
+      "visual_unlock": null
+    },
+    "created_at": "2025-12-13T12:23:34.780491+00:00"
+  },
+  "test1": {
+    "id": "test1",
+    "title": "test1",
+    "subtitle": null,
+    "description": "active directory",
+    "category": "test1",
+    "module_id": "Cybersecurity",
+    "skill_tree_path": "test1.test1",
+    "difficulty": 3,
+    "estimated_minutes": 15,
+    "tags": [],
+    "steps": [
+      {
+        "id": "day-01",
+        "type": "info",
+        "prompt": "Learn about Active Directory Logical Structure: Forests, Trees, and Domains and understand: A forest is a top-level container of one or more domains sharing schema, configuration, and a global.",
+        "title": "Active Directory Logical Structure: Forests, Trees, and Domains",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Understanding the Active Directory Logical Model - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model (5 min)\n   Key concepts to note:\n   • A forest is a top-level container of one or more domains sharing schema, configuration, and a global catalog\n   • Domains in the same forest are linked by automatic two-way, transitive trust relationships\n   • A domain is a partition that stores user accounts, provides authentication, replication, and authorization data",
+          "Practice: Follow along with a basic Active Directory Logical Structure: Forests, Trees, and Domains configuration example (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Logical Structure: Forests, Trees, and Domains to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-03",
+        "type": "info",
+        "prompt": "Learn about Organizational Units and Delegation of Control in Active Directory and understand: OUs let you delegate administration of user and computer objects to specific people or groups.",
+        "title": "Organizational Units and Delegation of Control in Active Directory",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Delegating Administration by Using OU Objects - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegating-administration-by-using-ou-objects (5 min)\n   Key concepts to note:\n   • OUs let you delegate administration of user and computer objects to specific people or groups\n   • Delegation: put admins in a group, place objects in an OU, then delegate OU tasks to that group\n   • AD DS supports granular delegation: full control, create/delete/manage accounts, or only reset passwords",
+          "Practice: Follow along with a basic Organizational Units and Delegation of Control in Active Directory configuration example (15 min)",
+          "Self-test: Without looking at notes, explain Organizational Units and Delegation of Control in Active Directory to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-02",
+        "type": "info",
+        "prompt": "Learn about Active Directory Objects and Attributes: Users, Computers, and Groups and understand: cn is the group's Common-Name, its relative distinguished name, and must be unique among sibling obj.",
+        "title": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Group Objects - https://learn.microsoft.com/en-us/windows/win32/ad/group-objects (6 min)\n   Key concepts to note:\n   • cn is the group's Common-Name, its relative distinguished name, and must be unique among sibling objects\n   • member is a multi-valued attribute of DNs; items are linked references AD updates on move/rename\n   • groupType is an integer bitmask indicating scope (domain local/global/universal) and security flag",
+          "Practice: Review a sample Active Directory Objects and Attributes: Users, Computers, and Groups policy and identify what it allows/denies (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Objects and Attributes: Users, Computers, and Groups to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-04",
+        "type": "info",
+        "prompt": "Learn about Active Directory Group Types and Scope Management and understand: Security groups collect user accounts, computer accounts, and other groups into manageable units.",
+        "title": "Active Directory Group Types and Scope Management",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Active Directory Security Groups - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-groups (11 min)\n   Key concepts to note:\n   • Security groups collect user accounts, computer accounts, and other groups into manageable units\n   • Active Directory group types: Security groups and Distribution groups\n   • Security groups assign permissions and user rights to resources and users",
+          "Practice: Follow along with a basic Active Directory Group Types and Scope Management configuration example (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Group Types and Scope Management to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-05",
+        "type": "info",
+        "prompt": "Learn about Active Directory Authentication and Kerberos Ticketing and understand: Kerberos is an authentication protocol used to verify user or host identities in Windows domains.",
+        "title": "Active Directory Authentication and Kerberos Ticketing",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Read: Kerberos authentication overview - https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview (5 min)\n   Key concepts to note:\n   • Kerberos is an authentication protocol used to verify user or host identities in Windows domains\n   • Windows implements Kerberos V5 plus extensions for public-key authentication, authz data transport, and delegation\n   • The Kerberos client is a Security Support Provider (SSP) accessed through the Security Support Provider Interface (SSPI)",
+          "Practice: Try 2-3 of the commands mentioned in the Active Directory Authentication and Kerberos Ticketing documentation (15 min)",
+          "Self-test: Without looking at notes, explain Active Directory Authentication and Kerberos Ticketing to an imaginary coworker in 2-3 sentences (5 min)"
+        ]
+      },
+      {
+        "id": "day-06",
+        "type": "boss",
+        "prompt": "Put your Active Directory knowledge together with a practical challenge.",
+        "title": "BOSS: Active Directory Synthesis",
+        "help_text": null,
+        "skill_focus": null,
+        "difficulty": 1,
+        "min_reflection_chars": null,
+        "validation": null,
+        "passing_threshold": 0.7,
+        "actions": [
+          "Quick review: Skim your notes from previous Active Directory days. What are the key concepts?",
+          "Mini-scenario: Design a simple AD structure for a company with 3 departments. Show: OUs, one GPO per department, and delegation for helpdesk",
+          "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+        ]
+      }
+    ],
+    "rewards": {
+      "xp": 30,
+      "titles": [],
+      "shortcuts": [],
+      "visual_unlock": null
+    },
+    "created_at": "2025-12-13T12:33:12.064408+00:00"
+  }
+}

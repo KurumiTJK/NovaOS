@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "generated_at": "2025-12-13T10:43:57.233905+00:00",
+  "generated_at": "2025-12-13T12:32:54.457283+00:00",
   "packs": [
     {
       "subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
@@ -15,259 +15,237 @@
           "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model",
           "tags": [
             "active directory",
-            "forests",
-            "domains",
+            "forest",
+            "domain",
             "logical structure",
             "ad ds"
           ],
-          "description": "Official Microsoft documentation explaining the Active Directory logical model. It covers the core components including forests, domains, and organizational units (OUs), and how they form a hierarchical structure for managing network resources.",
-          "retrieved_at": "2025-12-13T10:42:48.950154+00:00",
+          "description": "Official Microsoft documentation explaining the core components of the Active Directory logical model. It defines forests, domains, and organizational units (OUs) and how they form a hierarchical containment structure for network objects.",
+          "retrieved_at": "2025-12-13T12:28:48.946030+00:00",
           "resource_type": "official_docs",
           "estimated_minutes": 60,
           "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         },
         {
-          "title": "Set Up a New Active Directory Forest and Domain on Windows Server",
-          "provider": "The Tech Blacksmith - YouTube",
-          "type": "video",
-          "estimated_hours": 0.5,
+          "title": "Active Directory Lab Setup (Part 1) - Forest Installation",
+          "provider": "RootDSE",
+          "type": "tutorial",
+          "estimated_hours": 2.5,
           "difficulty": "intermediate",
-          "url": "https://www.youtube.com/watch?v=jGk42a-aI3c",
+          "url": "https://rootdse.org/posts/active-directory-lab-setup-part1/",
           "tags": [
             "active directory",
+            "lab setup",
+            "hands-on",
             "windows server",
-            "domain controller",
-            "forest",
-            "domain",
-            "hands-on"
+            "forest"
           ],
-          "description": "A step-by-step video tutorial that walks through the entire process of creating a new Active Directory forest and domain on Windows Server. This practical guide covers OS preparation, promotion to a domain controller, and post-promotion verification.",
-          "retrieved_at": "2025-12-13T10:42:48.950171+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
-          "prereqs": []
-        },
-        {
-          "title": "Active Directory Basics Virtual Lab",
-          "provider": "Cybrary",
-          "type": "lab",
-          "estimated_hours": 1.0,
-          "difficulty": "foundational",
-          "url": "https://www.cybrary.it/lab/active-directory-basics/",
-          "tags": [
-            "active directory",
-            "domain controller",
-            "users",
-            "groups",
-            "hands-on"
-          ],
-          "description": "A hands-on virtual lab where you can practice configuring a Domain Controller and using Active Directory to manage users and groups. This is a practical exercise to reinforce foundational concepts.",
-          "retrieved_at": "2025-12-13T10:42:48.950177+00:00",
+          "description": "A detailed, step-by-step tutorial on how to set up a complete Active Directory lab environment from scratch. This guide covers creating the forest root domain, which is a perfect hands-on exercise for understanding the foundational logical component of AD.",
+          "retrieved_at": "2025-12-13T12:28:48.946043+00:00",
           "resource_type": "hands_on",
-          "estimated_minutes": 60,
+          "estimated_minutes": 150,
           "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         },
         {
-          "title": "Active Directory structure | active directory tutorial",
-          "provider": "Abe the Techie - YouTube",
+          "title": "Forest, Tree, and Domain in Active Directory | Windows Server 2025",
+          "provider": "YouTube",
           "type": "video",
           "estimated_hours": 0.25,
           "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=sW0-w20Qk0s",
+          "url": "https://www.youtube.com/watch?v=k24C0g-B-5c",
           "tags": [
             "active directory",
-            "logical structure",
-            "physical structure",
-            "domains",
-            "forests"
+            "forest",
+            "tree",
+            "domain",
+            "video tutorial",
+            "windows server"
           ],
-          "description": "A concise video explaining both the logical and physical structures of Active Directory. It clearly defines objects, organizational units, domains, trees, and forests in a beginner-friendly format.",
-          "retrieved_at": "2025-12-13T10:42:48.950181+00:00",
+          "description": "A short, concise video tutorial that uses real-world analogies to explain the core logical structures of Active Directory: forests, trees, and domains. It's an excellent resource for beginners to quickly grasp these foundational concepts.",
+          "retrieved_at": "2025-12-13T12:28:48.946048+00:00",
           "resource_type": "video",
           "estimated_minutes": 15,
           "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         },
         {
-          "title": "Active Directory Forest: What it is and best practices for managing it",
-          "provider": "Quest",
-          "type": "guide",
-          "estimated_hours": 0.5,
-          "difficulty": "foundational",
-          "url": "https://www.quest.com/solutions/active-directory/active-directory-forest.aspx",
+          "title": "AD DS Design and Planning",
+          "provider": "Microsoft Learn",
+          "type": "course",
+          "estimated_hours": 3.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/ad-ds-design-and-planning",
           "tags": [
             "active directory",
-            "forest",
-            "domain",
-            "tree",
-            "best practices"
+            "design",
+            "planning",
+            "logical structure",
+            "site topology"
           ],
-          "description": "A well-structured article that defines and differentiates the main tiers of Active Directory: domains, trees, and forests. It also explains their purpose, with the domain as a management boundary and the forest as a security boundary.",
-          "retrieved_at": "2025-12-13T10:42:48.950184+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 30,
+          "description": "A comprehensive guide from Microsoft for infrastructure specialists and system architects on how to design and plan an Active Directory Domain Services deployment. This resource covers designing the logical structure in depth.",
+          "retrieved_at": "2025-12-13T12:28:48.946051+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 180,
+          "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
+          "prereqs": []
+        },
+        {
+          "title": "Windows Server Administration Concepts: Active Directory",
+          "provider": "Pluralsight",
+          "type": "course",
+          "estimated_hours": 2.0,
+          "difficulty": "foundational",
+          "url": "https://www.pluralsight.com/courses/windows-server-administration-concepts-active-directory",
+          "tags": [
+            "active directory",
+            "windows server",
+            "user management",
+            "group policy",
+            "course"
+          ],
+          "description": "This Pluralsight course provides a solid introduction to Active Directory concepts. It covers the different components of an AD infrastructure, how to manage organizational units, users, and groups, and how to centrally manage them using group policies.",
+          "retrieved_at": "2025-12-13T12:28:48.946053+00:00",
+          "resource_type": "course",
+          "estimated_minutes": 120,
           "source_subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T10:42:48.950238+00:00"
+      "retrieved_at": "2025-12-13T12:28:48.946098+00:00"
     },
     {
-      "subdomain": "Active Directory Objects and Attributes",
+      "subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
       "domain": "Active Directory",
       "resources": [
         {
-          "title": "Active Directory Schema (AD Schema)",
+          "title": "Manage User Accounts with Active Directory Users and Computers in Windows Server",
           "provider": "Microsoft Learn",
           "type": "documentation",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/windows/win32/adschema/active-directory-schema",
-          "tags": [
-            "active directory",
-            "schema",
-            "objects",
-            "attributes",
-            "classes"
-          ],
-          "description": "Official Microsoft documentation detailing the Active Directory schema. It provides formal definitions of every object class and attribute that can be created in an Active Directory forest.",
-          "retrieved_at": "2025-12-13T10:43:01.342607+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 120,
-          "source_subdomain": "Active Directory Objects and Attributes",
-          "prereqs": []
-        },
-        {
-          "title": "Introduction to AD DS",
-          "provider": "Microsoft Learn",
-          "type": "course",
           "estimated_hours": 1.0,
           "difficulty": "foundational",
-          "url": "https://learn.microsoft.com/en-us/training/modules/introduction-to-ad-ds/",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/manage-user-accounts-with-active-directory-users-and-computers-in-windows-server",
           "tags": [
             "active directory",
-            "ad ds",
-            "objects",
             "users",
             "groups",
-            "ous"
+            "aduc",
+            "windows server"
           ],
-          "description": "This Microsoft Learn module covers the fundamentals of Active Directory Domain Services (AD DS), including users, groups, computers, organizational units (OUs), and how to manage these objects and their properties.",
-          "retrieved_at": "2025-12-13T10:43:01.342619+00:00",
-          "resource_type": "course",
+          "description": "Official Microsoft documentation on how to create, delete, and manage user accounts and their properties, including group memberships and password management, using the Active Directory Users and Computers console.",
+          "retrieved_at": "2025-12-13T12:29:04.399752+00:00",
+          "resource_type": "official_docs",
           "estimated_minutes": 60,
-          "source_subdomain": "Active Directory Objects and Attributes",
+          "source_subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
           "prereqs": []
         },
         {
-          "title": "Active Directory Lab: Creating OUs, Users, Groups & Computers",
-          "provider": "Global IT PROS",
+          "title": "Group Objects",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows/win32/ad/group-objects",
+          "tags": [
+            "active directory",
+            "groups",
+            "attributes",
+            "schema"
+          ],
+          "description": "Detailed official documentation from Microsoft describing group objects in Active Directory. It covers important attributes like cn, member, groupType, and memberOf, as well as group types and scopes.",
+          "retrieved_at": "2025-12-13T12:29:04.399765+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory Lab: Creating OUs, Users, Groups & Computers (Step-by-Step Tutorial)",
+          "provider": "Global IT Professionals (YouTube)",
           "type": "video",
           "estimated_hours": 0.5,
           "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=2-pr8a_DrI4",
+          "url": "https://www.youtube.com/watch?v=f-29E2nU5sE",
           "tags": [
             "active directory",
             "lab",
             "tutorial",
             "users",
             "groups",
-            "ous",
-            "computers"
+            "computers",
+            "ous"
           ],
-          "description": "A step-by-step video tutorial demonstrating how to create and manage essential Active Directory objects like Organizational Units (OUs), users, groups, and computer accounts in a lab environment.",
-          "retrieved_at": "2025-12-13T10:43:01.342623+00:00",
+          "description": "A step-by-step video tutorial that provides a hands-on lab experience for creating and managing essential Active Directory objects, including Organizational Units (OUs), users, security groups, and computer accounts using the ADUC console.",
+          "retrieved_at": "2025-12-13T12:29:04.399769+00:00",
           "resource_type": "hands_on",
           "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Objects and Attributes",
+          "source_subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
           "prereqs": []
         },
         {
-          "title": "All Attributes",
-          "provider": "Microsoft Learn",
-          "type": "reference",
-          "estimated_hours": 3.0,
-          "difficulty": "advanced",
-          "url": "https://learn.microsoft.com/en-us/windows/win32/adschema/attributes-all",
+          "title": "Create, manage, and delete users and groups in Active Directory",
+          "provider": "Rackspace Technology",
+          "type": "tutorial",
+          "estimated_hours": 0.75,
+          "difficulty": "foundational",
+          "url": "https://docs.rackspace.com/support/how-to/create-manage-and-delete-users-and-groups-in-active-directory/",
           "tags": [
             "active directory",
-            "attributes",
-            "schema",
-            "reference"
+            "users",
+            "groups",
+            "management",
+            "tutorial"
           ],
-          "description": "A comprehensive reference list from Microsoft of all attributes defined by Active Directory. This is a valuable resource for administrators and developers needing detailed information on specific attributes.",
-          "retrieved_at": "2025-12-13T10:43:01.342626+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 180,
-          "source_subdomain": "Active Directory Objects and Attributes",
+          "description": "A clear, step-by-step written tutorial that guides you through the process of creating, managing the properties of, and deleting user and group objects within Active Directory.",
+          "retrieved_at": "2025-12-13T12:29:04.399772+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 45,
+          "source_subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
           "prereqs": []
         },
         {
-          "title": "How to View and Change Active Directory Object Attributes",
-          "provider": "TechCrafters",
-          "type": "tutorial",
+          "title": "Active Directory Attributes List",
+          "provider": "SecureAuth",
+          "type": "reference",
           "estimated_hours": 0.5,
           "difficulty": "intermediate",
-          "url": "https://techcrafters.com/active-directory-object-attributes/",
+          "url": "https://docs.secureauth.com/display/KBA/Active+Directory+Attributes+List",
           "tags": [
             "active directory",
             "attributes",
-            "adsi edit",
-            "powershell",
-            "aduc"
+            "reference",
+            "schema"
           ],
-          "description": "A written, step-by-step guide that explains how to view and modify the attributes of an Active Directory object using various tools like ADSI Edit, Active Directory Users and Computers (ADUC) with Advanced Features enabled, and PowerShell.",
-          "retrieved_at": "2025-12-13T10:43:01.342628+00:00",
+          "description": "A reference guide that lists common Active Directory attributes with their friendly names (as seen in ADUC) and their actual attribute names (LDAP display names). This is useful for understanding the data stored for each object.",
+          "retrieved_at": "2025-12-13T12:29:04.399788+00:00",
           "resource_type": "tutorial",
           "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Objects and Attributes",
+          "source_subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T10:43:01.342696+00:00"
+      "retrieved_at": "2025-12-13T12:29:04.399836+00:00"
     },
     {
       "subdomain": "Organizational Units and Delegation of Control in Active Directory",
       "domain": "Active Directory",
       "resources": [
         {
-          "title": "Delegating Administration by Using OU Objects",
-          "provider": "Microsoft Learn",
-          "type": "documentation",
-          "estimated_hours": 0.5,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegating-administration-by-using-ou-objects",
-          "tags": [
-            "organizational units",
-            "delegation",
-            "active directory",
-            "permissions"
-          ],
-          "description": "Official Microsoft documentation explaining how to use organizational units (OUs) to delegate the administration of objects like users and computers. It covers the principles of delegation and why OUs are used for this purpose.",
-          "retrieved_at": "2025-12-13T10:43:14.707212+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 30,
-          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
-          "prereqs": []
-        },
-        {
           "title": "Delegation of Control in AD DS on Windows Server",
           "provider": "Microsoft Learn",
           "type": "documentation",
           "estimated_hours": 0.5,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/delegation-of-control-in-ad-ds-on-windows-server",
+          "difficulty": "foundational",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegation-of-control-in-ad-ds",
           "tags": [
-            "delegation of control",
             "active directory",
-            "windows server",
-            "permissions"
+            "delegation of control",
+            "organizational units",
+            "windows server"
           ],
-          "description": "This official Microsoft guide provides a detailed explanation of delegation of control in Active Directory Domain Services. It outlines the prerequisites and provides step-by-step instructions on how to use the Delegation of Control Wizard to assign administrative tasks.",
-          "retrieved_at": "2025-12-13T10:43:14.707226+00:00",
+          "description": "Official Microsoft documentation explaining the concept of delegation of control in Active Directory Domain Services. It covers why delegation is used, how it works with Organizational Units (OUs), and lists the common tasks that can be delegated using the Delegation of Control Wizard.",
+          "retrieved_at": "2025-12-13T12:29:19.567105+00:00",
           "resource_type": "official_docs",
           "estimated_minutes": 30,
           "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
@@ -278,17 +256,17 @@
           "provider": "Active Directory Pro",
           "type": "tutorial",
           "estimated_hours": 1.0,
-          "difficulty": "foundational",
-          "url": "https://activedirectorypro.com/delegate-control-in-active-directory/",
+          "difficulty": "intermediate",
+          "url": "https://activedirectorypro.com/delegate-control-active-directory/",
           "tags": [
-            "delegation",
             "active directory",
+            "delegation of control",
+            "organizational units",
             "how-to",
-            "permissions",
-            "organizational units"
+            "best practices"
           ],
-          "description": "A detailed, step-by-step written tutorial that demonstrates how to use the delegation of control wizard for common scenarios like resetting passwords, modifying group memberships, and managing computer accounts. It also includes best practices for OU design.",
-          "retrieved_at": "2025-12-13T10:43:14.707231+00:00",
+          "description": "A detailed, step-by-step written tutorial with screenshots that walks through various scenarios for delegating control in Active Directory. It covers best practices for OU design and provides practical examples like delegating password resets and group membership modifications.",
+          "retrieved_at": "2025-12-13T12:29:19.567120+00:00",
           "resource_type": "tutorial",
           "estimated_minutes": 60,
           "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
@@ -300,343 +278,403 @@
           "type": "video",
           "estimated_hours": 0.75,
           "difficulty": "intermediate",
-          "url": "https://www.youtube.com/watch?v=k-v-g2k8a8c",
+          "url": "https://www.youtube.com/watch?v=kS-q83-k56Q",
           "tags": [
+            "active directory",
             "lab",
             "hands-on",
             "organizational units",
             "delegation",
-            "active directory"
+            "msca"
           ],
-          "description": "This video lab walks through creating and managing OUs and groups in Active Directory. A key part of the lab is a practical exercise on using OUs to delegate administrative tasks with the Delegation of Control wizard.",
-          "retrieved_at": "2025-12-13T10:43:14.707234+00:00",
+          "description": "A guided lab video that covers creating and managing OUs and groups. A key part of the lab is a hands-on exercise using the Delegation of Control Wizard to grant specific permissions to groups for managing objects within an OU.",
+          "retrieved_at": "2025-12-13T12:29:19.567126+00:00",
           "resource_type": "hands_on",
           "estimated_minutes": 45,
           "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
           "prereqs": []
         },
         {
-          "title": "Administer Active Directory Domain Services",
+          "title": "Delegating Administration by Using OU Objects",
           "provider": "Microsoft Learn",
-          "type": "course",
-          "estimated_hours": 4.0,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/training/paths/administer-active-directory-domain-services/",
+          "type": "documentation",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegating-administration-by-using-ou-objects",
           "tags": [
             "active directory",
-            "course",
-            "administration",
             "organizational units",
-            "delegation"
+            "delegation",
+            "administration",
+            "best practices"
           ],
-          "description": "A comprehensive learning path from Microsoft that covers the creation, deployment, and maintenance of an Active Directory environment. It includes specific modules on defining organizational units and delegating permissions to manage AD objects.",
-          "retrieved_at": "2025-12-13T10:43:14.707236+00:00",
-          "resource_type": "course",
-          "estimated_minutes": 240,
+          "description": "This official Microsoft document explains the strategy of using Organizational Units (OUs) to delegate administration. It details how to structure OUs for delegation, the types of permissions that can be assigned, and the importance of not modifying default containers.",
+          "retrieved_at": "2025-12-13T12:29:19.567131+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 30,
+          "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
+          "prereqs": []
+        },
+        {
+          "title": "Creating, Managing, and Delegating OUs in Active Directory",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=gT-dY-QSPfc",
+          "tags": [
+            "active directory",
+            "organizational units",
+            "delegation",
+            "tutorial",
+            "video"
+          ],
+          "description": "A concise video tutorial that demonstrates how to create, manage, and delete Organizational Units. It also provides a clear, practical walkthrough of using the Delegation of Control wizard to assign specific administrative tasks to a user for a particular OU.",
+          "retrieved_at": "2025-12-13T12:29:19.567134+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 30,
           "source_subdomain": "Organizational Units and Delegation of Control in Active Directory",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T10:43:14.707279+00:00"
+      "retrieved_at": "2025-12-13T12:29:19.567206+00:00"
     },
     {
-      "subdomain": "Active Directory Group Types and Scopes",
+      "subdomain": "Active Directory Group Types and Scope Management",
       "domain": "Active Directory",
       "resources": [
         {
           "title": "Active Directory Security Groups",
           "provider": "Microsoft Learn",
           "type": "documentation",
-          "estimated_hours": 0.5,
+          "estimated_hours": 1.0,
           "difficulty": "foundational",
           "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-groups",
           "tags": [
+            "active directory",
             "security groups",
             "group scope",
             "group types",
-            "ad ds"
+            "microsoft"
           ],
-          "description": "Official Microsoft documentation explaining the fundamentals of Active Directory security groups. It details the two group types (Security and Distribution) and the three group scopes (Universal, Global, and Domain Local).",
-          "retrieved_at": "2025-12-13T10:43:31.792551+00:00",
+          "description": "Official Microsoft documentation detailing Active Directory security groups. It explains the two types of groups (Security and Distribution) and the three group scopes (Universal, Global, and Domain Local), providing a foundational understanding of how they work and are applied in a domain or forest.",
+          "retrieved_at": "2025-12-13T12:29:39.632245+00:00",
           "resource_type": "official_docs",
-          "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Group Types and Scopes",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Group Types and Scope Management",
           "prereqs": []
         },
         {
-          "title": "70-742 Lab 3, Creating and Managing Active Directory Groups and Organizational Units OUs",
+          "title": "How to Create & Manage Active Directory Groups | Windows Server 2022",
           "provider": "YouTube",
           "type": "video",
           "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=1-4_sJ5-h8c",
+          "tags": [
+            "active directory",
+            "group management",
+            "windows server",
+            "gui",
+            "tutorial"
+          ],
+          "description": "A step-by-step video tutorial demonstrating how to create and manage groups in Active Directory using the 'Active Directory Users and Computers' tool on Windows Server 2022. The tutorial covers creating a new group, selecting its scope and type, adding members, and managing group properties.",
+          "retrieved_at": "2025-12-13T12:29:39.632261+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Group Types and Scope Management",
+          "prereqs": []
+        },
+        {
+          "title": "Managing Active Directory Groups with PowerShell: The Ultimate Guide",
+          "provider": "Adam the Automator",
+          "type": "tutorial",
+          "estimated_hours": 1.5,
           "difficulty": "intermediate",
-          "url": "https://www.youtube.com/watch?v=1F2l-y26a-M",
+          "url": "https://adamtheautomator.com/manage-active-directory-groups-powershell/",
+          "tags": [
+            "active directory",
+            "powershell",
+            "automation",
+            "group management",
+            "scripting"
+          ],
+          "description": "A comprehensive, hands-on tutorial for managing Active Directory groups using PowerShell. It covers querying, creating, modifying, and deleting groups, as well as managing memberships. This guide is ideal for administrators looking to automate group management tasks.",
+          "retrieved_at": "2025-12-13T12:29:39.632267+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 90,
+          "source_subdomain": "Active Directory Group Types and Scope Management",
+          "prereqs": []
+        },
+        {
+          "title": "Group Objects in Active Directory Domain Services",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 0.5,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows/win32/ad/group-objects",
+          "tags": [
+            "active directory",
+            "group objects",
+            "attributes",
+            "group types",
+            "group scope"
+          ],
+          "description": "This official Microsoft reference document provides a technical breakdown of group objects in Active Directory. It details the attributes of a group object, and provides clear tables explaining group types and the rules governing group scopes, including membership and conversion possibilities.",
+          "retrieved_at": "2025-12-13T12:29:39.632276+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Group Types and Scope Management",
+          "prereqs": []
+        },
+        {
+          "title": "Scopes of Active Directory Groups",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 1.0,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=l-JTu2a3a-E",
+          "tags": [
+            "active directory",
+            "group scope",
+            "domain local",
+            "global",
+            "universal"
+          ],
+          "description": "A detailed video explanation of Active Directory group scopes (Domain Local, Global, and Universal). The video covers the purpose of each scope, how they interact, and demonstrates the creation and nesting of groups across a forest, including assigning permissions to a shared folder.",
+          "retrieved_at": "2025-12-13T12:29:39.632281+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Group Types and Scope Management",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T12:29:39.632332+00:00"
+    },
+    {
+      "subdomain": "Active Directory Authentication and Kerberos Ticketing",
+      "domain": "Active Directory",
+      "resources": [
+        {
+          "title": "Kerberos authentication overview",
+          "provider": "Microsoft Learn",
+          "type": "guide",
+          "estimated_hours": 1.0,
+          "difficulty": "foundational",
+          "url": "https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview",
+          "tags": [
+            "kerberos",
+            "authentication",
+            "windows server",
+            "active directory"
+          ],
+          "description": "Official Microsoft documentation explaining the Kerberos version 5 authentication protocol implementation in Windows Server. It covers the benefits, practical applications like single sign-on (SSO) and delegation, and how it integrates with Active Directory Domain Services.",
+          "retrieved_at": "2025-12-13T12:29:53.011344+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Authentication and Kerberos Ticketing",
+          "prereqs": []
+        },
+        {
+          "title": "Building a Beginner Friendly Hands-on Active Directory Lab",
+          "provider": "Medium",
+          "type": "guide",
+          "estimated_hours": 4.0,
+          "difficulty": "intermediate",
+          "url": "https://medium.com/@carl.david.n/building-a-beginner-friendly-hands-on-active-directory-lab-e44333959143",
           "tags": [
             "active directory",
             "lab",
-            "group management",
-            "organizational units",
-            "hands-on"
+            "hands-on",
+            "kerberos",
+            "security"
           ],
-          "description": "A detailed, step-by-step lab video that walks through creating and managing Active Directory groups and Organizational Units (OUs). The lab covers creating different group scopes and delegating management tasks.",
-          "retrieved_at": "2025-12-13T10:43:31.792565+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Group Types and Scopes",
-          "prereqs": []
-        },
-        {
-          "title": "\"Group Types & Group Scopes\" in Active Directory",
-          "provider": "YouTube",
-          "type": "video",
-          "estimated_hours": 0.3,
-          "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=2njo0u_66yI",
-          "tags": [
-            "group types",
-            "group scopes",
-            "security groups",
-            "distribution groups",
-            "tutorial"
-          ],
-          "description": "A concise video tutorial that clearly explains the differences between Security and Distribution groups, and details the three group scopes: Domain Local, Global, and Universal, including when to use each.",
-          "retrieved_at": "2025-12-13T10:43:31.792568+00:00",
-          "resource_type": "video",
-          "estimated_minutes": 18,
-          "source_subdomain": "Active Directory Group Types and Scopes",
-          "prereqs": []
-        },
-        {
-          "title": "Active Directory Groups Tutorial",
-          "provider": "Server Academy",
-          "type": "tutorial",
-          "estimated_hours": 0.5,
-          "difficulty": "foundational",
-          "url": "https://www.serveracademy.com/courses/active-directory-groups-tutorial/",
-          "tags": [
-            "active directory",
-            "groups",
-            "tutorial",
-            "group scope",
-            "group type"
-          ],
-          "description": "A written, step-by-step tutorial on creating and understanding Active Directory groups. It covers the creation process, group types (Security vs. Distribution), and provides a simple breakdown of group scopes (Domain Local, Global, Universal).",
-          "retrieved_at": "2025-12-13T10:43:31.792571+00:00",
+          "description": "A detailed, step-by-step guide to building a complete Active Directory lab environment. The tutorial covers setting up a Domain Controller, client machines, and security tools. It includes sections on simulating and analyzing attacks like Kerberos ticket manipulation, providing practical, hands-on experience.",
+          "retrieved_at": "2025-12-13T12:29:53.011358+00:00",
           "resource_type": "tutorial",
-          "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Group Types and Scopes",
+          "estimated_minutes": 240,
+          "source_subdomain": "Active Directory Authentication and Kerberos Ticketing",
           "prereqs": []
         },
         {
-          "title": "Manage users and groups",
-          "provider": "Microsoft Learn",
-          "type": "course",
-          "estimated_hours": 0.3,
-          "difficulty": "foundational",
-          "url": "https://learn.microsoft.com/en-us/training/modules/manage-users-groups/",
-          "tags": [
-            "active directory",
-            "user management",
-            "group management",
-            "microsoft learn"
-          ],
-          "description": "A short, introductory Microsoft Learn module that covers the basics of managing users and groups in Active Directory. It includes descriptions of Distribution and Security groups as part of its learning objectives.",
-          "retrieved_at": "2025-12-13T10:43:31.792574+00:00",
-          "resource_type": "course",
-          "estimated_minutes": 18,
-          "source_subdomain": "Active Directory Group Types and Scopes",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T10:43:31.792656+00:00"
-    },
-    {
-      "subdomain": "Active Directory Domain Controllers and FSMO Roles",
-      "domain": "Active Directory",
-      "resources": [
-        {
-          "title": "Active Directory Flexible Single Master Operation (FSMO) roles in Windows",
-          "provider": "Microsoft Learn",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/identity/fsmo-roles",
-          "tags": [
-            "fsmo",
-            "operations master",
-            "active directory",
-            "domain controller",
-            "schema master",
-            "rid master",
-            "pdc emulator",
-            "infrastructure master",
-            "domain naming master"
-          ],
-          "description": "Official Microsoft documentation detailing the five FSMO roles in Active Directory. It explains the purpose of each role, covering both forest-wide and domain-wide operations masters.",
-          "retrieved_at": "2025-12-13T10:43:45.018385+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 60,
-          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
-          "prereqs": []
-        },
-        {
-          "title": "Manage AD DS domain controllers and FSMO roles",
-          "provider": "Microsoft Learn",
-          "type": "course",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/training/modules/manage-ad-ds-domain-controllers-fsmo-roles/",
-          "tags": [
-            "fsmo",
-            "active directory",
-            "domain controller",
-            "az-800",
-            "windows server",
-            "operations master"
-          ],
-          "description": "A structured learning module from Microsoft that covers essential management and maintenance tasks for AD DS domain controllers, including deployment, backup, recovery, and managing the five FSMO roles. This module is part of the AZ-800 certification path.",
-          "retrieved_at": "2025-12-13T10:43:45.018399+00:00",
-          "resource_type": "course",
-          "estimated_minutes": 60,
-          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
-          "prereqs": []
-        },
-        {
-          "title": "How to Transfer FSMO Roles (2 Easy Steps)",
-          "provider": "Active Directory Pro",
-          "type": "tutorial",
+          "title": "How Kerberos Works in Windows Active Directory",
+          "provider": "CBT Nuggets",
+          "type": "guide",
           "estimated_hours": 0.5,
-          "difficulty": "intermediate",
-          "url": "https://activedirectorypro.com/transfer-fsmo-roles/",
-          "tags": [
-            "fsmo",
-            "powershell",
-            "gui",
-            "active directory",
-            "domain controller",
-            "transfer roles"
-          ],
-          "description": "A step-by-step tutorial that demonstrates how to transfer FSMO roles using both PowerShell and the Active Directory GUI tools. This guide is practical for administrators needing to perform maintenance or decommission a domain controller.",
-          "retrieved_at": "2025-12-13T10:43:45.018404+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
-          "prereqs": []
-        },
-        {
-          "title": "AZ-800: Manage AD DS Domain Controllers and FSMO Roles",
-          "provider": "YouTube",
-          "type": "video",
-          "estimated_hours": 0.75,
-          "difficulty": "intermediate",
-          "url": "https://www.youtube.com/watch?v=XbY33-P-g_s",
-          "tags": [
-            "fsmo",
-            "az-800",
-            "video tutorial",
-            "active directory",
-            "domain controller",
-            "windows server"
-          ],
-          "description": "A detailed video tutorial that covers the concepts of managing Active Directory Domain Controllers and FSMO roles, aligning with the Microsoft AZ-800 exam. The video explains each role and demonstrates how to transfer or seize them.",
-          "retrieved_at": "2025-12-13T10:43:45.018407+00:00",
-          "resource_type": "video",
-          "estimated_minutes": 45,
-          "source_subdomain": "Active Directory Domain Controllers and FSMO Roles",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T10:43:45.018515+00:00"
-    },
-    {
-      "subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
-      "domain": "Active Directory",
-      "resources": [
-        {
-          "title": "Kerberos authentication in Windows Server",
-          "provider": "Microsoft Learn",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview",
+          "difficulty": "foundational",
+          "url": "https://www.cbtnuggets.com/blog/technology/system-admin/how-kerberos-works-in-windows-active-directory",
           "tags": [
             "kerberos",
             "active directory",
             "authentication",
-            "windows server",
-            "security"
+            "ticketing"
           ],
-          "description": "Official Microsoft documentation providing a comprehensive overview of the Kerberos version 5 authentication protocol implementation in Windows Server. It covers the primary security features, benefits like single sign-on (SSO) and delegated authentication, and how it's integrated with Active Directory Domain Services.",
-          "retrieved_at": "2025-12-13T10:43:57.139917+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 60,
-          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
-          "prereqs": []
-        },
-        {
-          "title": "HowTo Configure Active Directory for Kerberos Authentication",
-          "provider": "Micro Focus",
-          "type": "video",
-          "estimated_hours": 0.5,
-          "difficulty": "intermediate",
-          "url": "https://www.youtube.com/watch?v=g-yQc3lq-8Q",
-          "tags": [
-            "kerberos",
-            "active directory",
-            "configuration",
-            "tutorial",
-            "video"
-          ],
-          "description": "A step-by-step video tutorial that walks through the process of configuring Active Directory for Kerberos authentication. It covers creating the necessary user accounts and setting Service Principal Names (SPNs) using PowerShell, which is essential for services to be authenticated via Kerberos.",
-          "retrieved_at": "2025-12-13T10:43:57.139930+00:00",
+          "description": "A concise written tutorial that explains the fundamental concepts of Kerberos authentication within an Active Directory context. It breaks down the ticket-granting process, including the roles of the Key Distribution Center (KDC), Ticket-Granting Tickets (TGTs), and service tickets.",
+          "retrieved_at": "2025-12-13T12:29:53.011362+00:00",
           "resource_type": "tutorial",
           "estimated_minutes": 30,
-          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+          "source_subdomain": "Active Directory Authentication and Kerberos Ticketing",
           "prereqs": []
         },
         {
-          "title": "Active Directory Exploitation Labs",
-          "provider": "Pluralsight",
-          "type": "lab",
-          "estimated_hours": 4.5,
-          "difficulty": "advanced",
-          "url": "https://www.pluralsight.com/paths/active-directory-exploitation",
-          "tags": [
-            "active directory",
-            "kerberos",
-            "security",
-            "penetration testing",
-            "labs"
-          ],
-          "description": "A hands-on learning path focused on the security aspects of Active Directory. While covering broader exploitation techniques, it includes specific labs like 'Kerberoasting with Rubeus' that provide practical experience with Kerberos-based attacks and vulnerabilities in a controlled lab environment.",
-          "retrieved_at": "2025-12-13T10:43:57.139935+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 270,
-          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
-          "prereqs": []
-        },
-        {
-          "title": "Managing and Maintaining Windows Server 2019 Active Directory Domain Services",
-          "provider": "Pluralsight",
-          "type": "course",
-          "estimated_hours": 2.5,
+          "title": "Kerberos Authentication Explained | A deep dive",
+          "provider": "YouTube (Destination Certification)",
+          "type": "guide",
+          "estimated_hours": 0.5,
           "difficulty": "intermediate",
-          "url": "https://www.pluralsight.com/courses/managing-maintaining-windows-server-2019-active-directory-domain-services",
+          "url": "https://www.youtube.com/watch?v=_STARrM18-c",
+          "tags": [
+            "kerberos",
+            "authentication",
+            "video",
+            "deep dive",
+            "active directory"
+          ],
+          "description": "A detailed video that visually explains the entire Kerberos authentication process from start to finish. It covers the key components like the Authentication Server (AS), Ticket Granting Server (TGS), and the step-by-step exchange of tickets (AS-REQ, AS-REP, TGS-REQ, TGS-REP, AP-REQ, AP-REP).",
+          "retrieved_at": "2025-12-13T12:29:53.011364+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Authentication and Kerberos Ticketing",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory Authentication",
+          "provider": "Udemy",
+          "type": "guide",
+          "estimated_hours": 5.5,
+          "difficulty": "intermediate",
+          "url": "https://www.udemy.com/course/active-directory-authentication/",
           "tags": [
             "active directory",
-            "windows server 2019",
             "kerberos",
-            "administration",
+            "ntlm",
+            "security",
             "course"
           ],
-          "description": "This course covers the essential skills for maintaining an Active Directory environment. A specific module, 'Configuring Service Authentication and Account Policies', delves into managing Service Principal Names (SPNs), Kerberos policy settings, and Kerberos constrained delegation.",
-          "retrieved_at": "2025-12-13T10:43:57.139938+00:00",
+          "description": "A comprehensive video course that provides a deep dive into Active Directory authentication mechanisms, with a strong focus on both NTLM and Kerberos. The course covers the inner workings of the protocols, their security weaknesses, and common attack techniques.",
+          "retrieved_at": "2025-12-13T12:29:53.011367+00:00",
           "resource_type": "course",
-          "estimated_minutes": 150,
-          "source_subdomain": "Active Directory Authentication and Kerberos in a Domain Environment",
+          "estimated_minutes": 330,
+          "source_subdomain": "Active Directory Authentication and Kerberos Ticketing",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T10:43:57.140023+00:00"
+      "retrieved_at": "2025-12-13T12:29:53.011417+00:00"
+    },
+    {
+      "subdomain": "Active Directory Sites, Subnets, and Replication Topology",
+      "domain": "Active Directory",
+      "resources": [
+        {
+          "title": "Active Directory Replication Concepts",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/replication/active-directory-replication-concepts",
+          "tags": [
+            "replication",
+            "sites",
+            "subnets",
+            "KCC",
+            "site links",
+            "topology"
+          ],
+          "description": "Official Microsoft documentation explaining the core concepts of Active Directory replication. It covers connection objects, the Knowledge Consistency Checker (KCC), failover functionality, sites, subnets, and site links.",
+          "retrieved_at": "2025-12-13T12:30:08.636837+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "Active Directory Sites, Subnets, and Replication Topology",
+          "prereqs": []
+        },
+        {
+          "title": "My Multi Site Ad Lab End To End",
+          "provider": "The Baker's Foundry",
+          "type": "tutorial",
+          "estimated_hours": 3.0,
+          "difficulty": "advanced",
+          "url": "https://thebakersfoundry.com/my-multi-site-ad-lab-end-to-end/",
+          "tags": [
+            "lab",
+            "hands-on",
+            "multi-site",
+            "subnets",
+            "replication",
+            "RODC"
+          ],
+          "description": "A comprehensive, step-by-step guide to building a multi-site Active Directory lab from scratch. This tutorial covers creating sites, defining subnets, configuring inter-site transports, adding Read-Only Domain Controllers (RODCs), and testing replication.",
+          "retrieved_at": "2025-12-13T12:30:08.636850+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 180,
+          "source_subdomain": "Active Directory Sites, Subnets, and Replication Topology",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory: Multi Site, Subnet, and Replication Configuration",
+          "provider": "RDR-IT",
+          "type": "tutorial",
+          "estimated_hours": 1.5,
+          "difficulty": "intermediate",
+          "url": "https://rdr-it.com/en/active-directory-multi-site-subnet-and-replication-configuration/",
+          "tags": [
+            "sites",
+            "subnets",
+            "site links",
+            "bridgehead server",
+            "replication schedule"
+          ],
+          "description": "A detailed written tutorial that walks through the process of configuring a multi-site Active Directory environment. It covers renaming the default site, creating new sites and subnets, adding replication links, and configuring replication frequency and scheduling.",
+          "retrieved_at": "2025-12-13T12:30:08.636854+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 90,
+          "source_subdomain": "Active Directory Sites, Subnets, and Replication Topology",
+          "prereqs": []
+        },
+        {
+          "title": "ADDS Sites and Subnets Deployment Explained with Demo",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=s-deYXOq_4s",
+          "tags": [
+            "video",
+            "demo",
+            "sites",
+            "subnets",
+            "site links",
+            "windows server"
+          ],
+          "description": "A video tutorial that explains the concepts of AD DS sites and subnets and provides a step-by-step demonstration of their configuration in Windows Server. It covers creating sites, adding subnets, and setting up site links and replication schedules.",
+          "retrieved_at": "2025-12-13T12:30:08.636858+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 30,
+          "source_subdomain": "Active Directory Sites, Subnets, and Replication Topology",
+          "prereqs": []
+        },
+        {
+          "title": "Active Directory Replication Topology Technical Reference",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 2.5,
+          "difficulty": "advanced",
+          "url": "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc775549(v=ws.10)",
+          "tags": [
+            "replication",
+            "topology",
+            "KCC",
+            "ISTG",
+            "technical reference"
+          ],
+          "description": "A highly detailed technical reference from Microsoft on how the Active Directory replication topology works. Although for an older version of Windows Server, the core concepts remain highly relevant for understanding the underlying mechanics of replication.",
+          "retrieved_at": "2025-12-13T12:30:08.636864+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 150,
+          "source_subdomain": "Active Directory Sites, Subnets, and Replication Topology",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T12:30:08.636903+00:00"
     }
   ]
 }

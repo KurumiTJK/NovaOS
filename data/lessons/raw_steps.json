@@ -2,24 +2,24 @@
   {
     "step_id": "day-01",
     "step_type": "INFO",
-    "title": "Temporary Security Credentials in Cloud STS",
-    "estimated_time_minutes": 28,
-    "goal": "Learn about Temporary Security Credentials in Cloud STS and understand: Temporary security credentials from AWS STS are short‑lived, configurable from minutes up to hours.",
+    "title": "Active Directory Logical Structure: Forests, Trees, and Domains",
+    "estimated_time_minutes": 25,
+    "goal": "Learn about Active Directory Logical Structure: Forests, Trees, and Domains and understand: A forest is a top-level container of one or more domains sharing schema, configuration, and a global.",
     "actions": [
-      "Read: Temporary security credentials in IAM - https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html (8 min)\n   Key concepts to note:\n   • Temporary security credentials from AWS STS are short‑lived, configurable from minutes up to hours\n   • Temporary credentials are generated dynamically, not stored with the user, and expire so they can't be reused\n   • Temporary credentials form the basis for IAM roles, identity federation, cross‑account access, and delegation",
-      "Practice: Follow along with a basic Temporary Security Credentials in Cloud STS configuration example (15 min)",
-      "Self-test: Without looking at notes, explain Temporary Security Credentials in Cloud STS to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: Understanding the Active Directory Logical Model - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model (5 min)\n   Key concepts to note:\n   • A forest is a top-level container of one or more domains sharing schema, configuration, and a global catalog\n   • Domains in the same forest are linked by automatic two-way, transitive trust relationships\n   • A domain is a partition that stores user accounts, provides authentication, replication, and authorization data",
+      "Practice: Follow along with a basic Active Directory Logical Structure: Forests, Trees, and Domains configuration example (15 min)",
+      "Self-test: Without looking at notes, explain Active Directory Logical Structure: Forests, Trees, and Domains to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain Temporary Security Credentials in Cloud STS in your own words and completed the practice exercise",
+    "completion_check": "Can explain Active Directory Logical Structure: Forests, Trees, and Domains in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html",
-      "https://adamtheautomator.com/aws-sts-assume-role/",
-      "https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials"
+      "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model",
+      "https://rootdse.org/posts/active-directory-lab-setup-part1/",
+      "https://www.youtube.com/watch?v=k24C0g-B-5c"
     ],
-    "domain": "Cloud Security",
-    "subdomain": "Temporary Security Credentials in Cloud STS",
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Logical Structure: Forests, Trees, and Domains",
     "subdomains_covered": [
-      "Temporary Security Credentials in Cloud STS"
+      "Active Directory Logical Structure: Forests, Trees, and Domains"
     ],
     "subtopics": [],
     "day_number": null
@@ -27,24 +27,24 @@
   {
     "step_id": "day-02",
     "step_type": "INFO",
-    "title": "Privilege Escalation via STS Role Assumption",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about Privilege Escalation via STS Role Assumption and understand: AssumeRole returns temporary credentials: access key ID, secret access key, and a security token.",
+    "title": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+    "estimated_time_minutes": 26,
+    "goal": "Learn about Active Directory Objects and Attributes: Users, Computers, and Groups and understand: cn is the group's Common-Name, its relative distinguished name, and must be unique among sibling obj.",
     "actions": [
-      "Read: AssumeRole - AWS Security Token Service - https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html (11 min)\n   Key concepts to note:\n   • AssumeRole returns temporary credentials: access key ID, secret access key, and a security token\n   • Temporary credentials can call any AWS API except STS GetFederationToken or GetSessionToken\n   • Role trust policy specifies who can assume the role; permissions policy specifies what the role can do",
-      "Practice: Review a sample Privilege Escalation via STS Role Assumption policy and identify what it allows/denies (15 min)",
-      "Self-test: Without looking at notes, explain Privilege Escalation via STS Role Assumption to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: Group Objects - https://learn.microsoft.com/en-us/windows/win32/ad/group-objects (6 min)\n   Key concepts to note:\n   • cn is the group's Common-Name, its relative distinguished name, and must be unique among sibling objects\n   • member is a multi-valued attribute of DNs; items are linked references AD updates on move/rename\n   • groupType is an integer bitmask indicating scope (domain local/global/universal) and security flag",
+      "Practice: Review a sample Active Directory Objects and Attributes: Users, Computers, and Groups policy and identify what it allows/denies (15 min)",
+      "Self-test: Without looking at notes, explain Active Directory Objects and Attributes: Users, Computers, and Groups to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain Privilege Escalation via STS Role Assumption in your own words and completed the practice exercise",
+    "completion_check": "Can explain Active Directory Objects and Attributes: Users, Computers, and Groups in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
-      "https://www.hackingarticles.in/aws-iam-assumerole-privilege-escalation/",
-      "https://rhinosecuritylabs.com/aws/aws-privilege-escalation-methods-mitigation/"
+      "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/manage-user-accounts-with-active-directory-users-and-computers-in-windows-server",
+      "https://learn.microsoft.com/en-us/windows/win32/ad/group-objects",
+      "https://www.youtube.com/watch?v=f-29E2nU5sE"
     ],
-    "domain": "Cloud Security",
-    "subdomain": "Privilege Escalation via STS Role Assumption",
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
     "subdomains_covered": [
-      "Privilege Escalation via STS Role Assumption"
+      "Active Directory Objects and Attributes: Users, Computers, and Groups"
     ],
     "subtopics": [],
     "day_number": null
@@ -52,24 +52,24 @@
   {
     "step_id": "day-03",
     "step_type": "INFO",
-    "title": "Token Hijacking and Replay Attacks on STS Credentials",
-    "estimated_time_minutes": 31,
-    "goal": "Learn about Token Hijacking and Replay Attacks on STS Credentials and understand: CloudGoat is Rhino Security Labs' \"Vulnerable by Design\" cloud deployment tool.",
+    "title": "Organizational Units and Delegation of Control in Active Directory",
+    "estimated_time_minutes": 25,
+    "goal": "Learn about Organizational Units and Delegation of Control in Active Directory and understand: OUs let you delegate administration of user and computer objects to specific people or groups.",
     "actions": [
-      "Read: CloudGoat: Rhino Security Labs' \"Vulnerable by Design\" AWS deployment tool - https://github.com/RhinoSecurityLabs/cloudgoat (11 min)\n   Key concepts to note:\n   • CloudGoat is Rhino Security Labs' \"Vulnerable by Design\" cloud deployment tool\n   • It deploys capture-the-flag style AWS/Azure scenarios composed of cloud resources\n   • Scenarios are modular and can be started, reset, or destroyed independently",
-      "Practice: Try 2-3 of the commands mentioned in the Token Hijacking and Replay Attacks on STS Credentials documentation (15 min)",
-      "Self-test: Without looking at notes, explain Token Hijacking and Replay Attacks on STS Credentials to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: Delegating Administration by Using OU Objects - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegating-administration-by-using-ou-objects (5 min)\n   Key concepts to note:\n   • OUs let you delegate administration of user and computer objects to specific people or groups\n   • Delegation: put admins in a group, place objects in an OU, then delegate OU tasks to that group\n   • AD DS supports granular delegation: full control, create/delete/manage accounts, or only reset passwords",
+      "Practice: Follow along with a basic Organizational Units and Delegation of Control in Active Directory configuration example (15 min)",
+      "Self-test: Without looking at notes, explain Organizational Units and Delegation of Control in Active Directory to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain Token Hijacking and Replay Attacks on STS Credentials in your own words and completed the practice exercise",
+    "completion_check": "Can explain Organizational Units and Delegation of Control in Active Directory in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/security-iam-sts.html",
-      "https://github.com/RhinoSecurityLabs/cloudgoat",
-      "https://www.netskope.com/blog/securing-aws-temporary-tokens"
+      "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/delegation-of-control-in-ad-ds",
+      "https://activedirectorypro.com/delegate-control-active-directory/",
+      "https://www.youtube.com/watch?v=kS-q83-k56Q"
     ],
-    "domain": "Cloud Security",
-    "subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
+    "domain": "Active Directory",
+    "subdomain": "Organizational Units and Delegation of Control in Active Directory",
     "subdomains_covered": [
-      "Token Hijacking and Replay Attacks on STS Credentials"
+      "Organizational Units and Delegation of Control in Active Directory"
     ],
     "subtopics": [],
     "day_number": null
@@ -77,48 +77,73 @@
   {
     "step_id": "day-04",
     "step_type": "INFO",
-    "title": "STS Misconfiguration and Overly Permissive Trust Policies",
-    "estimated_time_minutes": 32,
-    "goal": "Learn about STS Misconfiguration and Overly Permissive Trust Policies and understand: IAM roles provide temporary credentials and cannot have long-term AWS credentials attached.",
+    "title": "Active Directory Group Types and Scope Management",
+    "estimated_time_minutes": 31,
+    "goal": "Learn about Active Directory Group Types and Scope Management and understand: Security groups collect user accounts, computer accounts, and other groups into manageable units.",
     "actions": [
-      "Read: How to use trust policies with IAM roles - https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/ (12 min)\n   Key concepts to note:\n   • IAM roles provide temporary credentials and cannot have long-term AWS credentials attached\n   • A trust policy is a resource-based policy that defines which principals can assume a role\n   • sts:AssumeRole is the API action used to assume an IAM role and appears in trust policies",
-      "Practice: Review a sample STS Misconfiguration and Overly Permissive Trust Policies policy and identify what it allows/denies (15 min)",
-      "Self-test: Without looking at notes, explain STS Misconfiguration and Overly Permissive Trust Policies to an imaginary coworker in 2-3 sentences (5 min)"
+      "Read: Active Directory Security Groups - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-groups (11 min)\n   Key concepts to note:\n   • Security groups collect user accounts, computer accounts, and other groups into manageable units\n   • Active Directory group types: Security groups and Distribution groups\n   • Security groups assign permissions and user rights to resources and users",
+      "Practice: Follow along with a basic Active Directory Group Types and Scope Management configuration example (15 min)",
+      "Self-test: Without looking at notes, explain Active Directory Group Types and Scope Management to an imaginary coworker in 2-3 sentences (5 min)"
     ],
-    "completion_check": "Can explain STS Misconfiguration and Overly Permissive Trust Policies in your own words and completed the practice exercise",
+    "completion_check": "Can explain Active Directory Group Types and Scope Management in your own words and completed the practice exercise",
     "resource_refs": [
-      "https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/",
-      "https://eventengine.run/workshops/b2526514-db42-42e9-82a1-321b3a35500c/en-US/modules/m4/m4-lab",
-      "https://www.trendmicro.com/cloudoneconformity/knowledge-base/aws/IAM/iam-role-policy-too-permissive.html"
+      "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/understand-security-groups",
+      "https://www.youtube.com/watch?v=1-4_sJ5-h8c",
+      "https://adamtheautomator.com/manage-active-directory-groups-powershell/"
     ],
-    "domain": "Cloud Security",
-    "subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Group Types and Scope Management",
     "subdomains_covered": [
-      "STS Misconfiguration and Overly Permissive Trust Policies"
+      "Active Directory Group Types and Scope Management"
     ],
     "subtopics": [],
     "day_number": null
   },
   {
     "step_id": "day-05",
-    "step_type": "BOSS",
-    "title": "BOSS: Cloud Security Synthesis",
-    "estimated_time_minutes": 55,
-    "goal": "Put your Cloud Security knowledge together with a practical challenge.",
+    "step_type": "INFO",
+    "title": "Active Directory Authentication and Kerberos Ticketing",
+    "estimated_time_minutes": 25,
+    "goal": "Learn about Active Directory Authentication and Kerberos Ticketing and understand: Kerberos is an authentication protocol used to verify user or host identities in Windows domains.",
     "actions": [
-      "Quick review: Skim your notes from previous Cloud Security days. What are the key concepts?",
-      "Mini-scenario: Apply your Cloud Security knowledge to a realistic problem. Design a simple solution using 3-4 concepts you learned",
+      "Read: Kerberos authentication overview - https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview (5 min)\n   Key concepts to note:\n   • Kerberos is an authentication protocol used to verify user or host identities in Windows domains\n   • Windows implements Kerberos V5 plus extensions for public-key authentication, authz data transport, and delegation\n   • The Kerberos client is a Security Support Provider (SSP) accessed through the Security Support Provider Interface (SSPI)",
+      "Practice: Try 2-3 of the commands mentioned in the Active Directory Authentication and Kerberos Ticketing documentation (15 min)",
+      "Self-test: Without looking at notes, explain Active Directory Authentication and Kerberos Ticketing to an imaginary coworker in 2-3 sentences (5 min)"
+    ],
+    "completion_check": "Can explain Active Directory Authentication and Kerberos Ticketing in your own words and completed the practice exercise",
+    "resource_refs": [
+      "https://learn.microsoft.com/en-us/windows-server/security/kerberos/kerberos-authentication-overview",
+      "https://medium.com/@carl.david.n/building-a-beginner-friendly-hands-on-active-directory-lab-e44333959143",
+      "https://www.cbtnuggets.com/blog/technology/system-admin/how-kerberos-works-in-windows-active-directory"
+    ],
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Authentication and Kerberos Ticketing",
+    "subdomains_covered": [
+      "Active Directory Authentication and Kerberos Ticketing"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-06",
+    "step_type": "BOSS",
+    "title": "BOSS: Active Directory Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Active Directory knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Active Directory days. What are the key concepts?",
+      "Mini-scenario: Design a simple AD structure for a company with 3 departments. Show: OUs, one GPO per department, and delegation for helpdesk",
       "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
     ],
-    "completion_check": "Completed the Cloud Security challenge and can connect different concepts together",
+    "completion_check": "Completed the Active Directory challenge and can connect different concepts together",
     "resource_refs": [
-      "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html",
-      "https://aws.amazon.com/blogs/security/how-to-detect-suspicious-activity-in-your-aws-account-by-using-private-decoy-resources/"
+      "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/replication/active-directory-replication-concepts",
+      "https://thebakersfoundry.com/my-multi-site-ad-lab-end-to-end/"
     ],
-    "domain": "Cloud Security",
-    "subdomain": "Detection and Monitoring of Suspicious STS Usage",
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Sites, Subnets, and Replication Topology",
     "subdomains_covered": [
-      "Detection and Monitoring of Suspicious STS Usage"
+      "Active Directory Sites, Subnets, and Replication Topology"
     ],
     "subtopics": [],
     "day_number": null

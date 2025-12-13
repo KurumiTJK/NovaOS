@@ -68,3 +68,8 @@ try:
     from .utils import CommandRequest, CommandResponse, OutputFormatter
 except ImportError:
     pass
+
+try:
+    from . import syscommands
+except ImportError:
+    pass

@@ -228,10 +228,13 @@ def api_sync_quest_steps(session_id: str, steps: list) -> Dict[str, Any]:
         steps: Generated steps from async job
         
     Returns:
-        {"ok": True} or error
+        {"ok": True, "formatted": "..."} with formatted steps for display
     """
     try:
-        from kernel.quests.quest_compose_wizard import get_compose_session
+        from kernel.quests.quest_compose_wizard import (
+            get_compose_session,
+            _format_steps_with_actions,
+        )
         
         session = get_compose_session(session_id)
         if not session:
@@ -242,16 +245,59 @@ def api_sync_quest_steps(session_id: str, steps: list) -> Dict[str, Any]:
         
         # Update session draft with steps
         session.draft["steps"] = steps
-        session.stage = "review"  # Move to review stage
         
-        print(f"[JobsAPI] Synced {len(steps)} steps to session {session_id}", flush=True)
+        # CRITICAL: Set stage to "confirm" so "yes" will save
+        session.stage = "confirm"
+        session.substage = ""
+        
+        print(f"[JobsAPI] Synced {len(steps)} steps to session {session_id}, stage=confirm", flush=True)
+        
+        # Use the existing formatting function
+        step_list = _format_steps_with_actions(steps, verbose=True)
+        
+        # Build quest summary from draft
+        draft = session.draft
+        title = draft.get("title", "Untitled Quest")
+        difficulty = draft.get("difficulty", "intermediate")
+        module_id = draft.get("module_id", "unassigned")
+        domains = draft.get("domains", [])
+        xp = draft.get("xp", 100)
+        
+        # Format domains
+        if domains:
+            domain_names = [d.get("name", d) if isinstance(d, dict) else d for d in domains]
+            domains_str = ", ".join(domain_names)
+        else:
+            domains_str = "None"
+        
+        formatted = f"""══════════════════════════════════════
+  QUEST PREVIEW
+══════════════════════════════════════
+
+**Title:** {title}
+**Difficulty:** {difficulty}
+**Module:** {module_id}
+**Domains:** {domains_str}
+**XP Reward:** {xp}
+
+────────────────────────────────────────
+  GENERATED STEPS ({len(steps)})
+────────────────────────────────────────
+
+{step_list}
+
+Type **confirm** to save this quest, **edit** to modify, or **cancel** to discard."""
         
         return {
             "ok": True,
             "message": f"Synced {len(steps)} steps",
+            "formatted": formatted,
+            "step_count": len(steps),
         }
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {
             "ok": False,
             "error": str(e),

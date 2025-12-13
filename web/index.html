@@ -1681,7 +1681,7 @@
             if (useAsync && result?.steps) {
               try {
                 console.log('[NovaOS] Syncing steps to session...');
-                await fetch('/api/quests/compose/sync-steps', {
+                const syncResponse = await fetch('/api/quests/compose/sync-steps', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -1689,7 +1689,17 @@
                     steps: result.steps,
                   }),
                 });
-                console.log('[NovaOS] Steps synced to session');
+                
+                const syncData = await syncResponse.json();
+                console.log('[NovaOS] Steps synced:', syncData);
+                
+                if (syncData.ok && syncData.formatted) {
+                  // Display the formatted steps
+                  appendNovaMessage(syncData.formatted);
+                  sendButton.disabled = false;
+                  inputField.focus();
+                  return;
+                }
               } catch (e) {
                 console.warn('[NovaOS] Failed to sync steps:', e);
               }

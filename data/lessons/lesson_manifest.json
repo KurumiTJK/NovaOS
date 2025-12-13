@@ -4,11 +4,11 @@
       "name": "Active Directory",
       "subdomains": [
         "Active Directory Logical Structure: Forests, Trees, and Domains",
-        "Active Directory Objects and Attributes",
+        "Active Directory Objects and Attributes: Users, Computers, and Groups",
         "Organizational Units and Delegation of Control in Active Directory",
-        "Active Directory Group Types and Scopes",
-        "Active Directory Domain Controllers and FSMO Roles",
-        "Active Directory Authentication and Kerberos in a Domain Environment"
+        "Active Directory Group Types and Scope Management",
+        "Active Directory Authentication and Kerberos Ticketing",
+        "Active Directory Sites, Subnets, and Replication Topology"
       ],
       "required_resource_types": [
         "official_docs",
@@ -26,5 +26,5 @@
     "max_resources_per_subdomain": 5,
     "max_patch_attempts_per_subdomain": 2
   },
-  "created_at": "2025-12-13T10:42:33.776543+00:00"
+  "created_at": "2025-12-13T12:28:33.543868+00:00"
 }
