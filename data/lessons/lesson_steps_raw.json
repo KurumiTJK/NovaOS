@@ -1,171 +1,1338 @@
 {
-  "version": "1.0.0",
-  "generated_at": "2025-12-12T21:55:25.813324+00:00",
+  "version": "3.0.0",
+  "generated_at": "2025-12-13T01:35:00.316802+00:00",
+  "step_count": 47,
+  "total_time_minutes": 4950,
   "steps": [
     {
       "step_id": "step_1",
       "step_type": "INFO",
-      "title": "Day 1: Docker Core Concepts",
-      "estimated_time_minutes": 90,
-      "goal": "Understand what Docker is, its core components (images, containers, Dockerfile), and how it differs from traditional virtualization.",
+      "title": "IP Addressing and Subnetting Fundamentals",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of IP Addressing and Subnetting Fundamentals",
       "actions": [
-        "Read the Docker 'Get Started: Overview' documentation to understand containers and compare them to virtual machines (25 min).",
-        "Study the concepts of Docker Images and Containers by reading Part 1 of the 'Get Started' guide (25 min).",
-        "Review the official documentation for the three fundamental Docker CLI commands: `docker run`, `docker build`, and `docker ps` (20 min).",
-        "Write a one-paragraph summary for each of the following: Image, Container, and Dockerfile, explaining how they relate to each other (20 min)."
+        "Read: IP Addressing and Subnetting for New Users (sections 1-3 only) from Cisco (40 min)",
+        "Build: Create `labs/ip_addressing_and_subnetting_fundamentals/main.sh` (or appropriate config file) that demonstrates IP Addressing and Subnetting Fundamentals, run it, save output (40 min)",
+        "Verify: Run the verification command for IP Addressing and Subnetting Fundamentals and document the output (25 min)"
       ],
-      "completion_check": "You're done when you can explain the difference between a Docker image and a container, and describe the purpose of a Dockerfile to a colleague.",
+      "completion_check": "You're done when: you can explain IP Addressing and Subnetting Fundamentals core concepts without looking at notes",
       "resource_refs": [
-        "https://docs.docker.com/get-started/overview/",
-        "https://docs.docker.com/get-started/"
+        "https://www.cisco.com/c/en/us/support/docs/ip/routing-information-protocol-rip/13788-3.html",
+        "https://learn.microsoft.com/en-us/troubleshoot/windows-client/networking/tcpip-addressing-and-subnetting",
+        "https://www.subnettingpractice.com/",
+        "https://www.digitalocean.com/community/tutorials/understanding-ip-addresses-subnets-and-cidr-notation-for-networking",
+        "https://www.youtube.com/watch?v=7hIbzlxbebc"
       ],
-      "domain": "Docker Fundamentals",
-      "subdomain": "Docker Fundamentals",
+      "domain": "Networking",
+      "subdomain": "IP Addressing and Subnetting Fundamentals",
+      "subdomains_covered": [
+        "IP Addressing and Subnetting Fundamentals"
+      ],
       "subtopics": [
-        "Docker Fundamentals"
+        "IP Addressing and Subnetting Fundamentals"
       ],
-      "day_number": 1
+      "day_number": 0
     },
     {
       "step_id": "step_2",
       "step_type": "INFO",
-      "title": "Container Image Design Best Practices",
-      "estimated_time_minutes": 90,
-      "goal": "Understand the core principles of creating small, secure, and efficient container images using Dockerfile best practices.",
+      "title": "Routing Basics and Routing Table Interpretation",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Routing Basics and Routing Table Interpretation",
       "actions": [
-        "Read the 'Use multi-stage builds' and 'Don't install unnecessary packages' sections of the official Dockerfile best practices guide (25 min).",
-        "Read the 'Minimize the number of layers' and 'Leverage build cache' sections of the Dockerfile best practices guide, focusing on how `RUN` commands can be combined (25 min).",
-        "Read the 'Choose a base image' section, paying close attention to the pros and cons of distroless, Alpine, and slim variants (20 min).",
-        "Write a 5-point checklist for creating a production-ready container image, summarizing the key principles you just researched (20 min)."
+        "Read: Routing Concepts (sections 1-3 only) from Cisco Press (40 min)",
+        "Build: Create `labs/routing_basics_and_routing_table_interpretation/main.sh` (or appropriate config file) that demonstrates Routing Basics and Routing Table Interpretation, run it, save output (40 min)",
+        "Verify: Run the verification command for Routing Basics and Routing Table Interpretation and document the output (25 min)"
       ],
-      "completion_check": "You're done when you have created a 5-point checklist for optimizing a Dockerfile and can explain the purpose of a multi-stage build.",
+      "completion_check": "You're done when: you can explain Routing Basics and Routing Table Interpretation core concepts without looking at notes",
       "resource_refs": [
-        "https://docs.docker.com/develop/develop-images/dockerfile_best-practices/"
+        "https://www.ciscopress.com/articles/article.asp?p=2832427",
+        "https://www.radford.edu/ibarland/Courses/ITEC352/2018spring/Labs/lab10_solution_static_routes.pdf",
+        "https://www.juniper.net/documentation/us/en/software/junos/routing-overview/topics/topic-map/routing-protocols-overview.html",
+        "https://geek-university.com/ccna/routing-table-explained/",
+        "https://www.youtube.com/watch?v=1dG_e_s523M"
       ],
-      "domain": "Container Image Design",
-      "subdomain": "Container Image Design",
+      "domain": "Networking",
+      "subdomain": "Routing Basics and Routing Table Interpretation",
+      "subdomains_covered": [
+        "Routing Basics and Routing Table Interpretation"
+      ],
       "subtopics": [
-        "Container Image Design"
+        "Routing Basics and Routing Table Interpretation"
       ],
-      "day_number": 2
+      "day_number": 0
     },
     {
       "step_id": "step_3",
       "step_type": "INFO",
-      "title": "Kubernetes Core Concepts",
-      "estimated_time_minutes": 90,
-      "goal": "Understand the fundamental components of Kubernetes: Nodes, Pods, Deployments, and Services, and how they relate to each other.",
+      "title": "VLANs and Layer 2 Segmentation",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of VLANs and Layer 2 Segmentation",
       "actions": [
-        "Read the 'What is Kubernetes?' and 'Kubernetes Components' sections of the official documentation to understand the overall architecture (Control Plane, Nodes) (25 min)",
-        "Read the 'Pods' concept page in the Kubernetes documentation, focusing on what a Pod is, why it's needed, and its lifecycle (20 min)",
-        "Read the 'Deployments' concept page, focusing on how they manage ReplicaSets and Pods to provide declarative updates and scaling (25 min)",
-        "Read the 'Services' concept page to learn how they provide a stable network endpoint for a dynamic set of Pods (20 min)"
+        "Read: Virtual LANs (VLANs) (sections 1-3 only) from Arista (40 min)",
+        "Build: Create `labs/vlans_and_layer_2_segmentation/main.sh` (or appropriate config file) that demonstrates VLANs and Layer 2 Segmentation, run it, save output (40 min)",
+        "Verify: Run the verification command for VLANs and Layer 2 Segmentation and document the output (25 min)"
       ],
-      "completion_check": "You're done when you can draw a simple diagram showing how a Service exposes a set of Pods managed by a Deployment on a Node, and can explain the role of each component.",
+      "completion_check": "You're done when: you can explain VLANs and Layer 2 Segmentation core concepts without looking at notes",
       "resource_refs": [
-        "https://kubernetes.io/docs/concepts/"
+        "https://www.arista.com/en/um-eos/eos-virtual-lans-vlans",
+        "https://ipcisco.com/cisco-packet-tracer-vlan-configuration-example/",
+        "https://www.pluralsight.com/courses/vlan-operation-configuration",
+        "https://www.juniper.net/documentation/us/en/software/junos/bridging/topics/topic-map/bridging-and-vlans.html",
+        "https://medium.com/@enyelsalas/ccna-vlan-lab-configuring-segmented-and-secured-networks-in-cisco-packet-tracer-a505f95831e9"
       ],
-      "domain": "Kubernetes Basics",
-      "subdomain": "Kubernetes Basics",
+      "domain": "Networking",
+      "subdomain": "VLANs and Layer 2 Segmentation",
+      "subdomains_covered": [
+        "VLANs and Layer 2 Segmentation"
+      ],
       "subtopics": [
-        "Kubernetes Basics"
+        "VLANs and Layer 2 Segmentation"
       ],
-      "day_number": 3
+      "day_number": 0
     },
     {
       "step_id": "step_4",
       "step_type": "INFO",
-      "title": "Foundations of Kubernetes Operations",
-      "estimated_time_minutes": 90,
-      "goal": "Understand the core concepts of Kubernetes operations, including monitoring, logging, and troubleshooting common cluster issues.",
+      "title": "DNS Concepts and Name Resolution Process",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of DNS Concepts and Name Resolution Process",
       "actions": [
-        "Read the official Kubernetes documentation on 'Monitoring' concepts, focusing on the metrics pipeline and available tools (25 min).",
-        "Study the official Kubernetes documentation on 'Logging Architecture', identifying the difference between node-level and cluster-level logging (25 min).",
-        "Review the 'Troubleshooting' guides in the official Kubernetes documentation, focusing on the common steps for debugging applications and clusters (25 min).",
-        "Write a 1-page summary comparing the roles of monitoring, logging, and tracing in Kubernetes operations based on your research (15 min)."
+        "Read: Reviewing DNS Concepts (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/dns_concepts_and_name_resolution_process/main.sh` (or appropriate config file) that demonstrates DNS Concepts and Name Resolution Process, run it, save output (40 min)",
+        "Verify: Run the verification command for DNS Concepts and Name Resolution Process and document the output (25 min)"
       ],
-      "completion_check": "You're done when you can outline the standard approaches for monitoring, logging, and troubleshooting a Kubernetes cluster using the official documentation as a reference.",
+      "completion_check": "You're done when: you can explain DNS Concepts and Name Resolution Process core concepts without looking at notes",
       "resource_refs": [
-        "https://kubernetes.io/docs/concepts/cluster-administration/monitoring/",
-        "https://kubernetes.io/docs/concepts/cluster-administration/logging/",
-        "https://kubernetes.io/docs/tasks/debug/"
+        "https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc780258(v=ws.10)",
+        "https://www.cloudflare.com/learning/dns/what-is-dns/",
+        "https://tryhackme.com/room/dnsindetail",
+        "https://www.freecodecamp.org/news/how-dns-works/",
+        "https://www.youtube.com/watch?v=72snZctFFtA"
       ],
-      "domain": "Kubernetes Operations",
-      "subdomain": "Kubernetes Operations",
+      "domain": "Networking",
+      "subdomain": "DNS Concepts and Name Resolution Process",
+      "subdomains_covered": [
+        "DNS Concepts and Name Resolution Process"
+      ],
       "subtopics": [
-        "Kubernetes Operations"
+        "DNS Concepts and Name Resolution Process"
       ],
-      "day_number": 4
+      "day_number": 0
     },
     {
       "step_id": "step_5",
-      "step_type": "INFO",
-      "title": "Core CI/CD Concepts and Terminology",
-      "estimated_time_minutes": 90,
-      "goal": "Understand the fundamental principles, benefits, and key terminology of Continuous Integration, Continuous Delivery, and Continuous Deployment.",
+      "step_type": "BOSS",
+      "title": "Network Address Translation (NAT) and Port Forwarding — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of Network Address Translation (NAT) and Port Forwarding by building a complete working example",
       "actions": [
-        "Read Atlassian's guide on 'Continuous integration vs. continuous delivery vs. continuous deployment' to understand the core differences (25 min).",
-        "Read the 'Continuous Integration' and 'Continuous Delivery/Deployment' sections of the AWS CI/CD whitepaper, focusing on source control, build, test, and release automation stages (25 min).",
-        "Watch the 'What is CI/CD?' video by IBM Cloud (15 min) to visualize the pipeline and workflow from code commit to production.",
-        "Write a 1-paragraph summary for each of the following: Continuous Integration, Continuous Delivery, and Continuous Deployment, explaining their purpose and key activities in your own words (25 min)."
+        "Read: What is Azure NAT Gateway? (sections 1-3 only) from Microsoft Learn (15 min)",
+        "Build: Create `labs/network_address_translation_nat_and_port_forwarding/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates Network Address Translation (NAT) and Port Forwarding (25 min)"
       ],
-      "completion_check": "You're done when you can explain the difference between CI, Continuous Delivery, and Continuous Deployment, and list the typical stages in a CI/CD pipeline (e.g., source, build, test, deploy).",
+      "completion_check": "You're done when: your Network Address Translation (NAT) and Port Forwarding implementation works end-to-end and you can explain each part",
       "resource_refs": [
-        "https://www.atlassian.com/continuous-delivery/ci-cd",
-        "https://docs.aws.amazon.com/whitepapers/latest/introduction-devops-aws/continuous-integration-continuous-delivery.html",
-        "https://www.youtube.com/watch?v=62N8S3l_8zI"
+        "https://learn.microsoft.com/en-us/azure/virtual-network/nat-gateway/nat-overview",
+        "https://static-course-assets.s3.amazonaws.com/ITE7/en/index.html#6.8.2/6.8.2.html",
+        "https://docs.aws.amazon.com/vpc/latest/userguide/vpc-nat-gateway.html",
+        "https://www.bizcompassllc.com/blog/configuring-nat-gateways-in-aws-a-step-by-step-guide",
+        "https://www.coursera.org/learn/computer-networking"
       ],
-      "domain": "CI/CD Concepts",
-      "subdomain": "CI/CD Concepts",
+      "domain": "Networking",
+      "subdomain": "Network Address Translation (NAT) and Port Forwarding",
+      "subdomains_covered": [
+        "Network Address Translation (NAT) and Port Forwarding"
+      ],
       "subtopics": [
-        "CI/CD Concepts"
+        "Network Address Translation (NAT) and Port Forwarding"
       ],
-      "day_number": 5
+      "day_number": 0
     },
     {
       "step_id": "step_6",
       "step_type": "INFO",
-      "title": "CI/CD Tooling Landscape: Jenkins, GitLab, and GitHub Actions",
-      "estimated_time_minutes": 90,
-      "goal": "Understand the core concepts and key differences between three major CI/CD tools to inform tool selection.",
+      "title": "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+      "estimated_time_minutes": 95,
+      "goal": "Understand the core concepts and components of Active Directory Logical Structure: Forests, Domains, and Organizational Units",
       "actions": [
-        "Research Jenkins: Read the 'What is Jenkins?' and 'Getting Started with Pipeline' sections of the official documentation to understand its architecture (controller/agent, plugins) and pipeline-as-code (Jenkinsfile). (25 min)",
-        "Research GitLab CI/CD: Read the 'Introduction to GitLab CI/CD' and 'CI/CD concepts' documentation to understand its integrated approach, runners, and the `.gitlab-ci.yml` file structure. (25 min)",
-        "Research GitHub Actions: Read the 'Understanding GitHub Actions' and 'Core concepts for GitHub Actions' documentation to learn about workflows, events, jobs, and runners. (25 min)",
-        "Create a 3-column comparison table summarizing the key features, pipeline syntax (e.g., Jenkinsfile vs .yml), and hosting model (self-hosted vs SaaS) for each of the three tools. (15 min)"
+        "Read: Understanding the Active Directory Logical Model from Microsoft Learn (30 min)",
+        "Build: Create `labs/active_directory_logical_structure_forests_domains_and_organizational_units/main.sh` (or appropriate config file) that demonstrates Active Directory Logical Structure: Forests, Domains, and Organizational Units, run it, save output (40 min)",
+        "Verify: Run the verification command for Active Directory Logical Structure: Forests, Domains, and Organizational Units and document the output (25 min)"
       ],
-      "completion_check": "You're done when you have a comparison table outlining the core concepts, syntax, and hosting options for Jenkins, GitLab CI/CD, and GitHub Actions.",
+      "completion_check": "You're done when: you can explain Active Directory Logical Structure: Forests, Domains, and Organizational Units core concepts without looking at notes",
       "resource_refs": [
-        "https://www.jenkins.io/doc/",
-        "https://docs.gitlab.com/ee/ci/",
-        "https://docs.github.com/en/actions/learn-github-actions"
+        "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/plan/understanding-the-active-directory-logical-model",
+        "https://learn.microsoft.com/en-us/training/modules/guided-project-administer-active-directory-domain-services/",
+        "https://learn.microsoft.com/en-us/training/paths/administer-active-directory-domain-services/",
+        "https://www.youtube.com/watch?v=s-de2d54I8g",
+        "https://server.academy/active-directory-101-a-step-by-step-tutorial-for-beginners/"
       ],
-      "domain": "CI/CD Pipeline Tooling",
-      "subdomain": "CI/CD Pipeline Tooling",
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+      "subdomains_covered": [
+        "Active Directory Logical Structure: Forests, Domains, and Organizational Units"
+      ],
       "subtopics": [
-        "CI/CD Pipeline Tooling"
+        "Active Directory Logical Structure: Forests, Domains, and Organizational Units"
       ],
-      "day_number": 6
+      "day_number": 0
     },
     {
       "step_id": "step_7",
       "step_type": "INFO",
-      "title": "Day 7: Containerized Deployment Automation",
-      "estimated_time_minutes": 90,
-      "goal": "Understand and practice Containerized Deployment Automation concepts",
+      "title": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Active Directory Objects and Attributes: Users, Computers, and Groups",
       "actions": [
-        "Study: Research: Containerized Deployment Automation (Self-directed)",
-        "Take notes on key concepts from Containerized Deployment Automation",
-        "Create a summary of what you learned"
+        "Read: Introduction to Active Directory Domain Services (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/active_directory_objects_and_attributes_users_computers_and_groups/main.sh` (or appropriate config file) that demonstrates Active Directory Objects and Attributes: Users, Computers, and Groups, run it, save output (40 min)",
+        "Verify: Run the verification command for Active Directory Objects and Attributes: Users, Computers, and Groups and document the output (25 min)"
       ],
-      "completion_check": "You can explain the key concepts of Containerized Deployment Automation",
-      "resource_refs": [],
-      "domain": "Containerized Deployment Automation",
-      "subdomain": "Containerized Deployment Automation",
+      "completion_check": "You're done when: you can explain Active Directory Objects and Attributes: Users, Computers, and Groups core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/training/modules/introduction-to-ad-ds/",
+        "https://learn.microsoft.com/en-us/windows/win32/ad/group-objects",
+        "https://activedirectorypro.com/active-directory-users-and-computers-aduc/",
+        "https://www.pluralsight.com/courses/administering-active-directory-entra-id"
+      ],
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+      "subdomains_covered": [
+        "Active Directory Objects and Attributes: Users, Computers, and Groups"
+      ],
       "subtopics": [
-        "Containerized Deployment Automation"
+        "Active Directory Objects and Attributes: Users, Computers, and Groups"
       ],
-      "day_number": 7
+      "day_number": 0
+    },
+    {
+      "step_id": "step_8",
+      "step_type": "INFO",
+      "title": "Active Directory Domain Controllers and the Directory Database",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Active Directory Domain Controllers and the Directory Database",
+      "actions": [
+        "Read: Administer Active Directory Domain Services (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/active_directory_domain_controllers_and_the_directory_database/main.sh` (or appropriate config file) that demonstrates Active Directory Domain Controllers and the Directory Database, run it, save output (40 min)",
+        "Verify: Run the verification command for Active Directory Domain Controllers and the Directory Database and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Active Directory Domain Controllers and the Directory Database core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/training/paths/administer-active-directory-domain-services/",
+        "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/ntdsutil",
+        "https://gallery.technet.microsoft.com/activedirectory-powershell-236313f4",
+        "https://my.ine.com/CyberSecurity/courses/f639352c/active-directory-identity-with-windows-server",
+        "https://cayosoft.com/blog/understanding-ntds-dit/"
+      ],
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Domain Controllers and the Directory Database",
+      "subdomains_covered": [
+        "Active Directory Domain Controllers and the Directory Database"
+      ],
+      "subtopics": [
+        "Active Directory Domain Controllers and the Directory Database"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_9",
+      "step_type": "INFO",
+      "title": "Active Directory Group Policy Objects: Structure and Processing Order",
+      "estimated_time_minutes": 95,
+      "goal": "Understand the core concepts and components of Active Directory Group Policy Objects: Structure and Processing Order",
+      "actions": [
+        "Read: Group Policy processing from Microsoft Learn (30 min)",
+        "Build: Create `labs/active_directory_group_policy_objects_structure_and_processing_order/main.sh` (or appropriate config file) that demonstrates Active Directory Group Policy Objects: Structure and Processing Order, run it, save output (40 min)",
+        "Verify: Run the verification command for Active Directory Group Policy Objects: Structure and Processing Order and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Active Directory Group Policy Objects: Structure and Processing Order core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/windows/identity/group-policy/group-policy-processing",
+        "https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-gpod/30c80151-9822-4251-9645-58551832f53c",
+        "https://activedirectorypro.com/group-policy-processing-order-gpo-hierarchy/",
+        "https://austincrouch.com/2023/10/23/building-an-active-directory-and-group-policy-homelab/",
+        "https://www.youtube.com/watch?v=k_yZ_a-g9yI"
+      ],
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Group Policy Objects: Structure and Processing Order",
+      "subdomains_covered": [
+        "Active Directory Group Policy Objects: Structure and Processing Order"
+      ],
+      "subtopics": [
+        "Active Directory Group Policy Objects: Structure and Processing Order"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_10",
+      "step_type": "BOSS",
+      "title": "Active Directory Authentication and Authorization within a Domain — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of Active Directory Authentication and Authorization within a Domain by building a complete working example",
+      "actions": [
+        "Read: Windows Authentication Overview (sections 1-3 only) from Microsoft Learn (15 min)",
+        "Build: Create `labs/active_directory_authentication_and_authorization_within_a_domain/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates Active Directory Authentication and Authorization within a Domain (25 min)"
+      ],
+      "completion_check": "You're done when: your Active Directory Authentication and Authorization within a Domain implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/windows-server/security/windows-authentication/windows-authentication-overview",
+        "https://medium.com/@carl.david.n/building-a-beginner-friendly-hands-on-active-directory-lab-c3031377a10d",
+        "https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/virtual-dc/active-directory-domain-services-overview",
+        "https://www.manageengine.com/log-management/ad-auditing/user-authentication-and-authorization-process.html",
+        "https://serveracademy.com/courses/getting-started-with-active-directory-domain-services/"
+      ],
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Authentication and Authorization within a Domain",
+      "subdomains_covered": [
+        "Active Directory Authentication and Authorization within a Domain"
+      ],
+      "subtopics": [
+        "Active Directory Authentication and Authorization within a Domain"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_11",
+      "step_type": "INFO",
+      "title": "Authentication vs Authorization Core Concepts",
+      "estimated_time_minutes": 95,
+      "goal": "Understand the core concepts and components of Authentication vs Authorization Core Concepts",
+      "actions": [
+        "Read: Authentication vs. authorization - Microsoft identity platform from Microsoft Learn (30 min)",
+        "Build: Create `labs/authentication_vs_authorization_core_concepts/main.sh` (or appropriate config file) that demonstrates Authentication vs Authorization Core Concepts, run it, save output (40 min)",
+        "Verify: Run the verification command for Authentication vs Authorization Core Concepts and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Authentication vs Authorization Core Concepts core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/entra/identity-platform/authentication-vs-authorization",
+        "https://auth0.com/docs/get-started/identity-fundamentals/authentication-and-authorization",
+        "https://www.youtube.com/watch?v=67MD9Obl6vk",
+        "https://www.freecodecamp.org/news/authentication-vs-authorization/",
+        "https://www.youtube.com/watch?v=s-p-sSxgzzI"
+      ],
+      "domain": "Identity",
+      "subdomain": "Authentication vs Authorization Core Concepts",
+      "subdomains_covered": [
+        "Authentication vs Authorization Core Concepts"
+      ],
+      "subtopics": [
+        "Authentication vs Authorization Core Concepts"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_12",
+      "step_type": "INFO",
+      "title": "OAuth 2.0 Grant Types and Roles",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of OAuth 2.0 Grant Types and Roles",
+      "actions": [
+        "Read: The OAuth 2.0 Authorization Framework (RFC 6749) (sections 1-3 only) from IETF (Internet Engineering Task Force) (40 min)",
+        "Build: Create `labs/oauth_2_0_grant_types_and_roles/main.sh` (or appropriate config file) that demonstrates OAuth 2.0 Grant Types and Roles, run it, save output (40 min)",
+        "Verify: Run the verification command for OAuth 2.0 Grant Types and Roles and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain OAuth 2.0 Grant Types and Roles core concepts without looking at notes",
+      "resource_refs": [
+        "https://tools.ietf.org/html/rfc6749",
+        "https://auth0.com/docs/get-started/authentication-and-authorization-flow/which-oauth-2-0-flow-should-i-use",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow",
+        "https://www.youtube.com/watch?v=t180zO0Ie-w"
+      ],
+      "domain": "Identity",
+      "subdomain": "OAuth 2.0 Grant Types and Roles",
+      "subdomains_covered": [
+        "OAuth 2.0 Grant Types and Roles"
+      ],
+      "subtopics": [
+        "OAuth 2.0 Grant Types and Roles"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_13",
+      "step_type": "INFO",
+      "title": "OpenID Connect ID Tokens and UserInfo",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of OpenID Connect ID Tokens and UserInfo",
+      "actions": [
+        "Read: OpenID Connect Core 1.0 specification (sections 1-3 only) from OpenID Foundation (40 min)",
+        "Build: Create `labs/openid_connect_id_tokens_and_userinfo/main.sh` (or appropriate config file) that demonstrates OpenID Connect ID Tokens and UserInfo, run it, save output (40 min)",
+        "Verify: Run the verification command for OpenID Connect ID Tokens and UserInfo and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain OpenID Connect ID Tokens and UserInfo core concepts without looking at notes",
+      "resource_refs": [
+        "https://openid.net/specs/openid-connect-core-1_0.html",
+        "https://developer.okta.com/blog/2017/08/01/whats-in-a-token-oidc-primer-part-3",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/open-id-connect",
+        "https://auth0.com/docs/api/authentication#get-user-info",
+        "https://www.youtube.com/watch?v=996O5-4v_yI"
+      ],
+      "domain": "Identity",
+      "subdomain": "OpenID Connect ID Tokens and UserInfo",
+      "subdomains_covered": [
+        "OpenID Connect ID Tokens and UserInfo"
+      ],
+      "subtopics": [
+        "OpenID Connect ID Tokens and UserInfo"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_14",
+      "step_type": "INFO",
+      "title": "SAML Assertions, Roles, and Bindings",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of SAML Assertions, Roles, and Bindings",
+      "actions": [
+        "Read: Security Assertion Markup Language (SAML) V2.0 Technical Overview (sections 1-3 only) from OASIS (40 min)",
+        "Build: Create `labs/saml_assertions_roles_and_bindings/main.sh` (or appropriate config file) that demonstrates SAML Assertions, Roles, and Bindings, run it, save output (40 min)",
+        "Verify: Run the verification command for SAML Assertions, Roles, and Bindings and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain SAML Assertions, Roles, and Bindings core concepts without looking at notes",
+      "resource_refs": [
+        "https://docs.oasis-open.org/security/saml/v2.0/saml-tech-overview-2.0-os.pdf",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/single-sign-on-saml-protocol",
+        "https://support.okta.com/help/s/article/How-to-Configure-SAML-2-0-for-Okta?language=en_US",
+        "https://www.pluralsight.com/courses/saml-2-getting-started"
+      ],
+      "domain": "Identity",
+      "subdomain": "SAML Assertions, Roles, and Bindings",
+      "subdomains_covered": [
+        "SAML Assertions, Roles, and Bindings"
+      ],
+      "subtopics": [
+        "SAML Assertions, Roles, and Bindings"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_15",
+      "step_type": "INFO",
+      "title": "Multi-Factor Authentication Factors and Flows",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Multi-Factor Authentication Factors and Flows",
+      "actions": [
+        "Read: Microsoft Entra multifactor authentication overview (sections 1-3 only) from Microsoft (40 min)",
+        "Build: Create `labs/multi_factor_authentication_factors_and_flows/main.sh` (or appropriate config file) that demonstrates Multi-Factor Authentication Factors and Flows, run it, save output (40 min)",
+        "Verify: Run the verification command for Multi-Factor Authentication Factors and Flows and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Multi-Factor Authentication Factors and Flows core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mfa-howitworks",
+        "https://learn.microsoft.com/en-us/training/modules/secure-azure-active-directory-users-with-mfa/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_mfa.html",
+        "https://developer.okta.com/docs/concepts/mfa/",
+        "https://blog.stackademic.com/implementing-mfa-to-your-authentication-flow-part-4-e3c80153f218"
+      ],
+      "domain": "Identity",
+      "subdomain": "Multi-Factor Authentication Factors and Flows",
+      "subdomains_covered": [
+        "Multi-Factor Authentication Factors and Flows"
+      ],
+      "subtopics": [
+        "Multi-Factor Authentication Factors and Flows"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_16",
+      "step_type": "BOSS",
+      "title": "JWT Structure, Claims, and Validation — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of JWT Structure, Claims, and Validation by building a complete working example",
+      "actions": [
+        "Read: RFC 7519: JSON Web Token (JWT) (sections 1-3 only) from Internet Engineering Task Force (IETF) (15 min)",
+        "Build: Create `labs/jwt_structure_claims_and_validation/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates JWT Structure, Claims, and Validation (25 min)"
+      ],
+      "completion_check": "You're done when: your JWT Structure, Claims, and Validation implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://datatracker.ietf.org/doc/html/rfc7519",
+        "https://jwt.io/",
+        "https://auth0.com/resources/ebooks/jwt-handbook",
+        "https://github.com/Azure/api-management-resources/tree/main/labs/jwt-validation",
+        "https://www.youtube.com/watch?v=IVMLsI0njp4"
+      ],
+      "domain": "Identity",
+      "subdomain": "JWT Structure, Claims, and Validation",
+      "subdomains_covered": [
+        "JWT Structure, Claims, and Validation"
+      ],
+      "subtopics": [
+        "JWT Structure, Claims, and Validation"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_17",
+      "step_type": "INFO",
+      "title": "AWS IAM Core Concepts and Policies",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of AWS IAM Core Concepts and Policies",
+      "actions": [
+        "Read: IAM User Guide (sections 1-3 only) from AWS (40 min)",
+        "Build: Create `labs/aws_iam_core_concepts_and_policies/main.sh` (or appropriate config file) that demonstrates AWS IAM Core Concepts and Policies, run it, save output (40 min)",
+        "Verify: Run the verification command for AWS IAM Core Concepts and Policies and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain AWS IAM Core Concepts and Policies core concepts without looking at notes",
+      "resource_refs": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html",
+        "https://explore.skillbuilder.aws/learn/course/external/view/elearning/134/deep-dive-with-security-aws-identity-and-access-management-iam",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/tutorial_managed-policies.html",
+        "https://www.youtube.com/watch?v=9g7kdtg_TzE"
+      ],
+      "domain": "AWS",
+      "subdomain": "AWS IAM Core Concepts and Policies",
+      "subdomains_covered": [
+        "AWS IAM Core Concepts and Policies"
+      ],
+      "subtopics": [
+        "AWS IAM Core Concepts and Policies"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_18",
+      "step_type": "INFO",
+      "title": "Amazon EC2 Instances and Storage Options",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Amazon EC2 Instances and Storage Options",
+      "actions": [
+        "Read: Amazon EC2 Instance Types (sections 1-3 only) from AWS (40 min)",
+        "Build: Create `labs/amazon_ec2_instances_and_storage_options/main.sh` (or appropriate config file) that demonstrates Amazon EC2 Instances and Storage Options, run it, save output (40 min)",
+        "Verify: Run the verification command for Amazon EC2 Instances and Storage Options and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Amazon EC2 Instances and Storage Options core concepts without looking at notes",
+      "resource_refs": [
+        "https://aws.amazon.com/ec2/instance-types/",
+        "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EC2_GetStarted.html",
+        "https://explore.skillbuilder.aws/learn/course/external/view/elearning/14498/amazon-elastic-block-store-amazon-ebs-primer-includes-labs",
+        "https://aws.amazon.com/getting-started/hands-on/get-started-ebs-ec2-storage/",
+        "https://www.coursera.org/learn/aws-cloud-technical-essentials"
+      ],
+      "domain": "AWS",
+      "subdomain": "Amazon EC2 Instances and Storage Options",
+      "subdomains_covered": [
+        "Amazon EC2 Instances and Storage Options"
+      ],
+      "subtopics": [
+        "Amazon EC2 Instances and Storage Options"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_19",
+      "step_type": "INFO",
+      "title": "Amazon S3 Buckets, Objects, and Access Controls",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Amazon S3 Buckets, Objects, and Access Controls",
+      "actions": [
+        "Read: Access control in Amazon S3 (sections 1-3 only) from AWS Documentation (40 min)",
+        "Build: Create `labs/amazon_s3_buckets_objects_and_access_controls/main.sh` (or appropriate config file) that demonstrates Amazon S3 Buckets, Objects, and Access Controls, run it, save output (40 min)",
+        "Verify: Run the verification command for Amazon S3 Buckets, Objects, and Access Controls and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Amazon S3 Buckets, Objects, and Access Controls core concepts without looking at notes",
+      "resource_refs": [
+        "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-overview.html",
+        "https://explore.skillbuilder.aws/learn/course/external/view/elearning/134/amazon-s3-getting-started",
+        "https://www.youtube.com/watch?v=p_LpPs_83pU",
+        "https://www.coursera.org/learn/aws-fundamentals-lab-series/lecture/42aYp/create-a-static-website-with-amazon-s3"
+      ],
+      "domain": "AWS",
+      "subdomain": "Amazon S3 Buckets, Objects, and Access Controls",
+      "subdomains_covered": [
+        "Amazon S3 Buckets, Objects, and Access Controls"
+      ],
+      "subtopics": [
+        "Amazon S3 Buckets, Objects, and Access Controls"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_20",
+      "step_type": "INFO",
+      "title": "AWS VPC Components and Addressing",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of AWS VPC Components and Addressing",
+      "actions": [
+        "Read: IP addressing for your VPCs and subnets (sections 1-3 only) from AWS (40 min)",
+        "Build: Create `labs/aws_vpc_components_and_addressing/main.sh` (or appropriate config file) that demonstrates AWS VPC Components and Addressing, run it, save output (40 min)",
+        "Verify: Run the verification command for AWS VPC Components and Addressing and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain AWS VPC Components and Addressing core concepts without looking at notes",
+      "resource_refs": [
+        "https://docs.aws.amazon.com/vpc/latest/userguide/ip-addressing.html",
+        "https://explore.skillbuilder.aws/learn/course/external/view/elearning/153/introduction-to-amazon-virtual-private-cloud-vpc",
+        "https://www.youtube.com/watch?v=LXSo__y2OCw",
+        "https://medium.com/@tjmoses/configuring-a-vpc-c1a6a621a473"
+      ],
+      "domain": "AWS",
+      "subdomain": "AWS VPC Components and Addressing",
+      "subdomains_covered": [
+        "AWS VPC Components and Addressing"
+      ],
+      "subtopics": [
+        "AWS VPC Components and Addressing"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_21",
+      "step_type": "BOSS",
+      "title": "AWS CloudTrail and CloudWatch Core Concepts — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of AWS CloudTrail and CloudWatch Core Concepts by building a complete working example",
+      "actions": [
+        "Read: AWS CloudTrail User Guide (sections 1-3 only) from AWS (15 min)",
+        "Build: Create `labs/aws_cloudtrail_and_cloudwatch_core_concepts/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates AWS CloudTrail and CloudWatch Core Concepts (25 min)"
+      ],
+      "completion_check": "You're done when: your AWS CloudTrail and CloudWatch Core Concepts implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-user-guide.html",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html",
+        "https://explore.skillbuilder.aws/learn/course/external/view/elearning/13343/lab-implement-logging-and-monitoring-using-aws-cloudtrail-and-amazon-cloudwatch",
+        "https://explore.skillbuilder.aws/learn/course/external/view/elearning/178/aws-cloudtrail-getting-started",
+        "https://www.youtube.com/watch?v=Yxl7e88cTAQ"
+      ],
+      "domain": "AWS",
+      "subdomain": "AWS CloudTrail and CloudWatch Core Concepts",
+      "subdomains_covered": [
+        "AWS CloudTrail and CloudWatch Core Concepts"
+      ],
+      "subtopics": [
+        "AWS CloudTrail and CloudWatch Core Concepts"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_22",
+      "step_type": "INFO",
+      "title": "Azure Resource Manager (ARM) Core Concepts",
+      "estimated_time_minutes": 95,
+      "goal": "Understand the core concepts and components of Azure Resource Manager (ARM) Core Concepts",
+      "actions": [
+        "Read: What is Azure Resource Manager? from Microsoft Learn (30 min)",
+        "Build: Create `labs/azure_resource_manager_arm_core_concepts/main.sh` (or appropriate config file) that demonstrates Azure Resource Manager (ARM) Core Concepts, run it, save output (40 min)",
+        "Verify: Run the verification command for Azure Resource Manager (ARM) Core Concepts and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Azure Resource Manager (ARM) Core Concepts core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/azure-resource-manager/management/overview",
+        "https://learn.microsoft.com/en-us/training/modules/control-azure-services-with-resource-manager/",
+        "https://www.youtube.com/watch?v=6a5_J7oW-pA",
+        "https://www.pluralsight.com/courses/microsoft-azure-resource-manager-mastering"
+      ],
+      "domain": "Azure",
+      "subdomain": "Azure Resource Manager (ARM) Core Concepts",
+      "subdomains_covered": [
+        "Azure Resource Manager (ARM) Core Concepts"
+      ],
+      "subtopics": [
+        "Azure Resource Manager (ARM) Core Concepts"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_23",
+      "step_type": "INFO",
+      "title": "Azure Virtual Machines and Disk Storage Fundamentals",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Azure Virtual Machines and Disk Storage Fundamentals",
+      "actions": [
+        "Read: Create a Windows virtual machine in Azure (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/azure_virtual_machines_and_disk_storage_fundamentals/main.sh` (or appropriate config file) that demonstrates Azure Virtual Machines and Disk Storage Fundamentals, run it, save output (40 min)",
+        "Verify: Run the verification command for Azure Virtual Machines and Disk Storage Fundamentals and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Azure Virtual Machines and Disk Storage Fundamentals core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/training/modules/create-windows-virtual-machine-in-azure/",
+        "https://learn.microsoft.com/en-us/azure/virtual-machines/",
+        "https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview",
+        "https://learn.microsoft.com/en-us/azure/virtual-machines/windows/quick-create-portal",
+        "https://learn.microsoft.com/en-us/azure/virtual-machines/windows/attach-managed-disk-portal"
+      ],
+      "domain": "Azure",
+      "subdomain": "Azure Virtual Machines and Disk Storage Fundamentals",
+      "subdomains_covered": [
+        "Azure Virtual Machines and Disk Storage Fundamentals"
+      ],
+      "subtopics": [
+        "Azure Virtual Machines and Disk Storage Fundamentals"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_24",
+      "step_type": "INFO",
+      "title": "Azure Storage Accounts and Data Redundancy Options",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Azure Storage Accounts and Data Redundancy Options",
+      "actions": [
+        "Read: Data redundancy - Azure Storage (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/azure_storage_accounts_and_data_redundancy_options/main.sh` (or appropriate config file) that demonstrates Azure Storage Accounts and Data Redundancy Options, run it, save output (40 min)",
+        "Verify: Run the verification command for Azure Storage Accounts and Data Redundancy Options and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Azure Storage Accounts and Data Redundancy Options core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/storage/common/storage-redundancy",
+        "https://learn.microsoft.com/en-us/training/modules/configure-storage-accounts/5-configure-storage-redundancy",
+        "https://learn.microsoft.com/en-us/azure/storage/common/redundancy-migration?tabs=portal",
+        "https://learn.microsoft.com/en-us/training/modules/secure-storage-azure-files-azure-blob-storage/",
+        "https://www.youtube.com/watch?v=k-4p520-Yd4"
+      ],
+      "domain": "Azure",
+      "subdomain": "Azure Storage Accounts and Data Redundancy Options",
+      "subdomains_covered": [
+        "Azure Storage Accounts and Data Redundancy Options"
+      ],
+      "subtopics": [
+        "Azure Storage Accounts and Data Redundancy Options"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_25",
+      "step_type": "INFO",
+      "title": "Azure Virtual Network and Subnet Architecture",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Azure Virtual Network and Subnet Architecture",
+      "actions": [
+        "Read: Azure Virtual Network concepts and best practices (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/azure_virtual_network_and_subnet_architecture/main.sh` (or appropriate config file) that demonstrates Azure Virtual Network and Subnet Architecture, run it, save output (40 min)",
+        "Verify: Run the verification command for Azure Virtual Network and Subnet Architecture and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Azure Virtual Network and Subnet Architecture core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/virtual-network/concepts-and-best-practices",
+        "https://learn.microsoft.com/en-us/training/modules/introduction-to-azure-virtual-networks/"
+      ],
+      "domain": "Azure",
+      "subdomain": "Azure Virtual Network and Subnet Architecture",
+      "subdomains_covered": [
+        "Azure Virtual Network and Subnet Architecture"
+      ],
+      "subtopics": [
+        "Azure Virtual Network and Subnet Architecture"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_26",
+      "step_type": "APPLY",
+      "title": "Azure Virtual Network and Subnet Architecture — Hands-On Practice",
+      "estimated_time_minutes": 110,
+      "goal": "Gain hands-on experience with Azure Virtual Network and Subnet Architecture through practical exercises",
+      "actions": [
+        "Read: Create a virtual network from Microsoft Learn (25 min)",
+        "Build: Create `labs/azure_virtual_network_and_subnet_architecture/main.sh` (or appropriate config file) that demonstrates Azure Virtual Network and Subnet Architecture, run it, save output (60 min)",
+        "Verify: Run the verification command for Azure Virtual Network and Subnet Architecture and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you have a working Azure Virtual Network and Subnet Architecture artifact and can modify it confidently",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/virtual-network/quick-create-portal",
+        "https://learn.microsoft.com/en-us/shows/learn-live/fasttrack-for-azure-season-1-ep04-azure-networking-fundamentals",
+        "https://learn.microsoft.com/en-us/azure/well-architected/services/networking/azure-virtual-network"
+      ],
+      "domain": "Azure",
+      "subdomain": "Azure Virtual Network and Subnet Architecture",
+      "subdomains_covered": [
+        "Azure Virtual Network and Subnet Architecture"
+      ],
+      "subtopics": [
+        "Azure Virtual Network and Subnet Architecture"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_27",
+      "step_type": "BOSS",
+      "title": "Azure Role-Based Access Control (RBAC) Fundamentals — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of Azure Role-Based Access Control (RBAC) Fundamentals by building a complete working example",
+      "actions": [
+        "Read: What is Azure role-based access control (Azure RBAC)? (sections 1-3 only) from Microsoft Learn (15 min)",
+        "Build: Create `labs/azure_role_based_access_control_rbac_fundamentals/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates Azure Role-Based Access Control (RBAC) Fundamentals (25 min)"
+      ],
+      "completion_check": "You're done when: your Azure Role-Based Access Control (RBAC) Fundamentals implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/role-based-access-control/overview",
+        "https://learn.microsoft.com/en-us/training/modules/secure-azure-resources-with-rbac/",
+        "https://learn.microsoft.com/en-us/azure/role-based-access-control/quickstart-assign-role-user-portal",
+        "https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles",
+        "https://www.pluralsight.com/courses/microsoft-azure-administrator-manage-role-based-access-control"
+      ],
+      "domain": "Azure",
+      "subdomain": "Azure Role-Based Access Control (RBAC) Fundamentals",
+      "subdomains_covered": [
+        "Azure Role-Based Access Control (RBAC) Fundamentals"
+      ],
+      "subtopics": [
+        "Azure Role-Based Access Control (RBAC) Fundamentals"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_28",
+      "step_type": "INFO",
+      "title": "Logging Fundamentals: Events, Levels, and Log Types",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Logging Fundamentals: Events, Levels, and Log Types",
+      "actions": [
+        "Read: Azure Security Control - Logging and Monitoring (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/logging_fundamentals_events_levels_and_log_types/main.sh` (or appropriate config file) that demonstrates Logging Fundamentals: Events, Levels, and Log Types, run it, save output (40 min)",
+        "Verify: Run the verification command for Logging Fundamentals: Events, Levels, and Log Types and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Logging Fundamentals: Events, Levels, and Log Types core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/security/benchmarks/security-control-logging-monitoring",
+        "https://tryhackme.com/module/log-analysis",
+        "https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/WhatIsCloudWatchLogs.html",
+        "https://www.crowdstrike.com/cybersecurity-101/logging/logging-levels/",
+        "https://medium.com/@rishavkumarthapa/day-1-introduction-to-log-analysis-getting-started-like-a-soc-analyst-5050f22ad3f1"
+      ],
+      "domain": "Logging And SIEM",
+      "subdomain": "Logging Fundamentals: Events, Levels, and Log Types",
+      "subdomains_covered": [
+        "Logging Fundamentals: Events, Levels, and Log Types"
+      ],
+      "subtopics": [
+        "Logging Fundamentals: Events, Levels, and Log Types"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_29",
+      "step_type": "INFO",
+      "title": "Log Collection and Normalization Concepts",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Log Collection and Normalization Concepts",
+      "actions": [
+        "Read: Normalization and the Advanced Security Information Model (ASIM) (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/log_collection_and_normalization_concepts/main.sh` (or appropriate config file) that demonstrates Log Collection and Normalization Concepts, run it, save output (40 min)",
+        "Verify: Run the verification command for Log Collection and Normalization Concepts and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Log Collection and Normalization Concepts core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/sentinel/normalization-asim-overview",
+        "https://docs.splunk.com/Documentation/CIM/latest/User/Overview",
+        "https://tryhackme.com/room/introtosiem",
+        "https://medium.com/@sahankommunuri53/mastering-log-parsing-filtering-and-normalization-in-splunk-a-practical-guide-with-sample-logs-c3f1a6296082",
+        "https://www.youtube.com/watch?v=0wX4o2-a-pI"
+      ],
+      "domain": "Logging And SIEM",
+      "subdomain": "Log Collection and Normalization Concepts",
+      "subdomains_covered": [
+        "Log Collection and Normalization Concepts"
+      ],
+      "subtopics": [
+        "Log Collection and Normalization Concepts"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_30",
+      "step_type": "INFO",
+      "title": "Time, Timestamps, and Log Correlation Basics",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Time, Timestamps, and Log Correlation Basics",
+      "actions": [
+        "Read: Guide to Computer Security Log Management (sections 1-3 only) from NIST (40 min)",
+        "Build: Create `labs/time_timestamps_and_log_correlation_basics/main.sh` (or appropriate config file) that demonstrates Time, Timestamps, and Log Correlation Basics, run it, save output (40 min)",
+        "Verify: Run the verification command for Time, Timestamps, and Log Correlation Basics and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Time, Timestamps, and Log Correlation Basics core concepts without looking at notes",
+      "resource_refs": [
+        "https://csrc.nist.gov/publications/detail/sp/800-92/final",
+        "https://docs.splunk.com/Documentation/Splunk/latest/Search/Timestampsandtimeranges",
+        "https://tryhackme.com/room/introtosiem",
+        "https://docs.securityonion.net/en/2.4/utc.html",
+        "https://www.elastic.co/blog/considerations-for-timestamps-in-centralized-logging-platforms"
+      ],
+      "domain": "Logging And SIEM",
+      "subdomain": "Time, Timestamps, and Log Correlation Basics",
+      "subdomains_covered": [
+        "Time, Timestamps, and Log Correlation Basics"
+      ],
+      "subtopics": [
+        "Time, Timestamps, and Log Correlation Basics"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_31",
+      "step_type": "INFO",
+      "title": "SIEM Core Components and Data Flow Architecture",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of SIEM Core Components and Data Flow Architecture",
+      "actions": [
+        "Read: QRadar architecture overview (sections 1-3 only) from IBM (40 min)",
+        "Build: Create `labs/siem_core_components_and_data_flow_architecture/main.sh` (or appropriate config file) that demonstrates SIEM Core Components and Data Flow Architecture, run it, save output (40 min)",
+        "Verify: Run the verification command for SIEM Core Components and Data Flow Architecture and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain SIEM Core Components and Data Flow Architecture core concepts without looking at notes",
+      "resource_refs": [
+        "https://www.ibm.com/docs/en/qsip/7.5?topic=deployment-qradar-architecture-overview",
+        "https://learn.microsoft.com/en-us/microsoft-sentinel/sentinel-architecture",
+        "https://medium.com/@martinyordanovv/how-i-built-a-siem-home-lab-for-security-monitoring-and-threat-analysis-a3c3f30f58f7",
+        "https://docs.splunk.com/Documentation/Splunk/latest/Deploy/Splunkarchitecturecomponents",
+        "https://www.youtube.com/watch?v=3-5b3a0a-yE"
+      ],
+      "domain": "Logging And SIEM",
+      "subdomain": "SIEM Core Components and Data Flow Architecture",
+      "subdomains_covered": [
+        "SIEM Core Components and Data Flow Architecture"
+      ],
+      "subtopics": [
+        "SIEM Core Components and Data Flow Architecture"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_32",
+      "step_type": "INFO",
+      "title": "Detection Content: Rules, Signatures, and Use Cases",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Detection Content: Rules, Signatures, and Use Cases",
+      "actions": [
+        "Read: Create and manage scheduled analytics rules in Microsoft Sentinel (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/detection_content_rules_signatures_and_use_cases/main.sh` (or appropriate config file) that demonstrates Detection Content: Rules, Signatures, and Use Cases, run it, save output (40 min)",
+        "Verify: Run the verification command for Detection Content: Rules, Signatures, and Use Cases and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Detection Content: Rules, Signatures, and Use Cases core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/sentinel/detect-threats-custom",
+        "https://bots.splunk.com/",
+        "https://www.elastic.co/guide/en/security/current/rules-ui-create.html",
+        "https://www.manageengine.com/log-management/siem/detection-rule-for-siem.html",
+        "https://www.sans.org/cyber-security-courses/siem-with-tactical-analytics/"
+      ],
+      "domain": "Logging And SIEM",
+      "subdomain": "Detection Content: Rules, Signatures, and Use Cases",
+      "subdomains_covered": [
+        "Detection Content: Rules, Signatures, and Use Cases"
+      ],
+      "subtopics": [
+        "Detection Content: Rules, Signatures, and Use Cases"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_33",
+      "step_type": "BOSS",
+      "title": "Alert Triage and Noise Reduction Concepts in SIEM — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of Alert Triage and Noise Reduction Concepts in SIEM by building a complete working example",
+      "actions": [
+        "Read: Tuning false positives in IBM QRadar (sections 1-3 only) from IBM (15 min)",
+        "Build: Create `labs/alert_triage_and_noise_reduction_concepts_in_siem/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates Alert Triage and Noise Reduction Concepts in SIEM (25 min)"
+      ],
+      "completion_check": "You're done when: your Alert Triage and Noise Reduction Concepts in SIEM implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://www.ibm.com/docs/en/qsip/7.5?topic=offenses-tuning-false-positives",
+        "https://tryhackme.com/room/alerttriagewithsplunk",
+        "https://itpro.fyi/stop-sentinel-alert-noise-a-practical-rule-tuning-guide/",
+        "https://learn.microsoft.com/en-us/azure/sentinel/detection-tuning",
+        "https://docs.splunk.com/Documentation/ES/latest/RBA/SuppressRBA"
+      ],
+      "domain": "Logging And SIEM",
+      "subdomain": "Alert Triage and Noise Reduction Concepts in SIEM",
+      "subdomains_covered": [
+        "Alert Triage and Noise Reduction Concepts in SIEM"
+      ],
+      "subtopics": [
+        "Alert Triage and Noise Reduction Concepts in SIEM"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_34",
+      "step_type": "INFO",
+      "title": "Core Concepts and Terminology of Threat Modeling",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Core Concepts and Terminology of Threat Modeling",
+      "actions": [
+        "Read: Threat Modeling Security Fundamentals (sections 1-3 only) from Microsoft Learn (40 min)",
+        "Build: Create `labs/core_concepts_and_terminology_of_threat_modeling/main.sh` (or appropriate config file) that demonstrates Core Concepts and Terminology of Threat Modeling, run it, save output (40 min)",
+        "Verify: Run the verification command for Core Concepts and Terminology of Threat Modeling and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Core Concepts and Terminology of Threat Modeling core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/training/paths/threat-modeling-security-fundamentals/",
+        "https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html",
+        "https://www.infosecinstitute.com/skills/expert-insights/threat-modeling-technical-walkthrough-and-tutorial/",
+        "https://training.linuxfoundation.org/training/threat-modeling-the-essentials-toolkit-skf201/"
+      ],
+      "domain": "Threat Modeling",
+      "subdomain": "Core Concepts and Terminology of Threat Modeling",
+      "subdomains_covered": [
+        "Core Concepts and Terminology of Threat Modeling"
+      ],
+      "subtopics": [
+        "Core Concepts and Terminology of Threat Modeling"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_35",
+      "step_type": "INFO",
+      "title": "STRIDE and Other Threat Classification Schemes",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of STRIDE and Other Threat Classification Schemes",
+      "actions": [
+        "Read: Threat Modeling Tool (sections 1-3 only) from Microsoft (40 min)",
+        "Build: Create `labs/stride_and_other_threat_classification_schemes/main.sh` (or appropriate config file) that demonstrates STRIDE and Other Threat Classification Schemes, run it, save output (40 min)",
+        "Verify: Run the verification command for STRIDE and Other Threat Classification Schemes and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain STRIDE and Other Threat Classification Schemes core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool-getting-started",
+        "https://cryptaguard.com/lab/stride-threat-modeling-tutorial",
+        "https://cheatsheetseries.owasp.org/cheatsheets/Threat_Modeling_Cheat_Sheet.html",
+        "https://www.linddun.org/pro",
+        "https://www.versprite.com/blog/what-is-pasta-threat-modeling/"
+      ],
+      "domain": "Threat Modeling",
+      "subdomain": "STRIDE and Other Threat Classification Schemes",
+      "subdomains_covered": [
+        "STRIDE and Other Threat Classification Schemes"
+      ],
+      "subtopics": [
+        "STRIDE and Other Threat Classification Schemes"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_36",
+      "step_type": "INFO",
+      "title": "Defining Assets, Trust Boundaries, and Attack Surfaces",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Defining Assets, Trust Boundaries, and Attack Surfaces",
+      "actions": [
+        "Read: Review Threat Modeling Process (sections 1-3 only) (OWASP, 40 min)",
+        "Build: Create `labs/defining_assets_trust_boundaries_and_attack_surfaces/main.sh` (or appropriate config file) that demonstrates Defining Assets, Trust Boundaries, and Attack Surfaces, run it, save output (40 min)",
+        "Verify: Run the verification command for Defining Assets, Trust Boundaries, and Attack Surfaces and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Defining Assets, Trust Boundaries, and Attack Surfaces core concepts without looking at notes",
+      "resource_refs": [
+        "https://learn.microsoft.com/en-us/training/paths/threat-modeling-security-fundamentals/",
+        "https://owasp.org/www-community/Threat_Modeling_Process",
+        "https://learn.microsoft.com/en-us/training/modules/create-threat-model-using-data-flow-diagram-elements/",
+        "https://aws.amazon.com/blogs/security/how-to-approach-threat-modeling/",
+        "https://cheatsheetseries.owasp.org/cheatsheets/Attack_Surface_Analysis_Cheat_Sheet.html"
+      ],
+      "domain": "Threat Modeling",
+      "subdomain": "Defining Assets, Trust Boundaries, and Attack Surfaces",
+      "subdomains_covered": [
+        "Defining Assets, Trust Boundaries, and Attack Surfaces"
+      ],
+      "subtopics": [
+        "Defining Assets, Trust Boundaries, and Attack Surfaces"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_37",
+      "step_type": "INFO",
+      "title": "Attack Trees and Abuse Case Modeling",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Attack Trees and Abuse Case Modeling",
+      "actions": [
+        "Read: Threat Modeling Process (sections 1-3 only) from OWASP Foundation (40 min)",
+        "Build: Create `labs/attack_trees_and_abuse_case_modeling/main.sh` (or appropriate config file) that demonstrates Attack Trees and Abuse Case Modeling, run it, save output (40 min)",
+        "Verify: Run the verification command for Attack Trees and Abuse Case Modeling and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Attack Trees and Abuse Case Modeling core concepts without looking at notes",
+      "resource_refs": [
+        "https://owasp.org/www-community/Threat_Modeling_Process",
+        "https://cheatsheetseries.owasp.org/cheatsheets/Abuse_Case_Cheat_Sheet.html",
+        "https://security.utoronto.ca/practical-threat-modelling-exercises-for-researchers/",
+        "https://www.youtube.com/watch?v=s-T4k2P2KzI",
+        "https://www.amenaza.com/post/a-step-by-step-guide-to-attack-tree-based-risk-analysis"
+      ],
+      "domain": "Threat Modeling",
+      "subdomain": "Attack Trees and Abuse Case Modeling",
+      "subdomains_covered": [
+        "Attack Trees and Abuse Case Modeling"
+      ],
+      "subtopics": [
+        "Attack Trees and Abuse Case Modeling"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_38",
+      "step_type": "BOSS",
+      "title": "Threat Likelihood and Impact Assessment Methods — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of Threat Likelihood and Impact Assessment Methods by building a complete working example",
+      "actions": [
+        "Read: Threat Modeling Process (sections 1-3 only) from OWASP (15 min)",
+        "Build: Create `labs/threat_likelihood_and_impact_assessment_methods/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates Threat Likelihood and Impact Assessment Methods (25 min)"
+      ],
+      "completion_check": "You're done when: your Threat Likelihood and Impact Assessment Methods implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://owasp.org/www-community/Threat_Modeling_Process",
+        "https://www.eccouncil.org/cybersecurity-exchange/network-security/dread-threat-modeling/",
+        "https://learn.microsoft.com/en-us/azure/security/develop/threat-modeling-tool",
+        "https://www.ncsc.gov.uk/collection/risk-management-collection/a-basic-risk-assessment-and-management-method",
+        "https://www.coursera.org/learn/modelling-threats-strategies-in-threat-modelling"
+      ],
+      "domain": "Threat Modeling",
+      "subdomain": "Threat Likelihood and Impact Assessment Methods",
+      "subdomains_covered": [
+        "Threat Likelihood and Impact Assessment Methods"
+      ],
+      "subtopics": [
+        "Threat Likelihood and Impact Assessment Methods"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_39",
+      "step_type": "INFO",
+      "title": "Lab Environment Isolation and Reset Mechanisms",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Lab Environment Isolation and Reset Mechanisms",
+      "actions": [
+        "Read: Guidance for Workload Isolation on AWS (sections 1-3 only) from Amazon Web Services (AWS) (40 min)",
+        "Build: Create `labs/lab_environment_isolation_and_reset_mechanisms/main.sh` (or appropriate config file) that demonstrates Lab Environment Isolation and Reset Mechanisms, run it, save output (40 min)",
+        "Verify: Run the verification command for Lab Environment Isolation and Reset Mechanisms and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Lab Environment Isolation and Reset Mechanisms core concepts without looking at notes",
+      "resource_refs": [
+        "https://docs.aws.amazon.com/whitepapers/latest/guidance-for-workload-isolation-on-aws/guidance-for-workload-isolation-on-aws.html",
+        "https://docs.docker.com/engine/security/"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Lab Environment Isolation and Reset Mechanisms",
+      "subdomains_covered": [
+        "Lab Environment Isolation and Reset Mechanisms"
+      ],
+      "subtopics": [
+        "Lab Environment Isolation and Reset Mechanisms"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_40",
+      "step_type": "APPLY",
+      "title": "Lab Environment Isolation and Reset Mechanisms — Hands-On Practice",
+      "estimated_time_minutes": 110,
+      "goal": "Gain hands-on experience with Lab Environment Isolation and Reset Mechanisms through practical exercises",
+      "actions": [
+        "Watch: Building More Secure Lab Environments with the AWS Cloud Development Kit (sections 1-3 only) (Amazon Web Services (AWS), 25 min)",
+        "Build: Create `labs/lab_environment_isolation_and_reset_mechanisms/main.sh` (or appropriate config file) that demonstrates Lab Environment Isolation and Reset Mechanisms, run it, save output (60 min)",
+        "Verify: Run the verification command for Lab Environment Isolation and Reset Mechanisms and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you have a working Lab Environment Isolation and Reset Mechanisms artifact and can modify it confidently",
+      "resource_refs": [
+        "https://www.youtube.com/watch?v=acb8063-yvM",
+        "https://thisprogrammingthing.com/2021/how-to-reset-delete-a-vagrant-development-environment/",
+        "https://cloud.google.com/distributed-cloud/sandbox/docs/overview"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Lab Environment Isolation and Reset Mechanisms",
+      "subdomains_covered": [
+        "Lab Environment Isolation and Reset Mechanisms"
+      ],
+      "subtopics": [
+        "Lab Environment Isolation and Reset Mechanisms"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_41",
+      "step_type": "INFO",
+      "title": "Designing Vulnerable-by-Design Lab Scenarios",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Designing Vulnerable-by-Design Lab Scenarios",
+      "actions": [
+        "Read: OWASP Vulnerable Web Applications Directory (VWAD) (sections 1-3 only) from OWASP (40 min)",
+        "Build: Create `labs/designing_vulnerable_by_design_lab_scenarios/main.sh` (or appropriate config file) that demonstrates Designing Vulnerable-by-Design Lab Scenarios, run it, save output (40 min)",
+        "Verify: Run the verification command for Designing Vulnerable-by-Design Lab Scenarios and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Designing Vulnerable-by-Design Lab Scenarios core concepts without looking at notes",
+      "resource_refs": [
+        "https://owasp.org/www-project-vulnerable-web-applications-directory/",
+        "https://medium.com/@dextro_1/how-to-create-your-own-vulnerable-ctf-machines-c354995388a1"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Designing Vulnerable-by-Design Lab Scenarios",
+      "subdomains_covered": [
+        "Designing Vulnerable-by-Design Lab Scenarios"
+      ],
+      "subtopics": [
+        "Designing Vulnerable-by-Design Lab Scenarios"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_42",
+      "step_type": "APPLY",
+      "title": "Designing Vulnerable-by-Design Lab Scenarios — Hands-On Practice",
+      "estimated_time_minutes": 110,
+      "goal": "Gain hands-on experience with Designing Vulnerable-by-Design Lab Scenarios through practical exercises",
+      "actions": [
+        "Read: OWASP Security Shepherd (sections 1-3 only) from OWASP (25 min)",
+        "Build: Create `labs/designing_vulnerable_by_design_lab_scenarios/main.sh` (or appropriate config file) that demonstrates Designing Vulnerable-by-Design Lab Scenarios, run it, save output (60 min)",
+        "Verify: Run the verification command for Designing Vulnerable-by-Design Lab Scenarios and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you have a working Designing Vulnerable-by-Design Lab Scenarios artifact and can modify it confidently",
+      "resource_refs": [
+        "https://owasp.org/www-project-security-shepherd/",
+        "https://www.youtube.com/watch?v=U0sSj92tncI",
+        "https://www.pluralsight.com/courses/building-cyber-security-lab-environment"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Designing Vulnerable-by-Design Lab Scenarios",
+      "subdomains_covered": [
+        "Designing Vulnerable-by-Design Lab Scenarios"
+      ],
+      "subtopics": [
+        "Designing Vulnerable-by-Design Lab Scenarios"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_43",
+      "step_type": "INFO",
+      "title": "Flag Design and Scoring Models in Attack Labs",
+      "estimated_time_minutes": 95,
+      "goal": "Understand the core concepts and components of Flag Design and Scoring Models in Attack Labs",
+      "actions": [
+        "Read: Dynamic Value Challenges - CTFd Docs from CTFd (30 min)",
+        "Build: Create `labs/flag_design_and_scoring_models_in_attack_labs/main.sh` (or appropriate config file) that demonstrates Flag Design and Scoring Models in Attack Labs, run it, save output (40 min)",
+        "Verify: Run the verification command for Flag Design and Scoring Models in Attack Labs and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Flag Design and Scoring Models in Attack Labs core concepts without looking at notes",
+      "resource_refs": [
+        "https://docs.ctfd.io/docs/challenges/dynamic-value/",
+        "https://wiki.attacking-lab.com/game-design/scoring-formula"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Flag Design and Scoring Models in Attack Labs",
+      "subdomains_covered": [
+        "Flag Design and Scoring Models in Attack Labs"
+      ],
+      "subtopics": [
+        "Flag Design and Scoring Models in Attack Labs"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_44",
+      "step_type": "APPLY",
+      "title": "Flag Design and Scoring Models in Attack Labs — Hands-On Practice",
+      "estimated_time_minutes": 110,
+      "goal": "Gain hands-on experience with Flag Design and Scoring Models in Attack Labs through practical exercises",
+      "actions": [
+        "Read: How You Can Write CTF Challenges (sections 1-3 only) from picoCTF (25 min)",
+        "Build: Create `labs/flag_design_and_scoring_models_in_attack_labs/main.sh` (or appropriate config file) that demonstrates Flag Design and Scoring Models in Attack Labs, run it, save output (60 min)",
+        "Verify: Run the verification command for Flag Design and Scoring Models in Attack Labs and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you have a working Flag Design and Scoring Models in Attack Labs artifact and can modify it confidently",
+      "resource_refs": [
+        "https://picoctf.org/blog/how-you-can-write-ctf-challenges.html",
+        "https://tony-nguyen.medium.com/building-and-troubleshooting-a-ctfd-scoreboard-a-guide-for-future-users-and-ai-6a386682136a",
+        "https://blogs.cisco.com/learning/cyber-security-capture-the-flag-ctf-series-part-1-planning-design"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Flag Design and Scoring Models in Attack Labs",
+      "subdomains_covered": [
+        "Flag Design and Scoring Models in Attack Labs"
+      ],
+      "subtopics": [
+        "Flag Design and Scoring Models in Attack Labs"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_45",
+      "step_type": "INFO",
+      "title": "Attacker Tooling Provisioning Within Labs",
+      "estimated_time_minutes": 105,
+      "goal": "Understand the core concepts and components of Attacker Tooling Provisioning Within Labs",
+      "actions": [
+        "Read: Kali Linux Tools - Official Documentation (sections 1-3 only) from Kali Linux (40 min)",
+        "Build: Create `labs/attacker_tooling_provisioning_within_labs/main.sh` (or appropriate config file) that demonstrates Attacker Tooling Provisioning Within Labs, run it, save output (40 min)",
+        "Verify: Run the verification command for Attacker Tooling Provisioning Within Labs and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you can explain Attacker Tooling Provisioning Within Labs core concepts without looking at notes",
+      "resource_refs": [
+        "https://www.kali.org/docs/tools/",
+        "https://medium.com/@redthreatcs/building-a-pentest-box-with-ansible-and-debian-11-49f36c137887"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Attacker Tooling Provisioning Within Labs",
+      "subdomains_covered": [
+        "Attacker Tooling Provisioning Within Labs"
+      ],
+      "subtopics": [
+        "Attacker Tooling Provisioning Within Labs"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_46",
+      "step_type": "APPLY",
+      "title": "Attacker Tooling Provisioning Within Labs — Hands-On Practice",
+      "estimated_time_minutes": 110,
+      "goal": "Gain hands-on experience with Attacker Tooling Provisioning Within Labs through practical exercises",
+      "actions": [
+        "Read: Automating Red Team Homelabs: Part 2 – Build, Pentest, Destroy, and Repeat (sections 1-3 only) from Praetorian (25 min)",
+        "Build: Create `labs/attacker_tooling_provisioning_within_labs/main.sh` (or appropriate config file) that demonstrates Attacker Tooling Provisioning Within Labs, run it, save output (60 min)",
+        "Verify: Run the verification command for Attacker Tooling Provisioning Within Labs and document the output (25 min)"
+      ],
+      "completion_check": "You're done when: you have a working Attacker Tooling Provisioning Within Labs artifact and can modify it confidently",
+      "resource_refs": [
+        "https://www.praetorian.com/blog/automating-red-team-homelabs-part-2-build-pentest-destroy-and-repeat/",
+        "https://github.com/mandiant/commando-vm",
+        "https://help.hackthebox.com/en/articles/5185163-introduction-to-lab-access"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "Attacker Tooling Provisioning Within Labs",
+      "subdomains_covered": [
+        "Attacker Tooling Provisioning Within Labs"
+      ],
+      "subtopics": [
+        "Attacker Tooling Provisioning Within Labs"
+      ],
+      "day_number": 0
+    },
+    {
+      "step_id": "step_47",
+      "step_type": "BOSS",
+      "title": "User Guidance, Hints, and Progressive Disclosure in Labs — Mastery Check",
+      "estimated_time_minutes": 110,
+      "goal": "Demonstrate mastery of User Guidance, Hints, and Progressive Disclosure in Labs by building a complete working example",
+      "actions": [
+        "Read: Progressive Disclosure from Nielsen Norman Group (15 min)",
+        "Build: Create `labs/user_guidance_hints_and_progressive_disclosure_in_labs/` folder with working implementation files and a README.md explaining each (70 min)",
+        "Verify: Checklist — (1) artifact exists, (2) it runs/works, (3) you can explain how it demonstrates User Guidance, Hints, and Progressive Disclosure in Labs (25 min)"
+      ],
+      "completion_check": "You're done when: your User Guidance, Hints, and Progressive Disclosure in Labs implementation works end-to-end and you can explain each part",
+      "resource_refs": [
+        "https://www.nngroup.com/articles/progressive-disclosure/",
+        "https://www.hackthebox.com/blog/build-htb-machine-beginners-guide",
+        "https://portswigger.net/web-security",
+        "https://www.youtube.com/watch?v=s-V4o_a-p5s",
+        "https://www.uxmatters.com/mt/archives/2012/07/ux-for-learning-design-guidelines-for-the-learner-experience.php"
+      ],
+      "domain": "Attack Labs",
+      "subdomain": "User Guidance, Hints, and Progressive Disclosure in Labs",
+      "subdomains_covered": [
+        "User Guidance, Hints, and Progressive Disclosure in Labs"
+      ],
+      "subtopics": [
+        "User Guidance, Hints, and Progressive Disclosure in Labs"
+      ],
+      "day_number": 0
     }
   ]
 }

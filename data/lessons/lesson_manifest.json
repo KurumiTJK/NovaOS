@@ -1,0 +1,136 @@
+{
+  "domains": [
+    {
+      "name": "Networking",
+      "subdomains": [
+        "IP Addressing and Subnetting Fundamentals",
+        "Routing Basics and Routing Table Interpretation",
+        "VLANs and Layer 2 Segmentation",
+        "DNS Concepts and Name Resolution Process",
+        "Network Address Translation (NAT) and Port Forwarding"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "Active Directory",
+      "subdomains": [
+        "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+        "Active Directory Objects and Attributes: Users, Computers, and Groups",
+        "Active Directory Domain Controllers and the Directory Database",
+        "Active Directory Group Policy Objects: Structure and Processing Order",
+        "Active Directory Authentication and Authorization within a Domain"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "Identity",
+      "subdomains": [
+        "Authentication vs Authorization Core Concepts",
+        "OAuth 2.0 Grant Types and Roles",
+        "OpenID Connect ID Tokens and UserInfo",
+        "SAML Assertions, Roles, and Bindings",
+        "Multi-Factor Authentication Factors and Flows",
+        "JWT Structure, Claims, and Validation"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "AWS",
+      "subdomains": [
+        "AWS IAM Core Concepts and Policies",
+        "Amazon EC2 Instances and Storage Options",
+        "Amazon S3 Buckets, Objects, and Access Controls",
+        "AWS VPC Components and Addressing",
+        "AWS CloudTrail and CloudWatch Core Concepts"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "Azure",
+      "subdomains": [
+        "Azure Resource Manager (ARM) Core Concepts",
+        "Azure Virtual Machines and Disk Storage Fundamentals",
+        "Azure Storage Accounts and Data Redundancy Options",
+        "Azure Virtual Network and Subnet Architecture",
+        "Azure Role-Based Access Control (RBAC) Fundamentals"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "Logging And SIEM",
+      "subdomains": [
+        "Logging Fundamentals: Events, Levels, and Log Types",
+        "Log Collection and Normalization Concepts",
+        "Time, Timestamps, and Log Correlation Basics",
+        "SIEM Core Components and Data Flow Architecture",
+        "Detection Content: Rules, Signatures, and Use Cases",
+        "Alert Triage and Noise Reduction Concepts in SIEM"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "Threat Modeling",
+      "subdomains": [
+        "Core Concepts and Terminology of Threat Modeling",
+        "STRIDE and Other Threat Classification Schemes",
+        "Defining Assets, Trust Boundaries, and Attack Surfaces",
+        "Attack Trees and Abuse Case Modeling",
+        "Threat Likelihood and Impact Assessment Methods"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    },
+    {
+      "name": "Attack Labs",
+      "subdomains": [
+        "Lab Environment Isolation and Reset Mechanisms",
+        "Designing Vulnerable-by-Design Lab Scenarios",
+        "Flag Design and Scoring Models in Attack Labs",
+        "Attacker Tooling Provisioning Within Labs",
+        "User Guidance, Hints, and Progressive Disclosure in Labs"
+      ],
+      "required_resource_types": [
+        "official_docs",
+        "hands_on",
+        "reference"
+      ]
+    }
+  ],
+  "constraints": {
+    "daily_minutes": 90,
+    "step_minutes_range": [
+      60,
+      120
+    ],
+    "max_resources_per_subdomain": 5,
+    "max_patch_attempts_per_subdomain": 2
+  },
+  "created_at": "2025-12-13T01:24:34.768010+00:00"
+}

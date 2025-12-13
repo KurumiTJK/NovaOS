@@ -1,5 +1,5 @@
 # NovaOS Requirements
-# Generated: 2025-12-06
+# Updated: 2025-12-12
 # Python 3.10+ required
 
 # =============================================================================
@@ -20,20 +20,33 @@ flask>=3.0.0,<4.0.0
 python-dotenv>=1.0.0,<2.0.0
 
 # =============================================================================
-# MEMORY SYSTEM (v0.11.0)
+# MEMORY SYSTEM (v0.11.0) + SUBDOMAIN VALIDATION (v3.0.0)
 # =============================================================================
 
-# Sentence Transformers - used for semantic memory search
+# Sentence Transformers - used for semantic memory search AND subdomain validation
 # Provides embedding-based retrieval for better memory matching
-# Falls back gracefully to keyword search if not installed
+# Also used by subdomain_validator.py for semantic duplicate detection
+# Falls back gracefully to keyword/word-overlap if not installed
 sentence-transformers>=2.2.0,<4.0.0
 
 # =============================================================================
-# NOVA COUNCIL (Multi-Model Orchestration)
+# LESSON ENGINE (v2.0.0) - Gemini Web Grounding
 # =============================================================================
 
-# Google Generative AI SDK - used for Gemini Flash/Pro integration
+# Google GenAI SDK - used for Gemini 2.5 Pro with Google Search grounding
+# Provides grounded resource retrieval in lesson_engine/retrieval.py
+# This is the NEW SDK (google-genai), not the old one (google-generativeai)
+# Required for: from google import genai; from google.genai import types
+google-genai>=1.0.0,<2.0.0
+
+# =============================================================================
+# NOVA COUNCIL (Multi-Model Orchestration) - LEGACY
+# =============================================================================
+
+# Google Generative AI SDK - used for Gemini Flash/Pro integration (legacy)
 # Provides cheap quest ideation (Flash) and research (Pro) capabilities
+# NOTE: This is the OLD SDK. Lesson Engine uses google-genai (above) instead.
+# Keeping for backward compatibility with existing code paths.
 # Falls back gracefully to GPT-5 only if not configured
 google-generativeai>=0.8.0,<1.0.0
 
@@ -64,6 +77,11 @@ tzdata>=2024.1
 # =============================================================================
 # tkinter is part of Python stdlib (comes with Python installation)
 # No additional install needed for: json, os, re, datetime, pathlib, etc.
+#
+# GOOGLE SDK CLARIFICATION:
+#   - google-genai: NEW SDK for Gemini with web grounding (Lesson Engine)
+#   - google-generativeai: OLD SDK for basic Gemini calls (Nova Council)
+#   Both can coexist. Lesson Engine prefers google-genai for grounding support.
 #
 # For development/testing, consider also installing:
 #   pytest>=7.0.0

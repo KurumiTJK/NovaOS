@@ -55,6 +55,32 @@ except ImportError as e:
     print(f"[QuestCompose] Lesson Engine not available: {e}", flush=True)
 
 
+# v3.0: Domain Normalizer (learning layer model)
+_HAS_DOMAIN_NORMALIZER = False
+try:
+    from kernel.domain_normalizer import (
+        extract_domains_for_quest_compose,
+        extract_domains_robust,
+    )
+    _HAS_DOMAIN_NORMALIZER = True
+    print("[QuestCompose] Domain normalizer loaded", flush=True)
+except ImportError as e:
+    print(f"[QuestCompose] Domain normalizer not available: {e}", flush=True)
+
+
+# v3.0: Subdomain Validator (semantic deduplication)
+_HAS_SUBDOMAIN_VALIDATOR = False
+try:
+    from kernel.subdomain_validator import (
+        validate_subdomain_structure,
+        ValidationResult,
+    )
+    _HAS_SUBDOMAIN_VALIDATOR = True
+    print("[QuestCompose] Subdomain validator loaded", flush=True)
+except ImportError as e:
+    print(f"[QuestCompose] Subdomain validator not available: {e}", flush=True)
+
+
 # =============================================================================
 # WIZARD SESSION STATE
 # =============================================================================
@@ -103,6 +129,13 @@ class QuestComposeSession:
     candidate_domains: List[Dict[str, Any]] = field(default_factory=list)
     domains_confirmed: bool = False
     awaiting_manual_domains: bool = False  # True when user typed "manual"
+    
+    # v2.0: Subdomain review state
+    candidate_subdomains: Dict[str, List[str]] = field(default_factory=dict)  # domain_name -> subdomains
+    subdomains_confirmed: bool = False
+    awaiting_manual_subdomains: bool = False
+    manual_subdomain_domain_index: int = 0  # Current domain being edited
+    subdomain_review_active: bool = False  # True when in subdomain review phase
     
     def is_metadata_complete(self) -> bool:
         """Check if all required metadata is collected."""
@@ -980,6 +1013,9 @@ def _process_wizard_input(
     
     # NEW: Handle domain review stage
     if stage == "domain_review":
+        # Check if we're in subdomain review phase
+        if session.subdomain_review_active or session.awaiting_manual_subdomains:
+            return _handle_subdomain_review_stage(cmd_name, session, user_input, session_id, kernel)
         return _handle_domain_review_stage(cmd_name, session, user_input, session_id, kernel)
     
     # Handle steps stage (needs kernel for LLM access)
@@ -1151,14 +1187,35 @@ def _trigger_domain_extraction(
 
 def _extract_domains_for_review(raw_text: str, llm_client: Any) -> List[Dict[str, Any]]:
     """
-    Extract domains using two-pass pipeline.
+    Extract domains using robust topic extraction.
     
-    v4.0: Gemini draft → GPT polish → FINAL
-    User only sees final polished result.
+    v3.0: Handles curriculum documents, objectives, bullet lists, freeform text.
+    Extracts TOP-LEVEL topics as domains, with subtopics organized into subdomains.
     """
-    # ═══════════════════════════════════════════════════════════════════════
-    # TWO-PASS PIPELINE: Gemini draft → GPT polish
-    # ═══════════════════════════════════════════════════════════════════════
+    
+    # =========================================================================
+    # v3.0: ROBUST DOMAIN EXTRACTION (preferred)
+    # =========================================================================
+    if _HAS_DOMAIN_NORMALIZER:
+        print("[QuestCompose] Using robust domain extraction...", flush=True)
+        
+        try:
+            domains = extract_domains_for_quest_compose(raw_text, llm_client)
+            
+            if domains:
+                print(f"[QuestCompose] Extracted {len(domains)} domains:", flush=True)
+                for d in domains:
+                    subs = d.get("subtopics", [])
+                    print(f"[QuestCompose]   {d['name']}: {len(subs)} subdomains", flush=True)
+                
+                return domains
+        
+        except Exception as e:
+            print(f"[QuestCompose] Domain normalizer error: {e}, falling back...", flush=True)
+    
+    # =========================================================================
+    # FALLBACK: Two-pass pipeline (Gemini -> GPT)
+    # =========================================================================
     if _HAS_GEMINI:
         print("[QuestCompose] Using two-pass domain extraction...", flush=True)
         domains = gemini_extract_domains(raw_text, llm_client)
@@ -1167,9 +1224,9 @@ def _extract_domains_for_review(raw_text: str, llm_client: Any) -> List[Dict[str
             return domains
         print("[QuestCompose] Two-pass failed, using legacy extraction...", flush=True)
     
-    # ═══════════════════════════════════════════════════════════════════════
-    # LEGACY FALLBACK (GPT-only if two-pass unavailable)
-    # ═══════════════════════════════════════════════════════════════════════
+    # =========================================================================
+    # LEGACY FALLBACK (GPT-only)
+    # =========================================================================
     extract_system = """You are a curriculum architect.
 The user will provide a phase description for a learning plan (cyber, cloud, etc.).
 
@@ -1180,7 +1237,7 @@ Rules:
   "name": "Networking"
   "subtopics": ["routing", "VLANs", "DNS", "segmentation"]
 - Do NOT split subtopics into separate domains.
-- Ignore meta text like "Phase A1 — Fundamentals Repair", "Your goal: …", "Outputs: …", "Focus Areas".
+- Ignore meta text like "Phase A1", "Your goal:", "Outputs:", "Focus Areas".
 - Include only meaningful technical or learning domains.
 
 Output STRICT JSON:
@@ -1206,7 +1263,7 @@ JSON only:"""
             system=extract_system,
             user=extract_user,
             command="quest-compose-domain-review",
-            think_mode=False,  # Fast extraction
+            think_mode=False,
         )
         
         result_text = result.get("text", "").strip()
@@ -1215,7 +1272,6 @@ JSON only:"""
         if not domains_raw:
             return []
         
-        # Normalize to standard format
         domains = []
         for d in domains_raw:
             domains.append({
@@ -1227,7 +1283,6 @@ JSON only:"""
         
     except Exception as e:
         print(f"[QuestCompose] Domain extraction LLM error: {e}", flush=True)
-        # Fall back to structural extraction
         return _structural_extract_domains(raw_text)
 
 
@@ -1271,34 +1326,18 @@ def _handle_domain_review_stage(
     if session.awaiting_manual_domains:
         return _handle_manual_domain_input(cmd_name, session, user_input, session_id, kernel)
     
-    # Handle accept - confirm domains AND auto-generate steps
+    # Handle accept - confirm domains AND generate subdomains
     if user_input_lower in ("accept", "yes", "y", "ok", "confirm"):
         # Confirm domains
         session.draft["domains"] = session.candidate_domains
         session.domains_confirmed = True
         
         print(f"[QuestCompose] Domains accepted: {[d.get('name', '?') for d in session.candidate_domains]}", flush=True)
-        print(f"[QuestCompose] Auto-generating steps...", flush=True)
+        print(f"[QuestCompose] Generating subdomains...", flush=True)
         
-        # Move to steps stage with "choice" substage so streaming can detect it
-        session.stage = "steps"
-        session.substage = "choice"
+        # Generate subdomains (stays in domain_review stage with subdomain_review substage)
         set_compose_session(session_id, session)
-        
-        # Return a response indicating generation is about to start
-        # The frontend will detect this state and trigger streaming
-        return _base_response(
-            cmd_name,
-            "—— Step 3/4: Quest Steps ——\n\n"
-            "Domains confirmed. Generating quest steps...\n\n"
-            "Type generate to start, or manual to define steps yourself.",
-            {
-                "wizard_active": True,
-                "stage": "steps",
-                "substage": "choice",
-                "auto_generate": True,  # Signal to frontend to auto-trigger generation
-            }
-        )
+        return _trigger_subdomain_generation(cmd_name, session, session_id, kernel)
     
     # Handle regen
     elif user_input_lower in ("regen", "regenerate", "retry", "again"):
@@ -1391,6 +1430,826 @@ def _handle_manual_domain_input(
             "Enter domains or type done.",
             {"wizard_active": True, "stage": "domain_review"}
         )
+
+
+# =============================================================================
+# SUBDOMAIN REVIEW HANDLERS (v2.0)
+# =============================================================================
+
+def _handle_subdomain_review_stage(
+    cmd_name: str,
+    session: QuestComposeSession,
+    user_input: str,
+    session_id: str,
+    kernel: Any = None,
+) -> CommandResponse:
+    """
+    Handle subdomain review stage - user confirms/edits generated subdomains.
+    
+    This is a sub-stage within Step 2/4 (Domain Review).
+    
+    Options:
+    - accept: Confirm subdomains and proceed to Step 3/4
+    - regen: Regenerate subdomains (same domains)
+    - manual: Edit subdomains manually
+    - back: Return to domain review
+    """
+    user_input_lower = user_input.lower().strip()
+    
+    # Check if we're in manual editing mode
+    if session.awaiting_manual_subdomains:
+        return _handle_manual_subdomain_input(cmd_name, session, user_input, session_id, kernel)
+    
+    # Handle accept - confirm subdomains and proceed
+    if user_input_lower in ("accept", "yes", "y", "ok", "confirm"):
+        # Build final domains structure with subdomains
+        final_domains = []
+        for domain in session.candidate_domains:
+            domain_name = domain.get("name", "")
+            subdomains = session.candidate_subdomains.get(domain_name, [])
+            
+            final_domains.append({
+                "name": domain_name,
+                "subdomains": subdomains,
+                "subtopics": subdomains,  # Backwards compat
+            })
+        
+        session.draft["domains"] = final_domains
+        session.domains_confirmed = True
+        session.subdomains_confirmed = True
+        session.subdomain_review_active = False
+        
+        print(f"[QuestCompose] Subdomains accepted for {len(final_domains)} domains", flush=True)
+        print(f"[QuestCompose] Auto-generating steps...", flush=True)
+        
+        # Move to steps stage
+        session.stage = "steps"
+        session.substage = "choice"
+        set_compose_session(session_id, session)
+        
+        return _base_response(
+            cmd_name,
+            "—— Step 3/4: Quest Steps ——\n\n"
+            "Domains and subdomains confirmed. Generating quest steps...\n\n"
+            "Type generate to start, or manual to define steps yourself.",
+            {
+                "wizard_active": True,
+                "stage": "steps",
+                "substage": "choice",
+                "auto_generate": True,
+            }
+        )
+    
+    # Handle regen - regenerate subdomains
+    elif user_input_lower in ("regen", "regenerate", "retry", "again"):
+        print(f"[QuestCompose] Regenerating subdomains...", flush=True)
+        return _trigger_subdomain_generation(cmd_name, session, session_id, kernel)
+    
+    # Handle manual - edit subdomains
+    elif user_input_lower in ("manual", "m", "custom", "edit"):
+        session.awaiting_manual_subdomains = True
+        session.manual_subdomain_domain_index = 0
+        set_compose_session(session_id, session)
+        
+        # Show first domain for editing
+        return _get_manual_subdomain_prompt(cmd_name, session, kernel)
+    
+    # Handle back - return to domain review
+    elif user_input_lower in ("back", "b"):
+        session.subdomain_review_active = False
+        session.candidate_subdomains = {}
+        set_compose_session(session_id, session)
+        
+        # Re-show domain review
+        domain_list = _format_domain_list_for_review(session.candidate_domains)
+        return _base_response(
+            cmd_name,
+            f"—— Step 2/4: Domain Review ——\n\n"
+            f"{domain_list}\n\n"
+            "Commands:\n"
+            "• accept — Confirm domains and generate subdomains\n"
+            "• regen — Re-extract domains from objectives\n"
+            "• manual — Enter domains manually\n\n"
+            "Type your choice:",
+            {"wizard_active": True, "stage": "domain_review"}
+        )
+    
+    # Unknown input
+    else:
+        return _base_response(
+            cmd_name,
+            "Please type accept, regen, manual, or back.",
+            {"wizard_active": True, "stage": "domain_review", "substage": "subdomain_review"}
+        )
+
+
+def _handle_manual_subdomain_input(
+    cmd_name: str,
+    session: QuestComposeSession,
+    user_input: str,
+    session_id: str,
+    kernel: Any = None,
+) -> CommandResponse:
+    """
+    Handle manual subdomain input from user.
+    
+    Commands:
+    - next: Move to next domain
+    - done: Finish editing
+    - back: Return to subdomain review
+    """
+    user_input_lower = user_input.lower().strip()
+    
+    domains = session.candidate_domains
+    current_idx = session.manual_subdomain_domain_index
+    
+    if current_idx >= len(domains):
+        current_idx = len(domains) - 1
+    
+    current_domain = domains[current_idx].get("name", "") if domains else ""
+    
+    # Handle navigation commands
+    if user_input_lower == "next":
+        # Move to next domain
+        if current_idx < len(domains) - 1:
+            session.manual_subdomain_domain_index = current_idx + 1
+            set_compose_session(session_id, session)
+            return _get_manual_subdomain_prompt(cmd_name, session, kernel)
+        else:
+            # Already at last domain, treat as done
+            user_input_lower = "done"
+    
+    if user_input_lower == "done":
+        # Finish manual editing
+        session.awaiting_manual_subdomains = False
+        session.manual_subdomain_domain_index = 0
+        set_compose_session(session_id, session)
+        
+        # Show subdomain review with updated subdomains
+        return _get_subdomain_review_prompt(cmd_name, session, kernel)
+    
+    if user_input_lower == "back":
+        # Return to subdomain review
+        session.awaiting_manual_subdomains = False
+        session.manual_subdomain_domain_index = 0
+        set_compose_session(session_id, session)
+        
+        return _get_subdomain_review_prompt(cmd_name, session, kernel)
+    
+    # Parse subdomain input (one per line)
+    new_subdomains = []
+    lines = user_input.strip().split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        # Skip empty lines and commands
+        if not line or line.lower() in ("next", "done", "back"):
+            continue
+        # Remove leading numbers/bullets
+        clean = re.sub(r'^[\d\.\)\-\*]+\s*', '', line).strip()
+        if clean:
+            new_subdomains.append(clean)
+    
+    if new_subdomains:
+        session.candidate_subdomains[current_domain] = new_subdomains
+        set_compose_session(session_id, session)
+        
+        return _base_response(
+            cmd_name,
+            f"Updated {len(new_subdomains)} subdomains for '{current_domain}'.\n\n"
+            f"Type next to edit the next domain, done to finish, or paste more subdomains.",
+            {"wizard_active": True, "stage": "domain_review", "substage": "manual_subdomain"}
+        )
+    else:
+        return _base_response(
+            cmd_name,
+            f"No subdomains parsed. Please enter subdomains (one per line) for '{current_domain}'.\n\n"
+            f"Or type next, done, or back.",
+            {"wizard_active": True, "stage": "domain_review", "substage": "manual_subdomain"}
+        )
+
+
+def _get_manual_subdomain_prompt(
+    cmd_name: str,
+    session: QuestComposeSession,
+    kernel: Any = None,
+) -> CommandResponse:
+    """Generate the manual subdomain editing prompt."""
+    domains = session.candidate_domains
+    current_idx = session.manual_subdomain_domain_index
+    
+    if current_idx >= len(domains):
+        current_idx = len(domains) - 1
+    
+    current_domain = domains[current_idx].get("name", "") if domains else ""
+    current_subdomains = session.candidate_subdomains.get(current_domain, [])
+    
+    if current_subdomains:
+        subdomain_list = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(current_subdomains))
+    else:
+        subdomain_list = "  (none yet)"
+    
+    prompt = f"""—— Step 2/4: Manual Subdomain Entry ——
+
+Domain {current_idx + 1}/{len(domains)}: {current_domain}
+
+Current subdomains:
+{subdomain_list}
+
+Enter new subdomains (one per line), or type:
+• next — Move to next domain
+• done — Finish editing all domains
+• back — Return to subdomain review
+
+Paste your subdomains:"""
+
+    return _base_response(
+        cmd_name,
+        prompt,
+        {"wizard_active": True, "stage": "domain_review", "substage": "manual_subdomain"}
+    )
+
+
+def _get_subdomain_review_prompt(
+    cmd_name: str,
+    session: QuestComposeSession,
+    kernel: Any = None,
+) -> CommandResponse:
+    """Generate the subdomain review prompt."""
+    display_parts = []
+    
+    for domain in session.candidate_domains:
+        domain_name = domain.get("name", "")
+        subdomains = session.candidate_subdomains.get(domain_name, [])
+        
+        display_parts.append(f"📁 {domain_name}")
+        if subdomains:
+            for i, sub in enumerate(subdomains, 1):
+                display_parts.append(f"   {i}. {sub}")
+        else:
+            display_parts.append("   (no subdomains)")
+        display_parts.append("")
+    
+    subdomain_display = "\n".join(display_parts)
+    
+    # Count totals
+    total_domains = len(session.candidate_domains)
+    total_subdomains = sum(len(session.candidate_subdomains.get(d.get("name", ""), [])) 
+                          for d in session.candidate_domains)
+    
+    prompt = f"""—— Step 2/4: Subdomain Review ——
+
+{subdomain_display}
+Summary: {total_domains} domains, {total_subdomains} subdomains
+
+Commands:
+• accept — Confirm these subdomains and proceed to step generation
+• regen — Regenerate subdomains (keeping same domains)
+• manual — Edit subdomains manually
+• back — Return to domain review
+
+Type your choice:"""
+
+    return _base_response(
+        cmd_name,
+        prompt,
+        {"wizard_active": True, "stage": "domain_review", "substage": "subdomain_review"}
+    )
+
+
+def _trigger_subdomain_generation(
+    cmd_name: str,
+    session: QuestComposeSession,
+    session_id: str,
+    kernel: Any = None,
+) -> CommandResponse:
+    """
+    Generate subdomains for each confirmed domain using LLM.
+    
+    v2.1: Tightened generation with validation pass:
+    - Domain purity enforcement (no cross-domain references)
+    - Deduplication across all domains
+    - Atomicity check (no workflow verbs)
+    - Cap at 4-6 subdomains per domain
+    """
+    
+    domains = session.candidate_domains
+    if not domains:
+        return _base_response(
+            cmd_name,
+            "No domains to generate subdomains for. Please go back and add domains.",
+            {"wizard_active": True, "stage": "domain_review"}
+        )
+    
+    # Get objectives for context
+    objectives_text = session.draft.get("raw_text", "") or "\n".join(session.draft.get("objectives", []))
+    
+    # Build list of all domain names for cross-reference prevention
+    all_domain_names = [d.get("name", "").lower() for d in domains]
+    
+    # Generate subdomains using LLM
+    llm_client = getattr(kernel, 'llm_client', None) if kernel else None
+    
+    generated_subdomains = {}
+    
+    if llm_client:
+        for domain in domains:
+            domain_name = domain.get("name", "")
+            
+            # Build forbidden terms list (other domains)
+            other_domains = [d.get("name", "") for d in domains if d.get("name", "") != domain_name]
+            forbidden_list = ", ".join(other_domains) if other_domains else "none"
+            
+            # v2.1: Tightened prompt with hard constraints
+            system_prompt = f"""You are a curriculum designer creating subdomains for ONE specific domain.
+
+DOMAIN: {domain_name}
+
+HARD CONSTRAINTS (MUST FOLLOW):
+1. DOMAIN PURITY: Subdomains MUST belong ONLY to "{domain_name}"
+2. NO CROSS-REFERENCES: Do NOT mention these other domains: {forbidden_list}
+3. NO WORKFLOWS: Avoid verbs like "Integrating", "Deploying", "Automating", "Building pipelines"
+4. ATOMICITY: Each subdomain = ONE concept teachable in 15-30 minutes
+5. QUANTITY: Generate exactly 4-6 subdomains (no more, no less)
+6. NO DUPLICATES: Each subdomain must be distinct
+
+WHAT TO GENERATE:
+- Core concepts and terminology
+- Fundamental skills and operations
+- Key components and architecture
+- Common patterns and practices
+
+WHAT TO AVOID:
+- Topics that belong to other domains
+- End-to-end workflows spanning multiple tools
+- Vague phrases like "Best Practices" or "Advanced Topics"
+- Integration with external systems
+
+Output ONLY a JSON array of 4-6 subdomain names:
+["Subdomain 1", "Subdomain 2", ...]
+
+JSON array only, no explanation."""
+
+            user_prompt = f"""Generate 4-6 atomic subdomains for: {domain_name}
+
+Learning context:
+{objectives_text[:400]}
+
+Remember: subdomains must be SPECIFIC to {domain_name} only.
+
+JSON array:"""
+
+            try:
+                result = llm_client.complete_system(
+                    system=system_prompt,
+                    user=user_prompt,
+                    command="quest-subdomain-gen",  # Use quest- prefix for routing
+                    think_mode=False,
+                )
+                
+                response_text = result.get("text", "").strip()
+                
+                # Parse JSON array
+                if response_text.startswith("```"):
+                    lines = response_text.split("\n")
+                    response_text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+                
+                start = response_text.find("[")
+                end = response_text.rfind("]") + 1
+                
+                if start != -1 and end > start:
+                    subdomains = json.loads(response_text[start:end])
+                    if isinstance(subdomains, list):
+                        # Clean and cap at 6
+                        cleaned = [str(s).strip() for s in subdomains if s][:6]
+                        generated_subdomains[domain_name] = cleaned
+                        continue
+                
+            except Exception as e:
+                print(f"[QuestCompose] Subdomain generation error for {domain_name}: {e}", flush=True)
+            
+            # Fallback: use existing subtopics or generate generic ones
+            existing = domain.get("subtopics", [])
+            if existing:
+                generated_subdomains[domain_name] = existing[:6]
+            else:
+                generated_subdomains[domain_name] = [
+                    f"{domain_name} Core Concepts",
+                    f"{domain_name} Key Components",
+                    f"{domain_name} Common Operations",
+                    f"{domain_name} Practical Skills",
+                ]
+    else:
+        # No LLM - use existing subtopics or defaults
+        for domain in domains:
+            domain_name = domain.get("name", "")
+            existing = domain.get("subtopics", [])
+            if existing:
+                generated_subdomains[domain_name] = existing[:6]
+            else:
+                generated_subdomains[domain_name] = [
+                    f"{domain_name} Core Concepts",
+                    f"{domain_name} Key Components",
+                    f"{domain_name} Common Operations",
+                ]
+    
+    # =========================================================================
+    # v2.1: VALIDATION + REPAIR PASS
+    # This runs BEFORE showing the Subdomain Review UI
+    # =========================================================================
+    validated_subdomains = _validate_and_repair_subdomains(
+        generated_subdomains,
+        all_domain_names,
+        llm_client,
+    )
+    
+    # Store validated subdomains
+    session.candidate_subdomains = validated_subdomains
+    session.subdomain_review_active = True
+    set_compose_session(session_id, session)
+    
+    # Log validation summary
+    total_before = sum(len(v) for v in generated_subdomains.values())
+    total_after = sum(len(v) for v in validated_subdomains.values())
+    print(f"[QuestCompose] Generated subdomains: {total_before} → validated: {total_after}", flush=True)
+    
+    # Show subdomain review
+    return _get_subdomain_review_prompt(cmd_name, session, kernel)
+
+
+# =============================================================================
+# SUBDOMAIN VALIDATION + REPAIR (v2.2)
+# =============================================================================
+
+# Forbidden keywords by domain category (for cross-domain detection)
+# NOTE: Keywords must be specific enough to avoid false positives
+# e.g., "container" is valid in both Docker and Kubernetes
+_DOMAIN_KEYWORDS = {
+    "docker": ["dockerfile", "docker compose", "docker hub", "docker registry", "docker daemon", "docker engine"],
+    "kubernetes": ["k8s", "kubectl", "helm", "kube-", "kubelet", "minikube", "eks", "aks", "gke"],
+    "cicd": ["ci/cd", "jenkins", "github actions", "gitlab ci", "circleci", "travis", "azure devops", "tekton"],
+    "terraform": ["terraform", "hcl", "tfstate", "terragrunt"],
+    "aws": ["aws ", "ec2", "s3 ", "lambda", "iam", "cloudformation", "dynamodb", "rds"],
+    "azure": ["azure ", "aks", "blob storage", "arm template", "azure devops"],
+    "gcp": ["gcp ", "gke", "cloud run", "bigquery", "cloud functions"],
+    "ansible": ["ansible", "playbook", "inventory", "ansible-"],
+    "git": ["git branch", "git commit", "git merge", "gitflow", "github", "gitlab"],
+}
+
+# Overly broad phrases to flag (must match exactly or as prefix)
+_BROAD_PHRASES = [
+    "end-to-end",
+    "best practices",  
+    "advanced topics",
+    "getting started with",
+    "introduction to ",
+    "overview of ",
+    "basics of ",
+    "fundamentals of ",
+    "concepts and terminology",  # Too vague
+    "principles and practices",  # Too vague
+]
+
+# Workflow verbs to flag ONLY when they start the subdomain
+# These suggest a multi-step workflow rather than an atomic concept
+_WORKFLOW_VERBS = [
+    "integrating ",
+    "setting up ",
+    "implementing ",
+    "building and deploying",
+    "configuring and managing",
+]
+
+# =============================================================================
+# v2.2: KEYSTONE SUBDOMAINS (must-have foundational concepts)
+# =============================================================================
+
+# Keystone definitions: domain pattern -> list of (keystone_phrases, fallback_subdomain)
+# If no subdomain contains any of the keystone_phrases, insert fallback_subdomain
+_KEYSTONE_SUBDOMAINS = {
+    "kubernetes core": [
+        (["deployment", "replicaset", "replica set"], "Deployments and ReplicaSets"),
+    ],
+    "kubernetes operations": [
+        (["logging", "events", "debug", "troubleshoot"], "Logging, Events, and Debugging"),
+    ],
+    "ci/cd fundamentals": [
+        (["pipeline stage", "stages", "ci vs cd", "ci/cd stage"], "CI/CD Pipeline Stages"),
+    ],
+    "ci/cd tooling": [
+        (["artifact", "storage", "registry"], "Artifact Storage and Management"),
+    ],
+    "docker fundamentals": [
+        (["image", "container", "dockerfile"], "Docker Images and Containers"),
+    ],
+    "docker image": [
+        (["layer", "build", "optimization"], "Image Building and Layers"),
+    ],
+}
+
+# =============================================================================
+# v2.2: SEMANTIC SIMILARITY PATTERNS (for intra-domain deduplication)
+# =============================================================================
+
+# Word groups that are semantically equivalent for deduplication
+_SEMANTIC_EQUIVALENTS = [
+    {"architecture", "components", "structure", "design"},
+    {"basics", "fundamentals", "core", "essentials", "introduction"},
+    {"management", "managing", "handling"},
+    {"configuration", "configuring", "setup", "setting up"},
+    {"operations", "operational", "operating"},
+    {"concepts", "principles", "theory"},
+]
+
+
+def _validate_and_repair_subdomains(
+    generated: Dict[str, List[str]],
+    all_domain_names: List[str],
+    llm_client: Any = None,
+) -> Dict[str, List[str]]:
+    """
+    Validate and repair generated subdomains.
+    
+    v3.0: Uses topic-agnostic layered validation:
+      Layer 1: Deterministic rules (exact dupes, vague patterns, counts)
+      Layer 2: Semantic similarity via embeddings (cross-domain + intra-domain)
+      Layer 3: LLM resolution for ambiguous cases (optional)
+    
+    Falls back to legacy validation if validator module not available.
+    """
+    
+    # =========================================================================
+    # v3.0: TOPIC-AGNOSTIC VALIDATOR (preferred)
+    # =========================================================================
+    if _HAS_SUBDOMAIN_VALIDATOR:
+        print("[QuestCompose] Using topic-agnostic subdomain validation...", flush=True)
+        
+        try:
+            result = validate_subdomain_structure(
+                domains=generated,
+                llm_client=llm_client,
+                auto_fix=True,
+                similarity_threshold=0.82,
+            )
+            
+            # Log results
+            print(f"[SubdomainValidation] {result.stats.get('original_count', 0)} → {result.stats.get('final_count', 0)} subdomains", flush=True)
+            
+            for kept, dropped, domain in result.merges_applied:
+                print(f"[SubdomainValidation] Merged: '{dropped}' → '{kept}'", flush=True)
+            
+            # Log warnings for overlaps that weren't auto-fixed
+            for issue in result.issues:
+                if issue.severity == "warning" and issue.issue_type == "concept_overlap":
+                    print(f"[SubdomainValidation] ⚠️ Potential overlap: {issue.subdomain} ↔ {issue.related_to}", flush=True)
+            
+            return result.domains
+            
+        except Exception as e:
+            print(f"[QuestCompose] Subdomain validator error: {e}, falling back...", flush=True)
+    
+    # =========================================================================
+    # LEGACY FALLBACK (existing implementation)
+    # =========================================================================
+    print("[QuestCompose] Using legacy subdomain validation...", flush=True)
+    
+    validated = {}
+    seen_subdomains = set()  # Track across all domains for deduplication
+    
+    for domain_name, subdomains in generated.items():
+        domain_lower = domain_name.lower()
+        valid_subs = []
+        
+        # Determine which keyword sets are forbidden for this domain
+        forbidden_keywords = _get_forbidden_keywords_for_domain(domain_lower, all_domain_names)
+        
+        # =====================================================================
+        # PASS 1: Domain purity + cross-domain dedupe + broad phrase filtering
+        # =====================================================================
+        for subdomain in subdomains:
+            sub_lower = subdomain.lower()
+            
+            # Check 1: Duplicate across domains (exact match)
+            if sub_lower in seen_subdomains:
+                print(f"[SubdomainValidation] Dropped duplicate: '{subdomain}'", flush=True)
+                continue
+            
+            # Check 2: Cross-domain reference
+            cross_domain = _check_cross_domain_reference(sub_lower, domain_lower, forbidden_keywords)
+            if cross_domain:
+                print(f"[SubdomainValidation] Dropped cross-domain '{subdomain}' (references {cross_domain})", flush=True)
+                continue
+            
+            # Check 3: Overly broad phrase
+            if _is_overly_broad(sub_lower):
+                print(f"[SubdomainValidation] Dropped overly broad: '{subdomain}'", flush=True)
+                continue
+            
+            # Check 4: Workflow verb (unless it's a CI/CD or automation domain)
+            is_workflow_domain = any(kw in domain_lower for kw in ["ci/cd", "pipeline", "automation", "devops"])
+            if not is_workflow_domain and _has_workflow_verb(sub_lower):
+                print(f"[SubdomainValidation] Dropped workflow verb: '{subdomain}'", flush=True)
+                continue
+            
+            # Passed initial checks
+            valid_subs.append(subdomain)
+            seen_subdomains.add(sub_lower)
+        
+        # =====================================================================
+        # PASS 2: Intra-domain semantic deduplication (v2.2)
+        # =====================================================================
+        valid_subs = _dedupe_intra_domain(valid_subs, domain_name)
+        
+        # =====================================================================
+        # PASS 3: Keystone enforcement (v2.2)
+        # =====================================================================
+        valid_subs, keystones_added = _enforce_keystones(valid_subs, domain_name, seen_subdomains)
+        
+        # Update seen set with any added keystones
+        for ks in keystones_added:
+            seen_subdomains.add(ks.lower())
+        
+        # =====================================================================
+        # PASS 4: Count enforcement (cap at 6)
+        # =====================================================================
+        if len(valid_subs) > 6:
+            print(f"[SubdomainValidation] Capping {domain_name} from {len(valid_subs)} to 6", flush=True)
+            valid_subs = valid_subs[:6]
+        
+        # If we dropped too many, add domain-specific fallbacks
+        if len(valid_subs) < 4:
+            fallbacks = _generate_fallback_subdomains(domain_name, seen_subdomains)
+            for fb in fallbacks:
+                if len(valid_subs) >= 4:
+                    break
+                if fb.lower() not in seen_subdomains:
+                    valid_subs.append(fb)
+                    seen_subdomains.add(fb.lower())
+        
+        validated[domain_name] = valid_subs
+    
+    return validated
+
+
+def _dedupe_intra_domain(subdomains: List[str], domain_name: str) -> List[str]:
+    """
+    v2.2: Remove semantically redundant subdomains within a single domain.
+    
+    Example: "CI/CD Pipeline Components and Architecture" vs "CI/CD Architecture"
+    → Keep the more specific one, drop the broader/redundant one.
+    """
+    if len(subdomains) <= 1:
+        return subdomains
+    
+    # Normalize each subdomain to a set of "concept words"
+    def get_concept_words(text: str) -> set:
+        """Extract meaningful concept words from a subdomain name."""
+        text_lower = text.lower()
+        # Remove common filler words
+        fillers = {"and", "the", "of", "in", "for", "with", "to", "a", "an", "on", "at", "by"}
+        words = set(re.findall(r'\b\w+\b', text_lower)) - fillers
+        
+        # Expand semantic equivalents
+        expanded = set()
+        for word in words:
+            expanded.add(word)
+            for equiv_set in _SEMANTIC_EQUIVALENTS:
+                if word in equiv_set:
+                    expanded.update(equiv_set)
+        return expanded
+    
+    # Build concept sets for each subdomain
+    concept_sets = [(sub, get_concept_words(sub)) for sub in subdomains]
+    
+    # Find and remove redundant subdomains
+    to_remove = set()
+    
+    for i, (sub_a, concepts_a) in enumerate(concept_sets):
+        if i in to_remove:
+            continue
+        for j, (sub_b, concepts_b) in enumerate(concept_sets):
+            if j <= i or j in to_remove:
+                continue
+            
+            # Check for high overlap (one is subset of another or >70% overlap)
+            intersection = concepts_a & concepts_b
+            smaller_size = min(len(concepts_a), len(concepts_b))
+            
+            if smaller_size == 0:
+                continue
+            
+            overlap_ratio = len(intersection) / smaller_size
+            
+            if overlap_ratio >= 0.7:
+                # Keep the more specific one (longer name usually = more specific)
+                if len(sub_a) >= len(sub_b):
+                    to_remove.add(j)
+                    print(f"[SubdomainValidation] Dedupe: keeping '{sub_a}', dropping '{sub_b}'", flush=True)
+                else:
+                    to_remove.add(i)
+                    print(f"[SubdomainValidation] Dedupe: keeping '{sub_b}', dropping '{sub_a}'", flush=True)
+                    break  # sub_a is removed, no need to compare further
+    
+    return [sub for i, (sub, _) in enumerate(concept_sets) if i not in to_remove]
+
+
+def _enforce_keystones(
+    subdomains: List[str],
+    domain_name: str,
+    seen_global: set,
+) -> Tuple[List[str], List[str]]:
+    """
+    v2.2: Ensure keystone subdomains are present.
+    
+    Returns:
+        Tuple of (updated_subdomains, list_of_added_keystones)
+    """
+    domain_lower = domain_name.lower()
+    added = []
+    
+    # Find matching keystone rules for this domain
+    for pattern, keystones in _KEYSTONE_SUBDOMAINS.items():
+        if pattern in domain_lower:
+            for (phrases, fallback) in keystones:
+                # Check if any phrase is already covered
+                has_keystone = False
+                for sub in subdomains:
+                    sub_lower = sub.lower()
+                    if any(phrase in sub_lower for phrase in phrases):
+                        has_keystone = True
+                        break
+                
+                if not has_keystone:
+                    # Check global seen set to avoid cross-domain duplicates
+                    if fallback.lower() not in seen_global:
+                        subdomains.append(fallback)
+                        added.append(fallback)
+                        print(f"[SubdomainValidation] Added keystone '{fallback}' to {domain_name}", flush=True)
+    
+    return subdomains, added
+
+
+def _get_forbidden_keywords_for_domain(domain_lower: str, all_domain_names: List[str]) -> set:
+    """Get keywords that are forbidden for this domain (belong to other domains)."""
+    forbidden = set()
+    
+    # Determine which category this domain belongs to
+    domain_category = None
+    for cat, keywords in _DOMAIN_KEYWORDS.items():
+        if any(kw in domain_lower for kw in keywords):
+            domain_category = cat
+            break
+    
+    # Add keywords from OTHER categories
+    for cat, keywords in _DOMAIN_KEYWORDS.items():
+        if cat != domain_category:
+            forbidden.update(keywords)
+    
+    # Also add other domain names as forbidden
+    for other_domain in all_domain_names:
+        if other_domain != domain_lower:
+            forbidden.add(other_domain)
+            # Add first word of multi-word domain names
+            if " " in other_domain:
+                forbidden.add(other_domain.split()[0])
+    
+    return forbidden
+
+
+def _check_cross_domain_reference(subdomain: str, domain: str, forbidden: set) -> Optional[str]:
+    """Check if subdomain references another domain. Returns the referenced domain or None."""
+    for keyword in forbidden:
+        if keyword in subdomain:
+            # Don't flag if the keyword is part of the current domain name
+            if keyword not in domain:
+                return keyword
+    return None
+
+
+def _is_overly_broad(subdomain: str) -> bool:
+    """Check if subdomain uses overly broad phrases."""
+    return any(phrase in subdomain for phrase in _BROAD_PHRASES)
+
+
+def _has_workflow_verb(subdomain: str) -> bool:
+    """Check if subdomain starts with a workflow verb phrase."""
+    return any(subdomain.startswith(verb) for verb in _WORKFLOW_VERBS)
+
+
+def _generate_fallback_subdomains(domain_name: str, existing: set) -> List[str]:
+    """Generate safe fallback subdomains for a domain."""
+    # Extract base topic from domain name
+    base = domain_name.replace("Fundamentals", "").replace("Basics", "").replace("Essentials", "").strip()
+    
+    fallbacks = [
+        f"{base} Architecture",
+        f"{base} Core Components",
+        f"{base} Key Operations",
+        f"{base} Configuration",
+        f"{base} Troubleshooting",
+    ]
+    
+    return [fb for fb in fallbacks if fb.lower() not in existing]
 
 
 def _handle_steps_stage(
