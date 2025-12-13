@@ -30,29 +30,22 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from .command_types import CommandResponse
 
-# Gemini helper for quest generation (try Gemini first, fall back to GPT)
+# Gemini helper for domain extraction only (NOT for step generation)
 try:
     from .gemini_helper import (
-        gemini_generate_quest_steps,
         gemini_extract_domains,
         is_gemini_available,
     )
     _HAS_GEMINI = True
 except ImportError:
     _HAS_GEMINI = False
-    def gemini_generate_quest_steps(*args, **kwargs): return None
     def gemini_extract_domains(*args, **kwargs): return None
     def is_gemini_available(): return False
 
 
-# v1.0.0: Lesson Engine for retrieval-backed step generation
-_HAS_LESSON_ENGINE = False
-try:
-    from kernel.lesson_engine import generate_lesson_plan_streaming
-    _HAS_LESSON_ENGINE = True
-    print("[QuestCompose] Lesson Engine loaded successfully", flush=True)
-except ImportError as e:
-    print(f"[QuestCompose] Lesson Engine not available: {e}", flush=True)
+# v1.0.0: Lesson Engine for step generation (REQUIRED - no fallback)
+from kernel.lesson_engine import generate_lesson_plan_streaming
+print("[QuestCompose] Lesson Engine loaded", flush=True)
 
 
 # v3.0: Domain Normalizer (learning layer model)
@@ -3926,32 +3919,22 @@ def _generate_steps_with_llm(
     progress_callback: Optional[callable] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Generate quest steps using domain-balanced 3-phase architecture.
+    Generate quest steps using Lesson Engine.
     
-    v2.0: Try Gemini first (fast, cheap), fall back to GPT.
-    
-    v0.10.2: NEW ARCHITECTURE - Domain-first balanced generation
-    
-    PHASE 1: Domain Extraction
-        - Parse ALL domains/topics from input (any format)
-        - Ensure nothing is missed
-        
-    PHASE 2: Domain-Balanced Outline
-        - Allocate 3-7 steps per domain
-        - Ensure proportional coverage
-        - Self-validate: all domains represented
-        
-    PHASE 3: Content Generation (per domain)
-        - Generate steps for ONE domain at a time
-        - Enforce micro-step constraints
-        - Continue until ALL domains complete
+    NO FALLBACKS - Lesson Engine is required.
+    If Lesson Engine fails, raises an error.
     
     Args:
-        draft: Quest draft dictionary with title, objectives, etc.
+        draft: Quest draft dictionary with title, objectives, domains, etc.
         kernel: NovaKernel instance
         progress_callback: Optional callback(message, percent) for progress updates
     
-    Returns a list of step dicts, or empty list on failure.
+    Returns:
+        List of step dicts
+    
+    Raises:
+        ValueError: If no domains provided
+        RuntimeError: If Lesson Engine fails or returns no steps
     """
     def _progress(msg: str, pct: int):
         if progress_callback:
@@ -3961,865 +3944,45 @@ def _generate_steps_with_llm(
                 pass
         print(f"[QuestCompose] {msg} ({pct}%)", flush=True)
     
-    # Get LLM client from kernel (needed for GPT fallback in router)
-    llm_client = getattr(kernel, 'llm_client', None)
-    
-    # ═══════════════════════════════════════════════════════════════════════
-    # v1.0.0: LESSON ENGINE (Priority 1)
-    # ═══════════════════════════════════════════════════════════════════════
+    # Get domains from draft
     domains = draft.get("domains", [])
     
-    if _HAS_LESSON_ENGINE and domains:
-        _progress("Using Lesson Engine (3-phase retrieval-backed)...", 5)
-        
-        try:
-            from kernel.lesson_engine import generate_lesson_plan
-            
-            quest_id = draft.get("id") or "quest_generated"
-            title = draft.get("title", "Untitled Quest")
-            
-            lesson_steps = generate_lesson_plan(
-                domains=domains,
-                quest_id=quest_id,
-                quest_title=title,
-                kernel=kernel,
-                user_constraints=None,
-            )
-            
-            if lesson_steps:
-                _progress(f"Lesson Engine succeeded: {len(lesson_steps)} steps", 95)
-                return lesson_steps
-            
-            _progress("Lesson Engine returned no steps, falling back...", 10)
-            
-        except Exception as e:
-            print(f"[QuestCompose] Lesson Engine error: {e}", flush=True)
-            _progress("Lesson Engine failed, falling back...", 10)
+    if not domains:
+        raise ValueError("No domains provided for step generation")
     
-    # ═══════════════════════════════════════════════════════════════════════
-    # USE GEMINI ROUTER (handles Gemini + GPT fallback + validation)
-    # ═══════════════════════════════════════════════════════════════════════
-    if _HAS_GEMINI:
-        _progress("Generating steps via router...", 5)
-        router_steps = gemini_generate_quest_steps(draft, llm_client)
-        if router_steps:
-            _progress(f"Router succeeded: {len(router_steps)} validated steps", 95)
-            return router_steps
-        _progress("Router failed, using legacy generation...", 10)
+    quest_id = draft.get("id") or "quest_generated"
+    title = draft.get("title", "Untitled Quest")
     
-    # ═══════════════════════════════════════════════════════════════════════
-    # LEGACY FALLBACK - Original implementation
-    # ═══════════════════════════════════════════════════════════════════════
-    try:
-        _progress("Starting domain-balanced generation...", 5)
-        
-        if not llm_client:
-            print("[QuestCompose] No LLM client available", flush=True)
-            return []
-        
-        title = draft.get("title", "Untitled Quest")
-        category = draft.get("category", "general")
-        objectives = draft.get("objectives", [])
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 1: USE CONFIRMED DOMAINS (from Domain Review wizard step)
-        # ═══════════════════════════════════════════════════════════════════════
-        # 
-        # The domain extraction now happens BEFORE this function is called,
-        # during the Domain Review wizard step. The user has already confirmed
-        # the domains, so we just use them directly.
-        #
-        # This is the key change from Option A: NO RE-EXTRACTION at generation time.
-        
-        _progress("Phase 1: Loading confirmed domains...", 10)
-        
-        # Get confirmed domains from draft
-        domains = draft.get("domains", [])
-        
-        if domains:
-            print(f"[QuestCompose] Using {len(domains)} confirmed domains from Domain Review", flush=True)
-            print(f"[QuestCompose] Domains: {[d.get('name', '?') for d in domains]}", flush=True)
-        else:
-            # FALLBACK: If no confirmed domains, this phase wasn't run through Domain Review
-            # This shouldn't happen in normal flow, but handle it gracefully
-            print(f"[QuestCompose] WARNING: No confirmed domains in draft", flush=True)
-            print(f"[QuestCompose] This phase should have gone through Domain Review first", flush=True)
-            
-            # Fall back to old extraction as safety net
-            raw_text = "\n".join(objectives) if isinstance(objectives, list) else str(objectives)
-            domains = _structural_extract_domains(raw_text)
-            
-            if not domains:
-                print(f"[QuestCompose] No domains found, falling back to single-shot", flush=True)
-                return _generate_steps_single_shot(draft, kernel, progress_callback)
-        
-        _progress(f"Using {len(domains)} domains", 15)
-        
-        # Log final domains with subtopic counts
-        print(f"[QuestCompose] Domains for generation:", flush=True)
-        for d in domains:
-            subtopics = d.get('subtopics', [])
-            print(f"[QuestCompose]   - {d.get('name', '?')} ({len(subtopics)} subtopics)", flush=True)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 2: SUBTOPIC-AWARE BALANCED OUTLINE
-        # ═══════════════════════════════════════════════════════════════════════
-        # Creates an outline that covers ALL domains AND ALL subtopics
-        # Every subtopic gets at least one step
-        
-        _progress("Phase 2: Creating subtopic-aware outline...", 20)
-        
-        # Build domain-subtopic map (single source of truth)
-        domain_subtopic_map = _get_domain_subtopic_map(domains)
-        _log_domain_subtopic_map(domain_subtopic_map)
-        
-        # Calculate target steps based on domains AND subtopics
-        num_domains = len(domains)
-        target_steps = _calculate_subtopic_aware_target_steps(domains, min_per_domain=3)
-        
-        print(f"[QuestCompose] Target steps: {target_steps} (domains: {num_domains}, subtopics: {sum(len(st) for st in domain_subtopic_map.values())})", flush=True)
-        
-        # Build subtopic-aware domain list for prompt
-        domain_list_text = ""
-        for i, d in enumerate(domains):
-            name = d.get('name', f'Domain {i+1}')
-            subtopics = d.get('subtopics', [])
-            domain_list_text += f"\n{i+1}. **{name}**"
-            if subtopics:
-                domain_list_text += f"\n   Subtopics (EACH must appear in at least one step):"
-                for st in subtopics:
-                    domain_list_text += f"\n   - {st}"
-            domain_list_text += "\n"
-        
-        # Subtopic-aware outline prompt with step_type and BOSS requirements
-        outline_system = """You are a curriculum architect. Create a day-by-day learning outline.
-
-═══════════════════════════════════════════════════════════════════════════════
-JSON OUTPUT REQUIREMENTS - CRITICAL
-═══════════════════════════════════════════════════════════════════════════════
-
-You MUST output ONLY a valid JSON object. Nothing else.
-
-DO NOT:
-- Wrap in markdown code fences (no ```json)
-- Add comments
-- Add trailing commas
-- Add any text before or after the JSON
-- Use single quotes (use double quotes only)
-
-DO:
-- Output raw JSON starting with { and ending with }
-- Use double quotes for all strings
-- Ensure all arrays and objects are properly closed
-
-═══════════════════════════════════════════════════════════════════════════════
-SUBTOPIC-AWARE OUTLINE REQUIREMENTS
-═══════════════════════════════════════════════════════════════════════════════
-
-1. EVERY domain MUST have 3-7 steps (no domain gets 0, 1, or 2)
-2. EVERY subtopic listed under a domain MUST appear in at least one step
-3. Each step MUST include a "subtopics" array listing which subtopic(s) it covers
-4. Each step = 60-90 minutes (working adult, not student)
-5. One step = ONE focused micro-topic (1-2 subtopics max per step, except BOSS)
-6. Distribute steps EVENLY across domains
-
-═══════════════════════════════════════════════════════════════════════════════
-STEP TYPES (step_type field) - REQUIRED
-═══════════════════════════════════════════════════════════════════════════════
-
-Each step MUST have a "step_type" field with ONE of these values:
-
-- "INFO"   — Concept/reading/explanation day (learn theory, watch videos, read docs)
-- "APPLY"  — Hands-on lab, walkthrough, CTF-style practice (build/configure/exploit)
-- "RECALL" — Review day: quizzes, flashcards, cheat sheets, summarization
-- "BOSS"   — Full-chain capstone lab/scenario that integrates multiple subtopics
-
-═══════════════════════════════════════════════════════════════════════════════
-STEP TYPE DISTRIBUTION RULES
-═══════════════════════════════════════════════════════════════════════════════
-
-- In the FIRST 5 DAYS, include at least ONE "APPLY" step (avoid all-INFO starts)
-- Alternate INFO → APPLY patterns to keep engagement high
-- Don't cluster too many INFO days in a row (max 2 consecutive INFO)
-- Place RECALL steps after 3-4 learning days (not at the start)
-
-═══════════════════════════════════════════════════════════════════════════════
-BOSS STEP RULES - CRITICAL
-═══════════════════════════════════════════════════════════════════════════════
-
-- Each domain gets EXACTLY ONE "BOSS" step
-- The BOSS step MUST be the LAST step for that domain
-- The BOSS step should reference MULTIPLE subtopics (2-4) from that domain
-- The BOSS step is a capstone that tests if the learner can chain skills together
-- Do NOT create more than one BOSS per domain
-- Do NOT create any domain without a BOSS step
-
-VALIDATION BEFORE RESPONDING:
-- Count steps per domain (must be >= 3)
-- Check that EVERY domain has exactly ONE BOSS step as its last step
-- Check that EVERY listed subtopic appears in at least one step's "subtopics" array
-- Check that at least ONE APPLY step appears in days 1-5
-- Ensure JSON is valid with no trailing commas"""
-
-        outline_user = f"""Create a balanced {target_steps}-step outline for "{title}".
-
-DOMAINS AND SUBTOPICS TO COVER:
-{domain_list_text}
-
-CRITICAL RULES:
-1. Every subtopic listed above MUST appear in at least one step's "subtopics" array
-2. Every domain MUST have exactly ONE BOSS step as its LAST step
-3. BOSS steps should integrate 2-4 subtopics into a full-chain scenario
-
-OUTPUT THIS EXACT JSON STRUCTURE:
-{{
-  "total_steps": {target_steps},
-  "outline": [
-    {{"day": 1, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Intro to Subtopic A", "step_type": "INFO"}},
-    {{"day": 2, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Hands-on with Subtopic A", "step_type": "APPLY"}},
-    {{"day": 3, "domain": "Domain Name", "subtopics": ["Subtopic B"], "topic": "Learn Subtopic B", "step_type": "INFO"}},
-    {{"day": 4, "domain": "Domain Name", "subtopics": ["Subtopic A", "Subtopic B"], "topic": "Domain Capstone: Full Chain", "step_type": "BOSS"}},
-    {{"day": 5, "domain": "Other Domain", "subtopics": ["Subtopic X"], "topic": "Intro to X", "step_type": "INFO"}}
-  ]
-}}
-
-REMEMBER:
-- "subtopics" is a LIST even if it has one item: ["single item"]
-- "step_type" MUST be one of: "INFO", "APPLY", "RECALL", "BOSS" (uppercase)
-- Every domain's LAST step must be step_type: "BOSS"
-- Domain names must match exactly
-
-JSON output only:"""
-
-        print(f"[QuestCompose] Calling LLM for subtopic-aware outline (target: {target_steps} steps)...", flush=True)
-        
-        outline_steps = []
-        outline_parse_attempts = 0
-        max_attempts = 2
-        
-        while outline_parse_attempts < max_attempts and not outline_steps:
-            outline_parse_attempts += 1
-            
-            try:
-                outline_result = llm_client.complete_system(
-                    system=outline_system,
-                    user=outline_user,
-                    command="quest-compose-outline",
-                    think_mode=True,
-                )
-            except Exception as e:
-                print(f"[QuestCompose] Outline LLM error (attempt {outline_parse_attempts}): {e}", flush=True)
-                if outline_parse_attempts >= max_attempts:
-                    _progress(f"Outline failed: {e}", 25)
-                    return _generate_steps_single_shot(draft, kernel, progress_callback)
-                continue
-            
-            outline_text = outline_result.get("text", "").strip()
-            print(f"[QuestCompose] Outline response length: {len(outline_text)}", flush=True)
-            
-            # Parse outline with resilient parser
-            try:
-                outline_data = _parse_json_resilient(outline_text)
-                
-                if isinstance(outline_data, dict):
-                    outline_steps = outline_data.get("outline", [])
-                elif isinstance(outline_data, list):
-                    outline_steps = outline_data
-                
-                if not outline_steps:
-                    raise ValueError("No outline steps in response")
-                
-                # Normalize subtopics field for each step
-                for step in outline_steps:
-                    _normalize_outline_step_subtopics(step)
-                
-                print(f"[QuestCompose] Parsed {len(outline_steps)} outline steps", flush=True)
-                
-            except (json.JSONDecodeError, ValueError) as e:
-                print(f"[QuestCompose] Outline parse error (attempt {outline_parse_attempts}): {e}", flush=True)
-                print(f"[QuestCompose] Raw outline: {outline_text[:500]}...", flush=True)
-                
-                if outline_parse_attempts >= max_attempts:
-                    # Last resort: generate outline programmatically
-                    print(f"[QuestCompose] Generating programmatic outline as fallback", flush=True)
-                    outline_steps = _generate_programmatic_outline(domains, target_steps)
-        
-        if not outline_steps:
-            print(f"[QuestCompose] No outline after {max_attempts} attempts, using single-shot", flush=True)
-            return _generate_steps_single_shot(draft, kernel, progress_callback)
-        
-        _progress(f"Outline: {len(outline_steps)} steps planned", 30)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # DOMAIN COVERAGE VALIDATION (existing behavior)
-        # ═══════════════════════════════════════════════════════════════════════
-        
-        covered_domains = set()
-        domain_step_count = {}
-        
-        for step in outline_steps:
-            domain = step.get("domain", "Unknown")
-            covered_domains.add(domain.lower())
-            domain_step_count[domain] = domain_step_count.get(domain, 0) + 1
-        
-        print(f"[QuestCompose] Domain coverage in outline: {domain_step_count}", flush=True)
-        
-        # Check for missing domains
-        missing_domains = []
-        for d in domains:
-            d_name = d.get("name", "").lower()
-            if not any(d_name in cd or cd in d_name for cd in covered_domains):
-                missing_domains.append(d.get("name", "Unknown"))
-        
-        if missing_domains:
-            print(f"[QuestCompose] WARNING: Missing domains in outline: {missing_domains}", flush=True)
-            # Add placeholder steps for missing domains
-            for missing in missing_domains:
-                domain_subtopics = domain_subtopic_map.get(missing, [])
-                if domain_subtopics:
-                    # Create one step per subtopic for missing domain
-                    for st in domain_subtopics:
-                        outline_steps.append({
-                            "day": len(outline_steps) + 1,
-                            "domain": missing,
-                            "subtopics": [st],
-                            "topic": f"{missing}: {st}",
-                            "type": "info",
-                            "_generation_mode": "domain_patch"
-                        })
-                else:
-                    # No subtopics - create 3 generic steps
-                    for i in range(3):
-                        outline_steps.append({
-                            "day": len(outline_steps) + 1,
-                            "domain": missing,
-                            "subtopics": [],
-                            "topic": f"{missing} - Part {i+1}",
-                            "type": "info" if i == 0 else "apply" if i == 1 else "boss",
-                            "_generation_mode": "domain_patch"
-                        })
-            _progress(f"Added steps for {len(missing_domains)} missing domains", 33)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # SUBTOPIC COVERAGE VALIDATION (NEW)
-        # ═══════════════════════════════════════════════════════════════════════
-        # Ensure every subtopic is covered by at least one step
-        
-        _progress("Validating subtopic coverage...", 35)
-        
-        # Only do subtopic audit if we have subtopics
-        total_subtopics = sum(len(st) for st in domain_subtopic_map.values())
-        
-        if total_subtopics > 0:
-            # Audit subtopic coverage
-            subtopic_coverage = _audit_subtopic_coverage(outline_steps, domain_subtopic_map)
-            missing_subtopics = _get_missing_subtopics(subtopic_coverage)
-            
-            # Log coverage details
-            _log_subtopic_coverage(subtopic_coverage, missing_subtopics)
-            
-            # Patch missing subtopics
-            if missing_subtopics:
-                patch_steps = _generate_subtopic_patch_steps(missing_subtopics, len(outline_steps))
-                outline_steps.extend(patch_steps)
-                
-                total_patched = sum(len(st) for st in missing_subtopics.values())
-                print(f"[QuestCompose] Added {total_patched} patch step(s) for missing subtopics.", flush=True)
-                _progress(f"Patched {total_patched} missing subtopics", 37)
-        else:
-            print(f"[QuestCompose] No subtopics defined, skipping subtopic coverage audit", flush=True)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # BOSS STEP ENFORCEMENT
-        # ═══════════════════════════════════════════════════════════════════════
-        # Ensure exactly one BOSS per domain, positioned as the last step
-        
-        _progress("Enforcing boss steps...", 38)
-        
-        # Enforce one BOSS per domain (normalizes step_type and fixes violations)
-        outline_steps = _enforce_boss_per_domain(outline_steps, domains, domain_subtopic_map)
-        
-        # Ensure at least one APPLY in first 5 days (prevents INFO-heavy starts)
-        outline_steps = _ensure_early_apply_step(outline_steps)
-        
-        # Log step type distribution
-        _log_step_type_distribution(outline_steps)
-        
-        print(f"[QuestCompose:Boss] Boss normalization complete.", flush=True)
-        
-        # Renumber days sequentially
-        for i, step in enumerate(outline_steps):
-            step["day"] = i + 1
-        
-        print(f"[QuestCompose] Final outline: {len(outline_steps)} steps", flush=True)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 3: SUBTOPIC-AWARE CONTENT GENERATION (PER DOMAIN)
-        # ═══════════════════════════════════════════════════════════════════════
-        # Generate detailed content one domain at a time, using subtopics
-        
-        _progress("Phase 3: Generating subtopic-aware content by domain...", 40)
-        
-        all_steps = []
-        
-        # Group outline steps by domain
-        domain_groups = {}
-        for step in outline_steps:
-            domain = step.get("domain", "General")
-            if domain not in domain_groups:
-                domain_groups[domain] = []
-            domain_groups[domain].append(step)
-        
-        total_domains = len(domain_groups)
-        
-        for domain_idx, (domain_name, domain_outline) in enumerate(domain_groups.items()):
-            # Calculate progress (40% to 90% for content generation)
-            domain_progress = int(40 + (50 * (domain_idx + 1) / total_domains))
-            
-            # Get subtopics for this domain
-            domain_subtopics = domain_subtopic_map.get(domain_name, [])
-            
-            _progress(f"Generating {domain_name} ({len(domain_outline)} steps, {len(domain_subtopics)} subtopics)...", domain_progress)
-            print(f"[QuestCompose] Generating content for domain '{domain_name}' (subtopics: {domain_subtopics})", flush=True)
-            
-            # Build subtopic-aware outline context for this domain with step_type
-            domain_outline_text = ""
-            for s in domain_outline:
-                step_subtopics = s.get('subtopics', [])
-                step_type = s.get('step_type', 'INFO')
-                subtopics_str = f" [Subtopics: {', '.join(step_subtopics)}]" if step_subtopics else ""
-                domain_outline_text += f"- Day {s['day']}: {s.get('topic', 'TBD')} (step_type: {step_type}){subtopics_str}\n"
-                
-                # Debug log with step_type
-                print(f"[QuestCompose] Step {s['day']} ({domain_name} / {step_type}) subtopics: {step_subtopics}", flush=True)
-            
-            # Build subtopics context for prompt
-            subtopics_context = ""
-            if domain_subtopics:
-                subtopics_context = f"""
-**Domain Subtopics (for reference):**
-{chr(10).join(['- ' + st for st in domain_subtopics])}
-
-Each step below has specific subtopic(s) it must focus on. Ensure the content deeply covers those subtopics.
-"""
-            
-            content_system = """You are a micro-learning content designer.
-
-═══════════════════════════════════════════════════════════════════════════════
-HARD CONSTRAINTS - EVERY STEP MUST FOLLOW THESE
-═══════════════════════════════════════════════════════════════════════════════
-
-1. Each step = 60-90 minutes (tired working adult)
-2. EXACTLY 3-4 actions per step
-3. Each action = 15-25 minutes, specific and completable
-4. ONE theme per step (never mix reading + lab + reflection)
-5. Each step's content MUST focus on its assigned subtopic(s)
-
-═══════════════════════════════════════════════════════════════════════════════
-STEP TYPE GUIDANCE
-═══════════════════════════════════════════════════════════════════════════════
-
-Generate content appropriate to the step_type:
-
-**INFO** (concept/reading day):
-- Actions: Read docs, watch videos, study diagrams, take notes
-- Focus on understanding theory and concepts
-
-**APPLY** (hands-on lab day):
-- Actions: Configure, build, deploy, exploit, defend, test
-- Focus on practical skills, walkthroughs, CTF-style exercises
-
-**RECALL** (review day):
-- Actions: Create flashcards, take quizzes, write cheat sheets, summarize
-- Focus on retention and self-testing
-
-**BOSS** (capstone day):
-- This is a BOSS FIGHT - a full-chain capstone lab
-- Actions should chain multiple skills into a realistic scenario
-- The learner must combine knowledge from multiple subtopics
-- Make it challenging but achievable in 90 minutes
-- Include multi-step attack/defense flows or integrated projects
-- Example: "Complete a full privilege escalation chain from S3 → IAM → persistence"
-
-BAD actions (NEVER use):
-- "Set up complete environment" ❌
-- "Research thoroughly" ❌
-- "Master the fundamentals" ❌
-- "Build and deploy" ❌
-
-GOOD actions:
-- "Read pages 10-20 on X" ✓
-- "Watch 15-min video" ✓
-- "Install tool Y" ✓
-- "Write 3-bullet summary" ✓
-- "Complete CTF challenge: exploit X to gain Y" ✓
-
-Output ONLY JSON array. No markdown. Include "subtopics" and "step_type" fields from input."""
-
-            content_user = f"""Generate micro-step content for the "{domain_name}" domain.
-
-**Quest:** {title}
-{subtopics_context}
-**Steps to generate (with their step_type and assigned subtopics):**
-{domain_outline_text}
-
-Generate a JSON array with EXACTLY {len(domain_outline)} steps.
-PRESERVE the subtopics and step_type fields from each step.
-
-[
-  {{
-    "step_type": "INFO",
-    "title": "Day X: [Micro-Topic focused on subtopic]",
-    "prompt": "Today you will [ONE focused goal related to subtopic]. (2-3 sentences max)",
-    "actions": ["[15-25 min task about subtopic]", "[15-25 min task]", "[15-25 min task]"],
-    "subtopics": ["copy from input"]
-  }},
-  {{
-    "step_type": "BOSS",
-    "title": "Day Y: {domain_name} Boss Fight",
-    "prompt": "Today is your capstone challenge. You will chain together [multiple subtopics] into a full scenario.",
-    "actions": ["[Multi-step challenge action 1]", "[Challenge action 2]", "[Challenge action 3]", "[Final validation]"],
-    "subtopics": ["multiple", "subtopics", "from input"]
-  }}
-]
-
-REMEMBER: 
-- 3-4 actions each, 60-90 min total, ONE theme per step
-- Content MUST focus on the listed subtopics
-- BOSS steps should be challenging capstone scenarios
-- Copy the subtopics and step_type from input to output
-
-JSON array only:"""
-
-            try:
-                content_result = llm_client.complete_system(
-                    system=content_system,
-                    user=content_user,
-                    command="quest-compose-content",
-                    think_mode=True,
-                )
-                
-                content_text = content_result.get("text", "").strip()
-                
-                # Parse content
-                start_idx = content_text.find('[')
-                end_idx = content_text.rfind(']') + 1
-                
-                if start_idx != -1 and end_idx > 0:
-                    content_json = content_text[start_idx:end_idx]
-                    content_steps = json.loads(content_json)
-                    
-                    # Normalize and add steps, preserving subtopics and step_type from outline
-                    for step_idx, step_data in enumerate(content_steps):
-                        if not isinstance(step_data, dict):
-                            continue
-                        
-                        # Get step_type - prefer from outline (authoritative)
-                        if step_idx < len(domain_outline):
-                            outline_step = domain_outline[step_idx]
-                            step_type = outline_step.get("step_type", "INFO")
-                        else:
-                            step_type = _normalize_step_type(step_data)
-                        
-                        # Legacy type field for backwards compatibility
-                        legacy_type = step_type.lower()
-                        if legacy_type not in {"info", "recall", "apply", "reflect", "boss"}:
-                            legacy_type = "info"
-                        
-                        actions = step_data.get("actions", [])
-                        if not isinstance(actions, list):
-                            actions = []
-                        actions = [str(a) for a in actions if a]
-                        
-                        # ENFORCE MICRO-STEP CONSTRAINTS
-                        if len(actions) > 4:
-                            actions = actions[:4]
-                        if len(actions) < 2:
-                            actions.append("Review what you learned today")
-                        
-                        # Get subtopics - prefer from outline (authoritative)
-                        if step_idx < len(domain_outline):
-                            step_subtopics = domain_outline[step_idx].get("subtopics", [])
-                        else:
-                            step_subtopics = step_data.get("subtopics", [])
-                        
-                        # Normalize subtopics
-                        if isinstance(step_subtopics, str):
-                            step_subtopics = [step_subtopics] if step_subtopics else []
-                        elif not isinstance(step_subtopics, list):
-                            step_subtopics = []
-                        
-                        step = {
-                            "id": f"step_{len(all_steps) + 1}",
-                            "type": legacy_type,        # Legacy field for backwards compat
-                            "step_type": step_type,     # New canonical field
-                            "prompt": step_data.get("prompt", ""),
-                            "title": step_data.get("title", f"Day {len(all_steps) + 1}"),
-                            "actions": actions,
-                            "domain": domain_name,
-                            "subtopics": step_subtopics,
-                        }
-                        
-                        if step["prompt"]:
-                            all_steps.append(step)
-                    
-            except Exception as e:
-                _progress(f"Domain {domain_name} error: {e}", domain_progress)
-                # Create placeholder steps for failed domain, preserving subtopics and step_type
-                for outline_step in domain_outline:
-                    step_subtopics = outline_step.get("subtopics", [])
-                    step_type = outline_step.get("step_type", "INFO")
-                    all_steps.append({
-                        "id": f"step_{len(all_steps) + 1}",
-                        "type": step_type.lower(),
-                        "step_type": step_type,
-                        "prompt": f"Complete: {outline_step.get('topic', domain_name)}",
-                        "title": f"Day {len(all_steps) + 1}: {outline_step.get('topic', domain_name)}",
-                        "actions": [
-                            f"Study {outline_step.get('topic', domain_name)}",
-                            "Take notes on key concepts",
-                            "Review and summarize",
-                        ],
-                        "domain": domain_name,
-                        "subtopics": step_subtopics,
-                    })
-                continue
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # FINAL COVERAGE VALIDATION
-        # ═══════════════════════════════════════════════════════════════════════
-        
-        final_domain_count = {}
-        final_subtopic_count = 0
-        final_boss_count = {}
-        
-        # Validate and count all steps
-        for step in all_steps:
-            # ENSURE ALL REQUIRED FIELDS ARE PRESENT (Bug fix #2)
-            if "domain" not in step or not step["domain"]:
-                step["domain"] = "Unknown"
-                print(f"[QuestCompose] WARNING: Step '{step.get('title', '?')}' missing domain, set to 'Unknown'", flush=True)
-            
-            if "subtopics" not in step:
-                step["subtopics"] = []
-            
-            if "step_type" not in step:
-                step["step_type"] = _normalize_step_type(step)
-            
-            # Count for stats
-            d = step.get("domain", "Unknown")
-            final_domain_count[d] = final_domain_count.get(d, 0) + 1
-            final_subtopic_count += len(step.get("subtopics", []))
-            if step.get("step_type") == "BOSS":
-                final_boss_count[d] = final_boss_count.get(d, 0) + 1
-        
-        print(f"[QuestCompose] Final coverage: {final_domain_count}", flush=True)
-        print(f"[QuestCompose] Steps with subtopics: {final_subtopic_count} subtopic references", flush=True)
-        print(f"[QuestCompose:Boss] Final BOSS steps per domain: {final_boss_count}", flush=True)
-        print(f"[QuestCompose:MultiPhase] SUCCESS - {len(all_steps)} steps across {len(final_domain_count)} domains", flush=True)
-        
-        if all_steps:
-            _progress(f"Complete: {len(all_steps)} steps across {len(final_domain_count)} domains", 95)
-            
-            # Add generation mode metadata to each step for debugging
-            for step in all_steps:
-                step["_generation_mode"] = "multiphase"
-            
-            return all_steps
-        else:
-            print(f"[QuestCompose:MultiPhase] No steps generated, falling back to SingleShot", flush=True)
-            _progress("No steps generated, using fallback", 50)
-            return _generate_steps_single_shot(draft, kernel, progress_callback)
-        
-    except Exception as e:
-        print(f"[QuestCompose:MultiPhase] EXCEPTION: {e}", flush=True)
-        import traceback
-        traceback.print_exc()
-        print(f"[QuestCompose:MultiPhase] Falling back to SingleShot due to exception", flush=True)
-        return _generate_steps_single_shot(draft, kernel, progress_callback)
-
-
-def _generate_steps_single_shot(
-    draft: Dict[str, Any], 
-    kernel: Any,
-    progress_callback: Optional[callable] = None,
-) -> List[Dict[str, Any]]:
-    """
-    Original single-shot step generation (fallback).
+    _progress("Using Lesson Engine (4-phase pipeline)...", 5)
+    print(f"[QuestCompose] Generating steps for {len(domains)} domains", flush=True)
     
-    Used when chunked generation fails or for simple quests.
-    """
-    def _progress(msg: str, pct: int):
-        if progress_callback:
-            try:
-                progress_callback(msg, pct)
-            except:
-                pass
-        print(f"[QuestCompose:SingleShot] {msg} ({pct}%)", flush=True)
+    steps = []
     
-    try:
-        print(f"[QuestCompose:SingleShot] Starting fallback generation...", flush=True)
+    for event in generate_lesson_plan_streaming(
+        domains=domains,
+        quest_id=quest_id,
+        quest_title=title,
+        kernel=kernel,
+        user_constraints=None,
+    ):
+        event_type = event.get("type", "")
         
-        llm_client = getattr(kernel, 'llm_client', None)
-        if not llm_client:
-            print(f"[QuestCompose:SingleShot] ERROR: No LLM client", flush=True)
-            return []
-        
-        title = draft.get("title", "Untitled Quest")
-        category = draft.get("category", "general")
-        objectives = draft.get("objectives", [])
-        
-        print(f"[QuestCompose:SingleShot] Title: {title}, Objectives: {len(objectives)}", flush=True)
-        
-        objectives_text = "\n".join([f"- {obj}" for obj in objectives]) if objectives else "- Complete the quest"
-        
-        system_prompt = """You are a micro-learning architect for NovaOS.
-
-═══════════════════════════════════════════════════════════════════════════════
-CRITICAL: ONE STEP = ONE DAY = 60-90 MINUTES FOR A WORKING ADULT
-═══════════════════════════════════════════════════════════════════════════════
-
-HARD RULES:
-1. Each step = 60-90 minutes MAX (tired adult after work, not full-time student)
-2. EXACTLY 3-4 actions per step (not 6, not 8, not 10)
-3. ONE theme per step (info OR apply, NEVER both combined)
-4. Actions must be atomic and completable in 15-25 minutes each
-
-DECOMPOSITION:
-- Multi-hour topic → split into multiple days
-- Reading + lab → separate days
-- Multiple concepts → separate days
-- MORE DAYS = BETTER
-
-BAD ACTIONS (never use):
-- "Set up complete environment" ❌
-- "Research thoroughly" ❌  
-- "Build and deploy" ❌
-- "Master fundamentals" ❌
-
-GOOD ACTIONS:
-- "Read pages 10-20 on X" ✓
-- "Watch 15-min video on Y" ✓
-- "Install Z tool" ✓
-- "Write 3 bullet summary" ✓
-
-Respond ONLY with valid JSON array. No markdown."""
-        
-        user_prompt = f"""Create ATOMIC MICRO-STEPS for this quest.
-
-**Quest Title:** {title}
-**Category:** {category}
-
-**Learning Objectives:**
-{objectives_text}
-
-Generate 10-30 micro-steps. Each step:
-- 60-90 minutes max
-- EXACTLY 3-4 actions  
-- ONE focused theme
-- Builds on previous day
-
-JSON array:
-[
-  {{
-    "type": "info|apply|recall|reflect|boss",
-    "title": "Day X: [Single Micro-Topic]",
-    "prompt": "Today's focused micro-goal (2-3 sentences max)",
-    "actions": ["[15-25 min task]", "[15-25 min task]", "[15-25 min task]"]
-  }}
-]
-
-JSON only:"""
-
-        print(f"[QuestCompose:SingleShot] Calling LLM...", flush=True)
-        
-        try:
-            result = llm_client.complete_system(
-                system=system_prompt,
-                user=user_prompt,
-                command="quest-compose",
-                think_mode=True,
-            )
-            print(f"[QuestCompose:SingleShot] LLM call complete", flush=True)
-        except Exception as api_error:
-            print(f"[QuestCompose:SingleShot] LLM ERROR: {api_error}", flush=True)
-            import traceback
-            traceback.print_exc()
-            return []
-        
-        response_text = result.get("text", "").strip()
-        print(f"[QuestCompose:SingleShot] Response length: {len(response_text)}", flush=True)
-        print(f"[QuestCompose:SingleShot] Response preview: {response_text[:300] if response_text else 'EMPTY'}", flush=True)
-        
-        if not response_text:
-            print(f"[QuestCompose:SingleShot] Empty response from LLM", flush=True)
-            return []
-        
-        # Find JSON array in response
-        start_idx = response_text.find('[')
-        end_idx = response_text.rfind(']') + 1
-        
-        if start_idx == -1 or end_idx == 0:
-            return []
-        
-        json_text = response_text[start_idx:end_idx]
-        steps_data = json.loads(json_text)
-        
-        if not isinstance(steps_data, list):
-            return []
-        
-        # Normalize steps
-        steps = []
-        valid_types = {"info", "recall", "apply", "reflect", "boss", "action", "transfer", "mini_boss"}
-        
-        for i, step_data in enumerate(steps_data, 1):
-            if not isinstance(step_data, dict):
-                continue
-            
-            step_type = step_data.get("type", "info").lower()
-            if step_type not in valid_types:
-                step_type = "info"
-            
-            actions = step_data.get("actions", [])
-            if not isinstance(actions, list):
-                actions = []
-            actions = [str(a) for a in actions if a]
-            
-            # ═══════════════════════════════════════════════════════
-            # ENFORCE MICRO-STEP CONSTRAINTS
-            # ═══════════════════════════════════════════════════════
-            
-            # Limit to 4 actions max (micro-step constraint)
-            if len(actions) > 4:
-                print(f"[QuestCompose] Trimming actions from {len(actions)} to 4", flush=True)
-                actions = actions[:4]
-            
-            # Ensure at least 2 actions
-            if len(actions) < 2:
-                actions.append("Review what you learned today")
-            
-            step = {
-                "id": f"step_{i}",
-                "type": step_type,
-                "prompt": step_data.get("prompt", step_data.get("description", "")),
-                "title": step_data.get("title", f"Step {i}"),
-                "actions": actions,
-                "_generation_mode": "singleshot",  # Mark as fallback-generated
-            }
-            
-            if step["prompt"]:
-                steps.append(step)
-        
-        print(f"[QuestCompose:SingleShot] SUCCESS - Generated {len(steps)} steps", flush=True)
-        _progress(f"Complete: {len(steps)} steps", 95)
-        return steps if steps else []
-        
-    except json.JSONDecodeError as e:
-        print(f"[QuestCompose:SingleShot] JSON parse error: {e}", flush=True)
-        return []
-    except Exception as e:
-        print(f"[QuestCompose] Single-shot error: {e}", flush=True)
-        return []
+        if event_type == "steps":
+            steps = event.get("steps", [])
+        elif event_type == "progress":
+            _progress(event.get("message", ""), event.get("percent", 0))
+        elif event_type == "log":
+            print(event.get("message", ""), flush=True)
+        elif event_type == "error":
+            raise RuntimeError(f"Lesson Engine error: {event.get('message')}")
+        elif event_type == "coverage":
+            print(f"[QuestCompose] {event.get('summary', '')}", flush=True)
+    
+    if not steps:
+        raise RuntimeError("Lesson Engine generated no steps")
+    
+    _progress(f"Lesson Engine complete: {len(steps)} steps", 95)
+    return steps
 
 
 # =============================================================================
@@ -4832,448 +3995,78 @@ def _generate_steps_with_llm_streaming(
     session_id: str,
 ) -> Generator[Dict[str, Any], None, None]:
     """
-    Streaming version of step generation that yields progress events.
+    Streaming version of step generation using Lesson Engine.
     
-    v0.10.4: Gemini-first routing with GPT streaming fallback.
+    NO FALLBACKS - Lesson Engine is required.
     
-    Instead of blocking until all steps are generated, this yields events:
+    Yields events:
     - {"type": "log", "message": "..."} - Log messages
     - {"type": "progress", "message": "...", "percent": N} - Progress updates
-    - {"type": "update", "content": "..."} - Partial content previews
     - {"type": "steps", "steps": [...]} - Final generated steps
     - {"type": "error", "message": "..."} - Error occurred
-    
-    This allows the frontend to show real-time progress during the heavy
-    LLM generation phases (outline + content), avoiding Cloudflare 524 timeouts.
+    - {"type": "coverage", "summary": "..."} - Coverage summary
     
     Args:
         draft: Quest draft dictionary with title, objectives, domains, etc.
         kernel: NovaKernel instance
         session_id: Session ID for logging
-    
-    Yields:
-        Dict events with type and payload
     """
     def _log(msg: str):
-        return {"type": "log", "message": f"[QuestCompose] {msg}"}
+        return {"type": "log", "message": msg}
     
     def _progress(msg: str, pct: int):
         return {"type": "progress", "message": msg, "percent": pct}
     
-    def _update(content: str):
-        return {"type": "update", "content": content}
+    yield _log(f"[QuestCompose] Starting streaming generation for session {session_id}")
     
-    def _steps(steps_list: List[Dict[str, Any]]):
-        return {"type": "steps", "steps": steps_list}
+    # Get domains from draft
+    domains = draft.get("domains", [])
     
-    def _error(msg: str):
-        return {"type": "error", "message": msg}
+    if not domains:
+        yield {"type": "error", "message": "No domains provided for step generation"}
+        return
+    
+    quest_id = draft.get("id") or "quest_generated"
+    title = draft.get("title", "Untitled Quest")
+    
+    yield _progress("Using Lesson Engine (4-phase pipeline)...", 5)
+    yield _log(f"[QuestCompose] Generating steps for {len(domains)} domains")
+    
+    steps = []
     
     try:
-        yield _log("Starting step generation...")
-        yield _progress("Initializing...", 5)
-        
-        # Get LLM client from kernel
-        llm_client = getattr(kernel, 'llm_client', None)
-        if not llm_client:
-            yield _error("No LLM client available")
-            return
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # v1.0.0: LESSON ENGINE (Priority 1)
-        # ═══════════════════════════════════════════════════════════════════════
-        # 3-phase retrieval-backed generation:
-        #   Phase A: Gemini + web grounding for real resources
-        #   Phase B: Gemini for atomic step building (60-120 min each)  
-        #   Phase C: GPT-5.1 for sequencing and polish
-        # ═══════════════════════════════════════════════════════════════════════
-        
-        domains = draft.get("domains", [])
-        
-        if _HAS_LESSON_ENGINE and domains:
-            yield _log("Lesson Engine available - using 3-phase retrieval-backed generation")
-            yield _progress("Lesson Engine starting...", 10)
+        for event in generate_lesson_plan_streaming(
+            domains=domains,
+            quest_id=quest_id,
+            quest_title=title,
+            kernel=kernel,
+            user_constraints=None,
+        ):
+            event_type = event.get("type", "")
             
-            quest_id = draft.get("id") or f"quest_{session_id}"
-            title = draft.get("title", "Untitled Quest")
-            
-            engine_success = False
-            try:
-                for event in generate_lesson_plan_streaming(
-                    domains=domains,
-                    quest_id=quest_id,
-                    quest_title=title,
-                    kernel=kernel,
-                    user_constraints=None,
-                ):
-                    if event.get("type") == "steps":
-                        yield _log(f"Lesson Engine SUCCESS: {len(event.get('steps', []))} steps")
-                        yield _progress("Lesson Engine complete!", 95)
-                        yield event
-                        engine_success = True
-                        break
-                    elif event.get("type") == "error":
-                        yield _log(f"Lesson Engine error: {event.get('message', '')}")
-                        break
-                    else:
-                        yield event
-                
-                if engine_success:
-                    return  # Done - skip Gemini router and GPT fallback
-                
-            except Exception as e:
-                yield _log(f"Lesson Engine exception: {e}")
-            
-            yield _log("Lesson Engine did not succeed, falling back...")
-        
-        elif _HAS_LESSON_ENGINE and not domains:
-            yield _log("Lesson Engine available but no domains - skipping to Gemini router")
-        else:
-            yield _log("Lesson Engine not loaded - using Gemini router")
-        
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # TRY GEMINI ROUTER FIRST (fast, validated)
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _log("Trying Gemini router...")
-        yield _progress("Gemini generation...", 10)
-        
-        if _HAS_GEMINI:
-            router_steps = gemini_generate_quest_steps(draft, llm_client)
-            if router_steps:
-                yield _log(f"Gemini router SUCCESS: {len(router_steps)} validated steps")
-                yield _progress("Gemini complete!", 95)
-                yield _steps(router_steps)
+            if event_type == "steps":
+                steps = event.get("steps", [])
+                yield {"type": "steps", "steps": steps}
+            elif event_type == "progress":
+                yield _progress(event.get("message", ""), event.get("percent", 0))
+            elif event_type == "log":
+                yield _log(event.get("message", ""))
+            elif event_type == "error":
+                yield {"type": "error", "message": event.get("message", "Unknown error")}
                 return
-            yield _log("Gemini router failed, falling back to streaming GPT...")
-        else:
-            yield _log("Gemini not available, using streaming GPT...")
+            elif event_type == "coverage":
+                yield {"type": "coverage", "summary": event.get("summary", "")}
         
-        # ═══════════════════════════════════════════════════════════════════════
-        # GPT STREAMING FALLBACK (original implementation)
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("GPT streaming generation...", 15)
-        
-        title = draft.get("title", "Untitled Quest")
-        category = draft.get("category", "general")
-        objectives = draft.get("objectives", [])
-        
-        yield _log(f"Quest: {title}")
-        yield _log(f"Objectives: {len(objectives)}")
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 1: USE CONFIRMED DOMAINS
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 1: Loading confirmed domains...", 20)
-        
-        domains = draft.get("domains", [])
-        
-        if domains:
-            yield _log(f"Using {len(domains)} confirmed domains")
-            for d in domains:
-                domain_name = d.get("name", "?")
-                subtopics = d.get("subtopics", [])
-                yield _log(f"  - {domain_name}: {len(subtopics)} subtopics")
-        else:
-            # Fallback: extract from objectives
-            yield _log("No confirmed domains, extracting from objectives...")
-            yield _progress("Phase 1: Extracting domains from objectives...", 22)
-            
-            raw_text = "\n".join(objectives) if isinstance(objectives, list) else str(objectives)
-            domains = _structural_extract_domains(raw_text)
-            yield _log(f"Extracted {len(domains)} domains")
-        
-        if not domains:
-            yield _log("Warning: No domains found, using single-shot fallback")
-            yield _progress("Using fallback generation...", 15)
-            
-            # Use single-shot fallback (non-streaming)
-            steps = _generate_steps_single_shot(draft, kernel)
-            if steps:
-                yield _steps(steps)
-            else:
-                yield _error("Could not generate steps")
+        if not steps:
+            yield {"type": "error", "message": "Lesson Engine generated no steps"}
             return
         
-        # Calculate target steps
-        total_subtopics = sum(len(d.get("subtopics", [])) for d in domains)
-        steps_per_subtopic = 2
-        boss_steps = len(domains)
-        target_steps = max(10, (total_subtopics * steps_per_subtopic) + boss_steps)
-        target_steps = min(target_steps, 45)
+        yield _progress(f"Lesson Engine complete: {len(steps)} steps", 100)
         
-        yield _log(f"Target: {target_steps} steps across {len(domains)} domains")
-        yield _progress("Phase 1 complete", 20)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 2: GENERATE SUBTOPIC-AWARE OUTLINE
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 2: Generating outline...", 25)
-        yield _log("Creating subtopic-aware outline with LLM...")
-        
-        # Build domain list text for prompt
-        domain_list_text = ""
-        for d in domains:
-            domain_name = d.get("name", "Unknown")
-            subtopics = d.get("subtopics", [])
-            if subtopics:
-                subtopic_str = ", ".join(subtopics)
-                domain_list_text += f"- {domain_name}: [{subtopic_str}]\n"
-            else:
-                domain_list_text += f"- {domain_name}: (general coverage)\n"
-        
-        outline_system = """You are a curriculum architect for NovaOS micro-learning.
-Create a detailed day-by-day outline that ensures ALL subtopics are covered.
-
-RULES:
-1. Every subtopic MUST appear in at least one step
-2. Each domain ends with exactly ONE BOSS step
-3. BOSS steps integrate 2-4 subtopics into a capstone
-4. Distribute subtopics evenly across the timeline
-
-Output ONLY valid JSON. No markdown."""
-
-        outline_user = f"""Create a {target_steps}-step outline for "{title}".
-
-DOMAINS AND SUBTOPICS TO COVER:
-{domain_list_text}
-
-OUTPUT THIS EXACT JSON STRUCTURE:
-{{
-  "total_steps": {target_steps},
-  "outline": [
-    {{"day": 1, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Intro to Subtopic A", "step_type": "INFO"}},
-    {{"day": 2, "domain": "Domain Name", "subtopics": ["Subtopic A"], "topic": "Hands-on with Subtopic A", "step_type": "APPLY"}},
-    {{"day": 3, "domain": "Domain Name", "subtopics": ["Subtopic B"], "topic": "Learn Subtopic B", "step_type": "INFO"}},
-    {{"day": 4, "domain": "Domain Name", "subtopics": ["Subtopic A", "Subtopic B"], "topic": "Domain Capstone", "step_type": "BOSS"}}
-  ]
-}}
-
-JSON only:"""
-
-        yield _log("Calling LLM for outline generation...")
-        
-        outline_steps = []
-        try:
-            # Check if streaming is available
-            if hasattr(llm_client, 'stream_complete_system'):
-                # Use streaming LLM call for outline
-                outline_text = ""
-                chunk_count = 0
-                for chunk in llm_client.stream_complete_system(
-                    system=outline_system,
-                    user=outline_user,
-                    command="quest-compose-outline-stream",
-                    think_mode=True,
-                ):
-                    outline_text += chunk
-                    chunk_count += 1
-                    # Yield periodic updates so connection stays alive
-                    if chunk_count % 20 == 0:
-                        yield _log(f"Generating outline... ({len(outline_text)} chars)")
-            else:
-                # Fallback to non-streaming
-                yield _log("Using non-streaming LLM call for outline...")
-                result = llm_client.complete_system(
-                    system=outline_system,
-                    user=outline_user,
-                    command="quest-compose-outline",
-                    think_mode=True,
-                )
-                outline_text = result.get("text", "").strip()
-            
-            yield _progress("Phase 2: Parsing outline...", 35)
-            
-            # Parse the outline JSON
-            start_idx = outline_text.find('{')
-            end_idx = outline_text.rfind('}') + 1
-            
-            if start_idx != -1 and end_idx > 0:
-                outline_json = outline_text[start_idx:end_idx]
-                parsed = json.loads(outline_json)
-                outline_steps = parsed.get("outline", [])
-                yield _log(f"Parsed {len(outline_steps)} outline steps")
-            
-        except Exception as e:
-            yield _log(f"Outline LLM error: {e}")
-            yield _log("Using programmatic outline fallback...")
-            outline_steps = _generate_programmatic_outline(domains, target_steps)
-        
-        if not outline_steps:
-            yield _log("Using programmatic outline fallback...")
-            outline_steps = _generate_programmatic_outline(domains, target_steps)
-        
-        yield _progress("Phase 2 complete", 40)
-        yield _update(f"Outline: {len(outline_steps)} steps planned")
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # PHASE 3: GENERATE CONTENT PER DOMAIN (STREAMING)
-        # ═══════════════════════════════════════════════════════════════════════
-        yield _progress("Phase 3: Generating step content...", 45)
-        
-        # Group outline by domain
-        domain_outlines = {}
-        for step in outline_steps:
-            domain = step.get("domain", "Unknown")
-            if domain not in domain_outlines:
-                domain_outlines[domain] = []
-            domain_outlines[domain].append(step)
-        
-        all_steps = []
-        domain_count = len(domain_outlines)
-        processed_domains = 0
-        
-        for domain_name, domain_outline in domain_outlines.items():
-            processed_domains += 1
-            base_percent = 45 + int((processed_domains / domain_count) * 45)
-            
-            yield _log(f"Generating content for domain: {domain_name}")
-            yield _progress(f"Domain {processed_domains}/{domain_count}: {domain_name}", base_percent)
-            
-            # Get subtopics for this domain
-            domain_info = next((d for d in domains if d.get("name") == domain_name), {})
-            subtopics = domain_info.get("subtopics", [])
-            
-            # Build outline text for this domain
-            domain_outline_text = ""
-            for i, step in enumerate(domain_outline, 1):
-                step_type = step.get("step_type", "INFO")
-                topic = step.get("topic", f"Step {i}")
-                step_subtopics = step.get("subtopics", [])
-                domain_outline_text += f"{i}. [{step_type}] {topic} (subtopics: {step_subtopics})\n"
-            
-            content_system = """You are a micro-learning content designer.
-
-HARD CONSTRAINTS:
-1. Each step = 60-90 minutes (tired working adult)
-2. EXACTLY 3-4 actions per step
-3. Each action = 15-25 minutes, specific and completable
-4. ONE theme per step
-
-STEP TYPES:
-- INFO: Reading, videos, studying concepts
-- APPLY: Hands-on labs, building, testing
-- RECALL: Flashcards, quizzes, summaries
-- BOSS: Capstone challenge, multi-step scenario
-
-Output ONLY JSON array. No markdown."""
-
-            content_user = f"""Generate micro-step content for "{domain_name}".
-
-**Quest:** {title}
-**Subtopics to cover:** {subtopics}
-
-**Steps to generate:**
-{domain_outline_text}
-
-Generate a JSON array with EXACTLY {len(domain_outline)} steps:
-[
-  {{
-    "step_type": "INFO",
-    "title": "Day X: Topic",
-    "prompt": "Today's goal (2-3 sentences)",
-    "actions": ["15-25 min task", "15-25 min task", "15-25 min task"],
-    "subtopics": ["from input"]
-  }}
-]
-
-JSON array only:"""
-
-            try:
-                # Stream content generation if available
-                if hasattr(llm_client, 'stream_complete_system'):
-                    content_text = ""
-                    chunk_count = 0
-                    for chunk in llm_client.stream_complete_system(
-                        system=content_system,
-                        user=content_user,
-                        command="quest-compose-content-stream",
-                        think_mode=True,
-                    ):
-                        content_text += chunk
-                        chunk_count += 1
-                        # Keep connection alive
-                        if chunk_count % 30 == 0:
-                            yield _log(f"  Generating content... ({len(content_text)} chars)")
-                else:
-                    # Fallback to non-streaming
-                    result = llm_client.complete_system(
-                        system=content_system,
-                        user=content_user,
-                        command="quest-compose-content",
-                        think_mode=True,
-                    )
-                    content_text = result.get("text", "").strip()
-                
-                # Parse content
-                start_idx = content_text.find('[')
-                end_idx = content_text.rfind(']') + 1
-                
-                if start_idx != -1 and end_idx > 0:
-                    content_json = content_text[start_idx:end_idx]
-                    content_steps = json.loads(content_json)
-                    
-                    # Normalize and add steps
-                    step_num = len(all_steps) + 1
-                    for step_data in content_steps:
-                        if not isinstance(step_data, dict):
-                            continue
-                        
-                        step_type = step_data.get("step_type", step_data.get("type", "info"))
-                        step_type = str(step_type).lower()
-                        valid_types = {"info", "recall", "apply", "reflect", "boss", "action", "transfer", "mini_boss"}
-                        if step_type not in valid_types:
-                            step_type = "info"
-                        
-                        actions = step_data.get("actions", [])
-                        if not isinstance(actions, list):
-                            actions = []
-                        actions = [str(a) for a in actions if a][:4]  # Max 4 actions
-                        
-                        step = {
-                            "id": f"step_{step_num}",
-                            "type": step_type,
-                            "prompt": step_data.get("prompt", step_data.get("description", "")),
-                            "title": step_data.get("title", f"Step {step_num}"),
-                            "actions": actions,
-                            "subtopics": step_data.get("subtopics", []),
-                            "_domain": domain_name,
-                            "_generation_mode": "streaming",
-                        }
-                        
-                        if step["prompt"]:
-                            all_steps.append(step)
-                            step_num += 1
-                    
-                    yield _log(f"  Generated {len(content_steps)} steps for {domain_name}")
-                
-            except Exception as e:
-                yield _log(f"  Content generation error for {domain_name}: {e}")
-                # Continue with other domains
-        
-        yield _progress("Phase 3 complete", 95)
-        
-        # ═══════════════════════════════════════════════════════════════════════
-        # FINALIZE
-        # ═══════════════════════════════════════════════════════════════════════
-        if all_steps:
-            yield _log(f"Generation complete: {len(all_steps)} total steps")
-            yield _progress("Complete!", 100)
-            yield _steps(all_steps)
-        else:
-            yield _log("No steps generated, trying single-shot fallback...")
-            yield _progress("Using fallback...", 98)
-            
-            fallback_steps = _generate_steps_single_shot(draft, kernel)
-            if fallback_steps:
-                yield _steps(fallback_steps)
-            else:
-                yield _error("Could not generate steps after all attempts")
-    
     except Exception as e:
         import traceback
         traceback.print_exc()
-        yield _error(f"Generation failed: {str(e)}")
+        yield {"type": "error", "message": f"Lesson Engine exception: {str(e)}"}
 
 
 def _handle_validation_stage(

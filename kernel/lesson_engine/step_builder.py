@@ -217,20 +217,21 @@ def _build_learning_step(
     # Calculate total time
     total_time = sum(a.get("time_minutes", 0) for a in actions)
     
+    # Convert actions to simple string list for LessonStep
+    action_strings = [a.get("description", str(a)) for a in actions]
+    
     return LessonStep(
         step_id=f"day-{step_num:02d}",
         title=f"{subdomain}",
-        description=f"Learn the fundamentals of {subdomain} and practice with a small exercise.",
-        step_type="learn",
+        step_type="INFO",
+        estimated_time_minutes=total_time,
+        goal=f"Learn the fundamentals of {subdomain} and practice with a small exercise.",
+        actions=action_strings,
+        completion_check=f"Can explain {subdomain} in your own words and completed the practice exercise",
+        resource_refs=[r.url for r in pack.resources if r.url][:3],
         subdomain=subdomain,
         domain=domain,
-        estimated_time_minutes=total_time,
-        actions=actions,
-        success_criteria=[
-            f"Can explain {subdomain} in your own words",
-            f"Completed the practice exercise",
-        ],
-        resources=[r.url for r in pack.resources if r.url][:3],
+        subdomains_covered=[subdomain],
     )
 
 
@@ -277,21 +278,21 @@ def _build_boss_step(
     
     total_time = sum(a.get("time_minutes", 0) for a in actions)
     
+    # Convert actions to simple string list for LessonStep
+    action_strings = [a.get("description", str(a)) for a in actions]
+    
     return LessonStep(
         step_id=f"day-{step_num:02d}",
         title=f"BOSS: {domain} Synthesis",
-        description=f"Put your {domain} knowledge together with a practical challenge.",
-        step_type="boss",
+        step_type="BOSS",
+        estimated_time_minutes=total_time,
+        goal=f"Put your {domain} knowledge together with a practical challenge.",
+        actions=action_strings,
+        completion_check=f"Completed the {domain} challenge and can connect different concepts together",
+        resource_refs=[r.url for r in pack.resources if r.url][:2],
         subdomain=subdomain,
         domain=domain,
-        estimated_time_minutes=total_time,
-        actions=actions,
-        success_criteria=[
-            f"Completed the {domain} challenge",
-            f"Can connect different {domain} concepts together",
-            f"Identified areas for further learning",
-        ],
-        resources=[r.url for r in pack.resources if r.url][:2],
+        subdomains_covered=[subdomain],
     )
 
 
@@ -629,3 +630,104 @@ def build_steps_from_evidence(
 ) -> Generator[Dict[str, Any], None, List[LessonStep]]:
     """Legacy alias for build_steps_streaming."""
     return build_steps_streaming(evidence_packs, quest_title, manifest, llm_client)
+
+
+# =============================================================================
+# STORAGE FUNCTIONS
+# =============================================================================
+
+def save_raw_steps(steps: List[LessonStep], data_dir) -> bool:
+    """Save raw steps to JSON file."""
+    import json
+    from pathlib import Path
+    
+    try:
+        data_dir = Path(data_dir)
+        lessons_dir = data_dir / "lessons"
+        lessons_dir.mkdir(parents=True, exist_ok=True)
+        
+        file_path = lessons_dir / "raw_steps.json"
+        
+        steps_data = [s.to_dict() if hasattr(s, 'to_dict') else s for s in steps]
+        
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(steps_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"[StepBuilder] Saved {len(steps)} raw steps to {file_path}", flush=True)
+        return True
+        
+    except Exception as e:
+        print(f"[StepBuilder] Error saving raw steps: {e}", flush=True)
+        return False
+
+
+def load_raw_steps(data_dir) -> List[LessonStep]:
+    """Load raw steps from JSON file."""
+    import json
+    from pathlib import Path
+    
+    try:
+        data_dir = Path(data_dir)
+        file_path = data_dir / "lessons" / "raw_steps.json"
+        
+        if not file_path.exists():
+            return []
+        
+        with open(file_path, "r", encoding="utf-8") as f:
+            steps_data = json.load(f)
+        
+        steps = [LessonStep.from_dict(s) if hasattr(LessonStep, 'from_dict') else LessonStep(**s) for s in steps_data]
+        
+        print(f"[StepBuilder] Loaded {len(steps)} raw steps from {file_path}", flush=True)
+        return steps
+        
+    except Exception as e:
+        print(f"[StepBuilder] Error loading raw steps: {e}", flush=True)
+        return []
+
+
+def validate_steps_coverage(
+    steps: List[LessonStep],
+    manifest: LessonManifest,
+) -> Tuple[bool, List[str]]:
+    """
+    Validate that steps cover all subdomains in manifest.
+    
+    Returns:
+        Tuple of (all_covered: bool, missing_subdomains: List[str])
+    """
+    # Get all subdomains from manifest
+    expected_subdomains = set()
+    
+    # Handle both object and dict formats for manifest.domains
+    domains = manifest.domains if hasattr(manifest, 'domains') else []
+    
+    for domain in domains:
+        # Handle both dict and object formats
+        if isinstance(domain, dict):
+            subdomains = domain.get("subdomains", [])
+        else:
+            subdomains = getattr(domain, 'subdomains', [])
+        
+        for subdomain in subdomains:
+            # Handle both string and object subdomains
+            if isinstance(subdomain, str):
+                expected_subdomains.add(subdomain.lower())
+            elif isinstance(subdomain, dict):
+                expected_subdomains.add(subdomain.get("name", "").lower())
+            else:
+                expected_subdomains.add(str(subdomain).lower())
+    
+    # Get covered subdomains from steps
+    covered_subdomains = set()
+    for step in steps:
+        if hasattr(step, 'subdomain') and step.subdomain:
+            covered_subdomains.add(step.subdomain.lower())
+        if hasattr(step, 'subdomains_covered') and step.subdomains_covered:
+            for sd in step.subdomains_covered:
+                covered_subdomains.add(sd.lower())
+    
+    # Find missing
+    missing = expected_subdomains - covered_subdomains
+    
+    return len(missing) == 0, list(missing)

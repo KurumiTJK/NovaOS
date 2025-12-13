@@ -1,0 +1,779 @@
+[
+  {
+    "step_id": "day-01",
+    "step_type": "INFO",
+    "title": "IP Addressing, Subnetting, and CIDR Notation",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of IP Addressing, Subnetting, and CIDR Notation and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: IP Addressing, Subnetting, and CIDR Notation",
+      "Find one real-world example of IP Addressing, Subnetting, and CIDR Notation. Write down: what it is, one benefit, one challenge",
+      "Self-test: Without looking at notes, explain IP Addressing, Subnetting, and CIDR Notation to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain IP Addressing, Subnetting, and CIDR Notation in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Networking",
+    "subdomain": "IP Addressing, Subnetting, and CIDR Notation",
+    "subdomains_covered": [
+      "IP Addressing, Subnetting, and CIDR Notation"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-02",
+    "step_type": "INFO",
+    "title": "Routing Fundamentals: Static, Default, and Dynamic Routing Concepts",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Routing Fundamentals: Static, Default, and Dynamic Routing Concepts and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Routing Fundamentals: Static, Default, and Dynamic Routing Concepts",
+      "Run `ip route` (Linux) or `route print` (Windows) and identify: default gateway, any static routes",
+      "Self-test: Without looking at notes, explain Routing Fundamentals: Static, Default, and Dynamic Routing Concepts to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Routing Fundamentals: Static, Default, and Dynamic Routing Concepts in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Networking",
+    "subdomain": "Routing Fundamentals: Static, Default, and Dynamic Routing Concepts",
+    "subdomains_covered": [
+      "Routing Fundamentals: Static, Default, and Dynamic Routing Concepts"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-03",
+    "step_type": "INFO",
+    "title": "VLANs and Inter-VLAN Communication",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of VLANs and Inter-VLAN Communication and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: VLANs and Inter-VLAN Communication",
+      "Draw a simple diagram showing 2 VLANs (HR, Engineering) with a router between them",
+      "Self-test: Without looking at notes, explain VLANs and Inter-VLAN Communication to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain VLANs and Inter-VLAN Communication in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Networking",
+    "subdomain": "VLANs and Inter-VLAN Communication",
+    "subdomains_covered": [
+      "VLANs and Inter-VLAN Communication"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-04",
+    "step_type": "INFO",
+    "title": "Network Segmentation and Isolation Techniques",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Network Segmentation and Isolation Techniques and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Network Segmentation and Isolation Techniques",
+      "Draw a simple diagram showing 2 VLANs (HR, Engineering) with a router between them",
+      "Self-test: Without looking at notes, explain Network Segmentation and Isolation Techniques to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Network Segmentation and Isolation Techniques in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Networking",
+    "subdomain": "Network Segmentation and Isolation Techniques",
+    "subdomains_covered": [
+      "Network Segmentation and Isolation Techniques"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-05",
+    "step_type": "BOSS",
+    "title": "BOSS: Networking Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Networking knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Networking days. What are the key concepts?",
+      "Mini-scenario: You're setting up a small office network. Draw a diagram showing: 2 VLANs, routing between them, DNS server placement, and one security boundary",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the Networking challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "Networking",
+    "subdomain": "DNS Basics: Name Resolution, Zones, and Records",
+    "subdomains_covered": [
+      "DNS Basics: Name Resolution, Zones, and Records"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-06",
+    "step_type": "INFO",
+    "title": "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Active Directory Logical Structure: Forests, Domains, and Organizational Units and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+      "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like",
+      "Self-test: Without looking at notes, explain Active Directory Logical Structure: Forests, Domains, and Organizational Units to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Active Directory Logical Structure: Forests, Domains, and Organizational Units in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+    "subdomains_covered": [
+      "Active Directory Logical Structure: Forests, Domains, and Organizational Units"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-07",
+    "step_type": "INFO",
+    "title": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Active Directory Objects and Attributes: Users, Computers, and Groups and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Active Directory Objects and Attributes: Users, Computers, and Groups",
+      "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like",
+      "Self-test: Without looking at notes, explain Active Directory Objects and Attributes: Users, Computers, and Groups to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Active Directory Objects and Attributes: Users, Computers, and Groups in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+    "subdomains_covered": [
+      "Active Directory Objects and Attributes: Users, Computers, and Groups"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-08",
+    "step_type": "INFO",
+    "title": "Active Directory Domain Controllers and FSMO Roles",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Active Directory Domain Controllers and FSMO Roles and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Active Directory Domain Controllers and FSMO Roles",
+      "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like",
+      "Self-test: Without looking at notes, explain Active Directory Domain Controllers and FSMO Roles to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Active Directory Domain Controllers and FSMO Roles in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Domain Controllers and FSMO Roles",
+    "subdomains_covered": [
+      "Active Directory Domain Controllers and FSMO Roles"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-09",
+    "step_type": "INFO",
+    "title": "Active Directory Group Policy Objects: Structure and Processing Order",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Active Directory Group Policy Objects: Structure and Processing Order and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Active Directory Group Policy Objects: Structure and Processing Order",
+      "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like",
+      "Self-test: Without looking at notes, explain Active Directory Group Policy Objects: Structure and Processing Order to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Active Directory Group Policy Objects: Structure and Processing Order in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Group Policy Objects: Structure and Processing Order",
+    "subdomains_covered": [
+      "Active Directory Group Policy Objects: Structure and Processing Order"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-10",
+    "step_type": "BOSS",
+    "title": "BOSS: Active Directory Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Active Directory knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Active Directory days. What are the key concepts?",
+      "Mini-scenario: Design a simple AD structure for a company with 3 departments. Show: OUs, one GPO per department, and delegation for helpdesk",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the Active Directory challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "Active Directory",
+    "subdomain": "Active Directory Authentication and Authorization within a Domain",
+    "subdomains_covered": [
+      "Active Directory Authentication and Authorization within a Domain"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-11",
+    "step_type": "INFO",
+    "title": "Identity Fundamentals and Core Terminology",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Identity Fundamentals and Core Terminology and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Identity Fundamentals and Core Terminology",
+      "Decode a sample JWT token at jwt.io - identify the header, payload sections and what claims are present",
+      "Self-test: Without looking at notes, explain Identity Fundamentals and Core Terminology to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Identity Fundamentals and Core Terminology in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Identity",
+    "subdomain": "Identity Fundamentals and Core Terminology",
+    "subdomains_covered": [
+      "Identity Fundamentals and Core Terminology"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-12",
+    "step_type": "INFO",
+    "title": "Authentication vs Authorization and Access Control Models",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Authentication vs Authorization and Access Control Models and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Authentication vs Authorization and Access Control Models",
+      "Find one real-world example of Authentication vs Authorization and Access Control Models. Write down: what it is, one benefit, one challenge",
+      "Self-test: Without looking at notes, explain Authentication vs Authorization and Access Control Models to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Authentication vs Authorization and Access Control Models in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Identity",
+    "subdomain": "Authentication vs Authorization and Access Control Models",
+    "subdomains_covered": [
+      "Authentication vs Authorization and Access Control Models"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-13",
+    "step_type": "INFO",
+    "title": "OAuth2 and OpenID Connect Core Concepts",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of OAuth2 and OpenID Connect Core Concepts and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: OAuth2 and OpenID Connect Core Concepts",
+      "Decode a sample JWT token at jwt.io - identify the header, payload sections and what claims are present",
+      "Self-test: Without looking at notes, explain OAuth2 and OpenID Connect Core Concepts to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain OAuth2 and OpenID Connect Core Concepts in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Identity",
+    "subdomain": "OAuth2 and OpenID Connect Core Concepts",
+    "subdomains_covered": [
+      "OAuth2 and OpenID Connect Core Concepts"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-14",
+    "step_type": "INFO",
+    "title": "SAML Assertions and Web SSO Concepts",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of SAML Assertions and Web SSO Concepts and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: SAML Assertions and Web SSO Concepts",
+      "Decode a sample JWT token at jwt.io - identify the header, payload sections and what claims are present",
+      "Self-test: Without looking at notes, explain SAML Assertions and Web SSO Concepts to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain SAML Assertions and Web SSO Concepts in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Identity",
+    "subdomain": "SAML Assertions and Web SSO Concepts",
+    "subdomains_covered": [
+      "SAML Assertions and Web SSO Concepts"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-15",
+    "step_type": "INFO",
+    "title": "Multi-Factor Authentication Factors and Flows",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Multi-Factor Authentication Factors and Flows and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Multi-Factor Authentication Factors and Flows",
+      "Find one real-world example of Multi-Factor Authentication Factors and Flows. Write down: what it is, one benefit, one challenge",
+      "Self-test: Without looking at notes, explain Multi-Factor Authentication Factors and Flows to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Multi-Factor Authentication Factors and Flows in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Identity",
+    "subdomain": "Multi-Factor Authentication Factors and Flows",
+    "subdomains_covered": [
+      "Multi-Factor Authentication Factors and Flows"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-16",
+    "step_type": "BOSS",
+    "title": "BOSS: Identity Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Identity knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Identity days. What are the key concepts?",
+      "Mini-scenario: Diagram an OAuth2 login flow for a web app. Show: user, app, authorization server, and what tokens move where",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the Identity challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "Identity",
+    "subdomain": "JSON Web Tokens (JWT) Structure and Validation",
+    "subdomains_covered": [
+      "JSON Web Tokens (JWT) Structure and Validation"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-17",
+    "step_type": "INFO",
+    "title": "AWS Global Infrastructure and Core Concepts",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of AWS Global Infrastructure and Core Concepts and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: AWS Global Infrastructure and Core Concepts",
+      "In AWS console: find the region selector. List 3 different regions and guess why you'd pick one over another",
+      "Self-test: Without looking at notes, explain AWS Global Infrastructure and Core Concepts to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain AWS Global Infrastructure and Core Concepts in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "AWS",
+    "subdomain": "AWS Global Infrastructure and Core Concepts",
+    "subdomains_covered": [
+      "AWS Global Infrastructure and Core Concepts"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-18",
+    "step_type": "INFO",
+    "title": "AWS Identity and Access Management (IAM) Essentials",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of AWS Identity and Access Management (IAM) Essentials and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: AWS Identity and Access Management (IAM) Essentials",
+      "Decode a sample JWT token at jwt.io - identify the header, payload sections and what claims are present",
+      "Self-test: Without looking at notes, explain AWS Identity and Access Management (IAM) Essentials to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain AWS Identity and Access Management (IAM) Essentials in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "AWS",
+    "subdomain": "AWS Identity and Access Management (IAM) Essentials",
+    "subdomains_covered": [
+      "AWS Identity and Access Management (IAM) Essentials"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-19",
+    "step_type": "INFO",
+    "title": "Amazon EC2 Core Concepts and Instance Lifecycle",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Amazon EC2 Core Concepts and Instance Lifecycle and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Amazon EC2 Core Concepts and Instance Lifecycle",
+      "In AWS console: find the region selector. List 3 different regions and guess why you'd pick one over another",
+      "Self-test: Without looking at notes, explain Amazon EC2 Core Concepts and Instance Lifecycle to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Amazon EC2 Core Concepts and Instance Lifecycle in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "AWS",
+    "subdomain": "Amazon EC2 Core Concepts and Instance Lifecycle",
+    "subdomains_covered": [
+      "Amazon EC2 Core Concepts and Instance Lifecycle"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-20",
+    "step_type": "INFO",
+    "title": "Amazon S3 Storage Fundamentals",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Amazon S3 Storage Fundamentals and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Amazon S3 Storage Fundamentals",
+      "In AWS console: find the region selector. List 3 different regions and guess why you'd pick one over another",
+      "Self-test: Without looking at notes, explain Amazon S3 Storage Fundamentals to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Amazon S3 Storage Fundamentals in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "AWS",
+    "subdomain": "Amazon S3 Storage Fundamentals",
+    "subdomains_covered": [
+      "Amazon S3 Storage Fundamentals"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-21",
+    "step_type": "BOSS",
+    "title": "BOSS: AWS Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your AWS knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous AWS days. What are the key concepts?",
+      "Mini-scenario: Sketch an AWS setup for a simple web app. Show: VPC, public/private subnet, EC2, S3, and IAM role",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the AWS challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "AWS",
+    "subdomain": "AWS Shared Responsibility Model and Security Basics",
+    "subdomains_covered": [
+      "AWS Shared Responsibility Model and Security Basics"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-22",
+    "step_type": "INFO",
+    "title": "Azure Resource Manager Core Concepts",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Azure Resource Manager Core Concepts and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Azure Resource Manager Core Concepts",
+      "Look up Azure RBAC built-in roles. Find 3 roles and write what each can do in one sentence",
+      "Self-test: Without looking at notes, explain Azure Resource Manager Core Concepts to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Azure Resource Manager Core Concepts in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Azure",
+    "subdomain": "Azure Resource Manager Core Concepts",
+    "subdomains_covered": [
+      "Azure Resource Manager Core Concepts"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-23",
+    "step_type": "INFO",
+    "title": "Azure Virtual Machines and Disk Types",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Azure Virtual Machines and Disk Types and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Azure Virtual Machines and Disk Types",
+      "Look up Azure RBAC built-in roles. Find 3 roles and write what each can do in one sentence",
+      "Self-test: Without looking at notes, explain Azure Virtual Machines and Disk Types to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Azure Virtual Machines and Disk Types in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Azure",
+    "subdomain": "Azure Virtual Machines and Disk Types",
+    "subdomains_covered": [
+      "Azure Virtual Machines and Disk Types"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-24",
+    "step_type": "INFO",
+    "title": "Azure Storage Accounts and Data Redundancy Options",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Azure Storage Accounts and Data Redundancy Options and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Azure Storage Accounts and Data Redundancy Options",
+      "Look up Azure RBAC built-in roles. Find 3 roles and write what each can do in one sentence",
+      "Self-test: Without looking at notes, explain Azure Storage Accounts and Data Redundancy Options to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Azure Storage Accounts and Data Redundancy Options in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Azure",
+    "subdomain": "Azure Storage Accounts and Data Redundancy Options",
+    "subdomains_covered": [
+      "Azure Storage Accounts and Data Redundancy Options"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-25",
+    "step_type": "INFO",
+    "title": "Azure Role-Based Access Control (RBAC) Essentials",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Azure Role-Based Access Control (RBAC) Essentials and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Azure Role-Based Access Control (RBAC) Essentials",
+      "Look up Azure RBAC built-in roles. Find 3 roles and write what each can do in one sentence",
+      "Self-test: Without looking at notes, explain Azure Role-Based Access Control (RBAC) Essentials to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Azure Role-Based Access Control (RBAC) Essentials in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Azure",
+    "subdomain": "Azure Role-Based Access Control (RBAC) Essentials",
+    "subdomains_covered": [
+      "Azure Role-Based Access Control (RBAC) Essentials"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-26",
+    "step_type": "BOSS",
+    "title": "BOSS: Azure Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Azure knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Azure days. What are the key concepts?",
+      "Mini-scenario: Design an Azure identity setup for a hybrid company. Show: Entra ID, on-prem AD sync, and RBAC for 2 admin types",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the Azure challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "Azure",
+    "subdomain": "Azure Virtual Networks and Subnet Structure",
+    "subdomains_covered": [
+      "Azure Virtual Networks and Subnet Structure"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-27",
+    "step_type": "INFO",
+    "title": "Logging and SIEM Core Concepts and Terminology",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Logging and SIEM Core Concepts and Terminology and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Logging and SIEM Core Concepts and Terminology",
+      "Find a sample log entry (CloudTrail, Syslog, or any log). Identify: timestamp, source, event type, relevant details",
+      "Self-test: Without looking at notes, explain Logging and SIEM Core Concepts and Terminology to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Logging and SIEM Core Concepts and Terminology in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Logging/SIEM",
+    "subdomain": "Logging and SIEM Core Concepts and Terminology",
+    "subdomains_covered": [
+      "Logging and SIEM Core Concepts and Terminology"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-28",
+    "step_type": "INFO",
+    "title": "Log Sources, Log Types, and Log Normalization",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Log Sources, Log Types, and Log Normalization and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Log Sources, Log Types, and Log Normalization",
+      "Find one real-world example of Log Sources, Log Types, and Log Normalization. Write down: what it is, one benefit, one challenge",
+      "Self-test: Without looking at notes, explain Log Sources, Log Types, and Log Normalization to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Log Sources, Log Types, and Log Normalization in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Logging/SIEM",
+    "subdomain": "Log Sources, Log Types, and Log Normalization",
+    "subdomains_covered": [
+      "Log Sources, Log Types, and Log Normalization"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-29",
+    "step_type": "INFO",
+    "title": "SIEM Data Storage, Indexing, and Retention Concepts",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of SIEM Data Storage, Indexing, and Retention Concepts and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: SIEM Data Storage, Indexing, and Retention Concepts",
+      "Find a sample log entry (CloudTrail, Syslog, or any log). Identify: timestamp, source, event type, relevant details",
+      "Self-test: Without looking at notes, explain SIEM Data Storage, Indexing, and Retention Concepts to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain SIEM Data Storage, Indexing, and Retention Concepts in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Logging/SIEM",
+    "subdomain": "SIEM Data Storage, Indexing, and Retention Concepts",
+    "subdomains_covered": [
+      "SIEM Data Storage, Indexing, and Retention Concepts"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-30",
+    "step_type": "INFO",
+    "title": "SIEM Correlation Rules and Detection Logic Fundamentals",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of SIEM Correlation Rules and Detection Logic Fundamentals and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: SIEM Correlation Rules and Detection Logic Fundamentals",
+      "Find a sample log entry (CloudTrail, Syslog, or any log). Identify: timestamp, source, event type, relevant details",
+      "Self-test: Without looking at notes, explain SIEM Correlation Rules and Detection Logic Fundamentals to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain SIEM Correlation Rules and Detection Logic Fundamentals in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Logging/SIEM",
+    "subdomain": "SIEM Correlation Rules and Detection Logic Fundamentals",
+    "subdomains_covered": [
+      "SIEM Correlation Rules and Detection Logic Fundamentals"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-31",
+    "step_type": "BOSS",
+    "title": "BOSS: Logging/SIEM Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Logging/SIEM knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Logging/SIEM days. What are the key concepts?",
+      "Mini-scenario: Design a log collection strategy. What 5 log sources would you collect first? Where would they go? One detection rule you'd create",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the Logging/SIEM challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "Logging/SIEM",
+    "subdomain": "Log Search, Query Languages, and Basic Analytics in SIEM",
+    "subdomains_covered": [
+      "Log Search, Query Languages, and Basic Analytics in SIEM"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-32",
+    "step_type": "INFO",
+    "title": "Threat Modeling Core Concepts and Terminology",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Threat Modeling Core Concepts and Terminology and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Threat Modeling Core Concepts and Terminology",
+      "Pick a simple app (like a todo app). Apply STRIDE: find one example threat for each letter",
+      "Self-test: Without looking at notes, explain Threat Modeling Core Concepts and Terminology to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Threat Modeling Core Concepts and Terminology in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Threat Modeling",
+    "subdomain": "Threat Modeling Core Concepts and Terminology",
+    "subdomains_covered": [
+      "Threat Modeling Core Concepts and Terminology"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-33",
+    "step_type": "INFO",
+    "title": "Identifying and Classifying Assets in Threat Models",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Identifying and Classifying Assets in Threat Models and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Identifying and Classifying Assets in Threat Models",
+      "Pick a simple app (like a todo app). Apply STRIDE: find one example threat for each letter",
+      "Self-test: Without looking at notes, explain Identifying and Classifying Assets in Threat Models to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Identifying and Classifying Assets in Threat Models in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Threat Modeling",
+    "subdomain": "Identifying and Classifying Assets in Threat Models",
+    "subdomains_covered": [
+      "Identifying and Classifying Assets in Threat Models"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-34",
+    "step_type": "INFO",
+    "title": "STRIDE and Other Threat Categorization Schemes",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of STRIDE and Other Threat Categorization Schemes and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: STRIDE and Other Threat Categorization Schemes",
+      "Pick a simple app (like a todo app). Apply STRIDE: find one example threat for each letter",
+      "Self-test: Without looking at notes, explain STRIDE and Other Threat Categorization Schemes to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain STRIDE and Other Threat Categorization Schemes in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Threat Modeling",
+    "subdomain": "STRIDE and Other Threat Categorization Schemes",
+    "subdomains_covered": [
+      "STRIDE and Other Threat Categorization Schemes"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-35",
+    "step_type": "INFO",
+    "title": "Data Flow Diagrams for Threat Modeling",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Data Flow Diagrams for Threat Modeling and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Data Flow Diagrams for Threat Modeling",
+      "Pick a simple app (like a todo app). Apply STRIDE: find one example threat for each letter",
+      "Self-test: Without looking at notes, explain Data Flow Diagrams for Threat Modeling to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Data Flow Diagrams for Threat Modeling in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Threat Modeling",
+    "subdomain": "Data Flow Diagrams for Threat Modeling",
+    "subdomains_covered": [
+      "Data Flow Diagrams for Threat Modeling"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-36",
+    "step_type": "INFO",
+    "title": "Attack Surface Enumeration and Trust Boundary Identification",
+    "estimated_time_minutes": 40,
+    "goal": "Learn the fundamentals of Attack Surface Enumeration and Trust Boundary Identification and practice with a small exercise.",
+    "actions": [
+      "Read/skim: Research: Attack Surface Enumeration and Trust Boundary Identification",
+      "If you have AD access: run `gpresult /r` to see applied GPOs. If not: diagram what a GPO inheritance chain looks like",
+      "Self-test: Without looking at notes, explain Attack Surface Enumeration and Trust Boundary Identification to an imaginary coworker in 2-3 sentences"
+    ],
+    "completion_check": "Can explain Attack Surface Enumeration and Trust Boundary Identification in your own words and completed the practice exercise",
+    "resource_refs": [],
+    "domain": "Threat Modeling",
+    "subdomain": "Attack Surface Enumeration and Trust Boundary Identification",
+    "subdomains_covered": [
+      "Attack Surface Enumeration and Trust Boundary Identification"
+    ],
+    "subtopics": [],
+    "day_number": null
+  },
+  {
+    "step_id": "day-37",
+    "step_type": "BOSS",
+    "title": "BOSS: Threat Modeling Synthesis",
+    "estimated_time_minutes": 55,
+    "goal": "Put your Threat Modeling knowledge together with a practical challenge.",
+    "actions": [
+      "Quick review: Skim your notes from previous Threat Modeling days. What are the key concepts?",
+      "Mini-scenario: Threat model a login page. Apply STRIDE, identify top 3 risks, suggest one mitigation per risk",
+      "Self-assessment: What clicked? What's still fuzzy? What would you like to explore more?"
+    ],
+    "completion_check": "Completed the Threat Modeling challenge and can connect different concepts together",
+    "resource_refs": [],
+    "domain": "Threat Modeling",
+    "subdomain": "Risk Rating and Prioritization within Threat Models",
+    "subdomains_covered": [
+      "Risk Rating and Prioritization within Threat Models"
+    ],
+    "subtopics": [],
+    "day_number": null
+  }
+]

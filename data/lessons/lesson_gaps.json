@@ -1,5 +1,265 @@
 {
   "resolved_gaps": [],
-  "unresolved_gaps": [],
-  "generated_at": "2025-12-13T01:35:00.305103+00:00"
+  "unresolved_gaps": [
+    {
+      "domain": "Networking",
+      "subdomain": "IP Addressing, Subnetting, and CIDR Notation",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Networking",
+      "subdomain": "Routing Fundamentals: Static, Default, and Dynamic Routing Concepts",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Networking",
+      "subdomain": "VLANs and Inter-VLAN Communication",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Networking",
+      "subdomain": "Network Segmentation and Isolation Techniques",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Networking",
+      "subdomain": "DNS Basics: Name Resolution, Zones, and Records",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Logical Structure: Forests, Domains, and Organizational Units",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Objects and Attributes: Users, Computers, and Groups",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Domain Controllers and FSMO Roles",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Group Policy Objects: Structure and Processing Order",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Active Directory",
+      "subdomain": "Active Directory Authentication and Authorization within a Domain",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Identity",
+      "subdomain": "Identity Fundamentals and Core Terminology",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Identity",
+      "subdomain": "Authentication vs Authorization and Access Control Models",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Identity",
+      "subdomain": "OAuth2 and OpenID Connect Core Concepts",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Identity",
+      "subdomain": "SAML Assertions and Web SSO Concepts",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Identity",
+      "subdomain": "Multi-Factor Authentication Factors and Flows",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Identity",
+      "subdomain": "JSON Web Tokens (JWT) Structure and Validation",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "AWS",
+      "subdomain": "AWS Global Infrastructure and Core Concepts",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "AWS",
+      "subdomain": "AWS Identity and Access Management (IAM) Essentials",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "AWS",
+      "subdomain": "Amazon EC2 Core Concepts and Instance Lifecycle",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "AWS",
+      "subdomain": "Amazon S3 Storage Fundamentals",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "AWS",
+      "subdomain": "AWS Shared Responsibility Model and Security Basics",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Azure",
+      "subdomain": "Azure Resource Manager Core Concepts",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Azure",
+      "subdomain": "Azure Virtual Machines and Disk Types",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Azure",
+      "subdomain": "Azure Storage Accounts and Data Redundancy Options",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Azure",
+      "subdomain": "Azure Role-Based Access Control (RBAC) Essentials",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Azure",
+      "subdomain": "Azure Virtual Networks and Subnet Structure",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Logging/SIEM",
+      "subdomain": "Logging and SIEM Core Concepts and Terminology",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Logging/SIEM",
+      "subdomain": "Log Sources, Log Types, and Log Normalization",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Logging/SIEM",
+      "subdomain": "SIEM Data Storage, Indexing, and Retention Concepts",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Logging/SIEM",
+      "subdomain": "SIEM Correlation Rules and Detection Logic Fundamentals",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Logging/SIEM",
+      "subdomain": "Log Search, Query Languages, and Basic Analytics in SIEM",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Threat Modeling",
+      "subdomain": "Threat Modeling Core Concepts and Terminology",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Threat Modeling",
+      "subdomain": "Identifying and Classifying Assets in Threat Models",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Threat Modeling",
+      "subdomain": "STRIDE and Other Threat Categorization Schemes",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Threat Modeling",
+      "subdomain": "Data Flow Diagrams for Threat Modeling",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Threat Modeling",
+      "subdomain": "Attack Surface Enumeration and Trust Boundary Identification",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    },
+    {
+      "domain": "Threat Modeling",
+      "subdomain": "Risk Rating and Prioritization within Threat Models",
+      "reason": "no_official_docs",
+      "attempts": 2,
+      "resolved": false
+    }
+  ],
+  "generated_at": "2025-12-13T05:17:47.106937+00:00"
 }
