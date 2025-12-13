@@ -37,8 +37,8 @@ ViewMode = Literal["compact", "full"]
 # LAYOUT CONSTANTS — Single source of truth for alignment
 # =============================================================================
 
-DASH_WIDTH = 46  # Total width - mobile friendly (fits ~45 chars on iPhone)
-CONTENT_WIDTH = DASH_WIDTH - 4  # Width between "║  " and "║" (2 space indent + 1 border each side)
+DASH_WIDTH = 38  # Total width - fits iPhone screens
+CONTENT_WIDTH = DASH_WIDTH - 4  # Width between "║  " and "║"
 
 # Box drawing characters
 BOX_TL = "╔"  # Top-left
@@ -391,48 +391,22 @@ def _render_header(view: ViewMode, kernel: Any, state: Any = None) -> str:
         tz = timezone.utc
     
     now = datetime.now(tz)
-    date_str = now.strftime("%a %b %d")  # e.g. "Fri Dec 12" (10 chars)
+    date_str = now.strftime("%a %b %d")  # e.g. "Fri Dec 12"
     
     # Get mode
     mode = "STRICT"
     if state and hasattr(state, "novaos_enabled"):
         mode = "STRICT" if state.novaos_enabled else "PERSONA"
     
-    # Get time string (will be replaced by frontend, but need display width)
-    time_display = _get_current_time()  # e.g. "2:37 AM" (7-8 chars)
-    clock_marker = _get_live_clock_marker()  # e.g. "{{CLOCK:2:37 AM}}" (longer)
-    
-    # Calculate shared start column for right-aligned info
-    # Both time and date will START at this column (based on display width)
-    RIGHT_MARGIN = 2
-    max_info_display_len = max(len(time_display), len(date_str))
-    INFO_START_COL = CONTENT_WIDTH - RIGHT_MARGIN - max_info_display_len
-    
-    left_content = f"DASHBOARD: {mode}"
-    
-    # Truncate left content if it would collide with info column
-    max_left_len = INFO_START_COL - 2  # Leave 2 char gap
-    if len(left_content) > max_left_len:
-        left_content = left_content[:max_left_len - 1] + "…"
+    # Get time for display
+    time_display = _get_current_time()  # e.g. "7:16 PM"
+    clock_marker = _get_live_clock_marker()
     
     lines = [_top_border()]
     
-    # Line 1: DASHBOARD: MODE ... time
-    # Build line with left content padded, then clock marker appended
-    # The marker is longer than display, so we build differently
-    left_padded = left_content.ljust(INFO_START_COL)
-    line1_content = left_padded + clock_marker
-    # Pad to ensure right border aligns (marker will be replaced by shorter text)
-    # Add spaces to reach CONTENT_WIDTH based on display width
-    extra_spaces = CONTENT_WIDTH - INFO_START_COL - len(time_display)
-    line1 = BOX_V + "  " + left_padded + clock_marker + " " * extra_spaces + BOX_V
-    lines.append(line1)
-    
-    # Line 2: (empty left) ... date at same column
-    left_empty = " " * INFO_START_COL
-    date_padded = date_str.ljust(CONTENT_WIDTH - INFO_START_COL)
-    line2 = BOX_V + "  " + left_empty + date_padded + BOX_V
-    lines.append(line2)
+    # Simple left-aligned header - no complex alignment
+    lines.append(_line(f"DASHBOARD: {mode}"))
+    lines.append(_line(f"{date_str} {clock_marker}"))
     
     return "\n".join(lines)
 
@@ -455,17 +429,10 @@ def _render_today_readiness(view: ViewMode, kernel: Any) -> str:
     lines = [_section_border()]
     lines.append(_line("STATE"))
     
-    if view == "compact":
-        lines.append(_line(f"  HP: {hp}  Energy: {energy}  Sleep: {sleep}"))
-        # Checkboxes are wide unicode - subtract 1 from padding
-        food_checkin = f"  Food: {food_box}  Checkin: {checkin_box}"
-        lines.append(_line_raw(food_checkin, extra_pad=-1))
-    else:
-        lines.append(_line(f"  HP: {hp}"))
-        lines.append(_line(f"  Energy: {energy}"))
-        lines.append(_line(f"  Sleep: {sleep}"))
-        food_checkin = f"  Food: {food_box}  Checkin: {checkin_box}"
-        lines.append(_line_raw(food_checkin, extra_pad=-1))
+    # Compact format for mobile
+    lines.append(_line(f"  HP:{hp} En:{energy} Sl:{sleep}"))
+    food_checkin = f"  Food:{food_box} Check:{checkin_box}"
+    lines.append(_line_raw(food_checkin, extra_pad=-1))
     
     return "\n".join(lines)
 
@@ -522,18 +489,8 @@ def _render_finance_snapshot(view: ViewMode, kernel: Any) -> str:
     """Render the Finance section with investment rules."""
     lines = [_section_border()]
     lines.append(_line("FINANCE"))
-    
-    if view == "compact":
-        # Compact: Shortened for mobile
-        lines.append(_line("  $425 stocks | $200 SPAXX"))
-        lines.append(_line("  Wed | LEAPS Q-C | FHA 2027"))
-    else:
-        # Full: Detailed breakdown
-        lines.append(_line("  $425/wk -> Stocks"))
-        lines.append(_line("  $200/wk -> SPAXX"))
-        lines.append(_line("  Buy: Wednesday"))
-        lines.append(_line("  LEAPS: Q-C only"))
-        lines.append(_line("  FHA: Apr-Dec 2027"))
+    lines.append(_line("  $425 stk | $200 SPAXX"))
+    lines.append(_line("  Wed | Q-C | FHA 2027"))
     
     return "\n".join(lines)
 
