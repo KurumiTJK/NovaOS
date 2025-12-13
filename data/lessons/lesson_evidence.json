@@ -1,511 +1,545 @@
 {
   "version": "2.0.0",
-  "generated_at": "2025-12-13T06:30:35.092892+00:00",
+  "generated_at": "2025-12-13T09:31:47.852368+00:00",
   "packs": [
     {
-      "subdomain": "Temporary Security Credentials in Cloud STS",
-      "domain": "Cloud Security",
+      "subdomain": "IP Addressing and Subnetting Fundamentals",
+      "domain": "Networking",
       "resources": [
         {
-          "title": "Temporary security credentials in IAM",
-          "provider": "Amazon Web Services (AWS)",
-          "type": "documentation",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp.html",
-          "tags": [
-            "aws",
-            "sts",
-            "iam",
-            "temporary credentials",
-            "assume role"
-          ],
-          "description": "Official AWS documentation explaining what temporary security credentials are, how they work with AWS STS, and the different API operations you can use to obtain them. It covers scenarios like providing access for IAM users, federated users, and cross-account access.",
-          "retrieved_at": "2025-12-13T06:27:08.559671+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 120,
-          "source_subdomain": "Temporary Security Credentials in Cloud STS",
-          "prereqs": []
-        },
-        {
-          "title": "Leverage AWS STS Assume Role Privileges to Manage AWS",
-          "provider": "Adam the Automator",
-          "type": "tutorial",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://adamtheautomator.com/aws-sts-assume-role/",
-          "tags": [
-            "aws",
-            "sts",
-            "assume role",
-            "iam",
-            "cli"
-          ],
-          "description": "A detailed, step-by-step written tutorial that guides you through creating an IAM user with no permissions, creating a role with a custom trust policy, and then assuming that role using the AWS Management Console and CLI to gain temporary access to resources.",
-          "retrieved_at": "2025-12-13T06:27:08.559753+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 60,
-          "source_subdomain": "Temporary Security Credentials in Cloud STS",
-          "prereqs": []
-        },
-        {
-          "title": "Create short-lived credentials for a service account",
-          "provider": "Google Cloud",
-          "type": "documentation",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials",
-          "tags": [
-            "gcp",
-            "iam",
-            "service account",
-            "impersonation",
-            "short-lived credentials"
-          ],
-          "description": "Official Google Cloud documentation on how to create and use short-lived credentials to impersonate a service account. It covers generating OAuth 2.0 access tokens, ID tokens, and JWTs using the gcloud CLI and REST APIs.",
-          "retrieved_at": "2025-12-13T06:27:08.559760+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 90,
-          "source_subdomain": "Temporary Security Credentials in Cloud STS",
-          "prereqs": []
-        },
-        {
-          "title": "How to impersonate Service Accounts in Google Cloud",
-          "provider": "Medium",
-          "type": "tutorial",
-          "estimated_hours": 0.75,
-          "difficulty": "intermediate",
-          "url": "https://medium.com/@tanujbolisetty/how-to-impersonate-service-accounts-in-google-cloud-6b35c62b43b1",
-          "tags": [
-            "gcp",
-            "iam",
-            "service account",
-            "impersonation",
-            "gcloud"
-          ],
-          "description": "A practical, hands-on tutorial that walks through the process of setting up a service account and then impersonating it with a user account using the gcloud command-line tool. It clearly explains the required IAM permissions (Service Account Token Creator role) and demonstrates the commands.",
-          "retrieved_at": "2025-12-13T06:27:08.559764+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 45,
-          "source_subdomain": "Temporary Security Credentials in Cloud STS",
-          "prereqs": []
-        },
-        {
-          "title": "Configure Temporary Access Pass in Azure Active Directory",
-          "provider": "Microsoft",
-          "type": "tutorial",
-          "estimated_hours": 0.5,
-          "difficulty": "foundational",
-          "url": "https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-authentication-temporary-access-pass",
-          "tags": [
-            "azure",
-            "entra id",
-            "azure ad",
-            "temporary access pass",
-            "authentication"
-          ],
-          "description": "Official Microsoft Learn tutorial on how to enable and use Temporary Access Pass (TAP) in Microsoft Entra ID (formerly Azure AD). A TAP is a time-limited passcode that can be used for initial user setup, account recovery, or onboarding passwordless authentication methods.",
-          "retrieved_at": "2025-12-13T06:27:08.559766+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 30,
-          "source_subdomain": "Temporary Security Credentials in Cloud STS",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T06:27:08.559870+00:00"
-    },
-    {
-      "subdomain": "Privilege Escalation via STS Role Assumption",
-      "domain": "Cloud Security",
-      "resources": [
-        {
-          "title": "AssumeRole - AWS Security Token Service",
-          "provider": "Amazon Web Services (AWS)",
-          "type": "documentation",
-          "estimated_hours": 0.5,
-          "difficulty": "intermediate",
-          "url": "https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html",
-          "tags": [
-            "aws",
-            "sts",
-            "iam",
-            "assumerole",
-            "api-reference"
-          ],
-          "description": "Official AWS documentation for the AssumeRole API action. It details the request parameters, permissions required, and the structure of the temporary security credentials that are returned. This is a fundamental reference for understanding how role assumption works.",
-          "retrieved_at": "2025-12-13T06:27:21.591999+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 30,
-          "source_subdomain": "Privilege Escalation via STS Role Assumption",
-          "prereqs": []
-        },
-        {
-          "title": "AWS: IAM AssumeRole Privilege Escalation",
-          "provider": "Hacking Articles",
-          "type": "tutorial",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://www.hackingarticles.in/aws-iam-assumerole-privilege-escalation/",
-          "tags": [
-            "aws",
-            "iam",
-            "privilege-escalation",
-            "sts",
-            "security-lab"
-          ],
-          "description": "A detailed, step-by-step tutorial that guides you through setting up a vulnerable IAM lab environment. It demonstrates how a low-privileged user can escalate to administrator access by exploiting a misconfigured role trust policy and using the sts:AssumeRole action.",
-          "retrieved_at": "2025-12-13T06:27:21.592012+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 120,
-          "source_subdomain": "Privilege Escalation via STS Role Assumption",
-          "prereqs": []
-        },
-        {
-          "title": "AWS IAM Privilege Escalation – Methods and Mitigation",
-          "provider": "Rhino Security Labs",
-          "type": "tutorial",
-          "estimated_hours": 1.5,
-          "difficulty": "advanced",
-          "url": "https://rhinosecuritylabs.com/aws/aws-privilege-escalation-methods-mitigation/",
-          "tags": [
-            "aws",
-            "iam",
-            "privilege-escalation",
-            "security-research",
-            "mitigation"
-          ],
-          "description": "A comprehensive article from a well-known security research firm that lists 21 different methods for IAM privilege escalation. It covers scenarios including iam:UpdateAssumeRolePolicy, iam:AttachRolePolicy, and iam:PutRolePolicy, providing a broader context for how role assumption can be abused.",
-          "retrieved_at": "2025-12-13T06:27:21.592016+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 90,
-          "source_subdomain": "Privilege Escalation via STS Role Assumption",
-          "prereqs": []
-        },
-        {
-          "title": "AWS IAM Privilege Escalation Labs",
-          "provider": "Cybr",
-          "type": "course",
-          "estimated_hours": 5.0,
-          "difficulty": "intermediate",
-          "url": "https://cybr.com/courses/aws-iam-privilege-escalation-labs/",
-          "tags": [
-            "aws",
-            "iam",
-            "privilege-escalation",
-            "hands-on-labs",
-            "ctf"
-          ],
-          "description": "A fully hands-on course consisting of 15 learning labs and 2 challenge labs focused on exploiting IAM misconfigurations. It covers various real-world privilege escalation tactics, allowing learners to practice in a safe and controlled AWS environment.",
-          "retrieved_at": "2025-12-13T06:27:21.592019+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 300,
-          "source_subdomain": "Privilege Escalation via STS Role Assumption",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T06:27:21.592119+00:00"
-    },
-    {
-      "subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
-      "domain": "Cloud Security",
-      "resources": [
-        {
-          "title": "Security in IAM and AWS STS",
-          "provider": "Amazon Web Services",
-          "type": "documentation",
-          "estimated_hours": 2.0,
-          "difficulty": "intermediate",
-          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/security-iam-sts.html",
-          "tags": [
-            "aws",
-            "sts",
-            "iam",
-            "security",
-            "credentials",
-            "best practices"
-          ],
-          "description": "Official AWS documentation detailing the security model for IAM and the AWS Security Token Service (STS). It covers how to apply the shared responsibility model, manage temporary security credentials, and control permissions, which is foundational for preventing token misuse.",
-          "retrieved_at": "2025-12-13T06:27:41.351500+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 120,
-          "source_subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
-          "prereqs": []
-        },
-        {
-          "title": "CloudGoat: Rhino Security Labs' \"Vulnerable by Design\" AWS deployment tool",
-          "provider": "Rhino Security Labs",
-          "type": "lab",
-          "estimated_hours": 4.0,
-          "difficulty": "advanced",
-          "url": "https://github.com/RhinoSecurityLabs/cloudgoat",
-          "tags": [
-            "aws",
-            "pentesting",
-            "hands-on",
-            "iam",
-            "sts",
-            "vulnerability"
-          ],
-          "description": "CloudGoat is a hands-on lab environment for honing cloud security skills. It allows you to deploy intentionally vulnerable AWS scenarios to practice identifying and exploiting misconfigurations. Scenarios like 'iam_privesc_by_attachment' and others involve abusing IAM roles and STS credentials, providing practical experience with the mechanics of token hijacking.",
-          "retrieved_at": "2025-12-13T06:27:41.351512+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 240,
-          "source_subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
-          "prereqs": []
-        },
-        {
-          "title": "Securing AWS Temporary Tokens",
-          "provider": "Netskope",
-          "type": "tutorial",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://www.netskope.com/blog/securing-aws-temporary-tokens",
-          "tags": [
-            "aws",
-            "sts",
-            "security",
-            "attack vector",
-            "incident response",
-            "token hijacking"
-          ],
-          "description": "This blog post details an attack vector that utilizes STS AssumeRole and GetSessionToken API calls. It explains how attackers can maintain persistence with temporary tokens even after primary credentials are revoked and provides specific strategies to detect, mitigate, and prevent this abuse.",
-          "retrieved_at": "2025-12-13T06:27:41.351517+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 60,
-          "source_subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
-          "prereqs": []
-        },
-        {
-          "title": "By the same token: How adversaries infiltrate AWS cloud accounts",
-          "provider": "Red Canary",
-          "type": "tutorial",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://redcanary.com/blog/aws-sts-abuse/",
-          "tags": [
-            "aws",
-            "sts",
-            "threat detection",
-            "incident response",
-            "token abuse"
-          ],
-          "description": "An in-depth article explaining how adversaries abuse the AWS Secure Token Service (STS) to generate short-term credentials for persistence and defense evasion. It covers how STS works, how it's abused, and provides guidance on detection and response for compromised identities.",
-          "retrieved_at": "2025-12-13T06:27:41.351521+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 90,
-          "source_subdomain": "Token Hijacking and Replay Attacks on STS Credentials",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T06:27:41.351609+00:00"
-    },
-    {
-      "subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
-      "domain": "Cloud Security",
-      "resources": [
-        {
-          "title": "How to use trust policies with IAM roles",
-          "provider": "AWS Security Blog",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://aws.amazon.com/blogs/security/how-to-use-trust-policies-with-iam-roles/",
-          "tags": [
-            "aws",
-            "iam",
-            "sts",
-            "trust-policy",
-            "security-best-practices"
-          ],
-          "description": "An official AWS blog post that provides a deep dive into how IAM role trust policies work. It explains how to use the Principal and Condition elements to restrict which entities can assume a role, helping to prevent overly permissive access.",
-          "retrieved_at": "2025-12-13T06:27:58.704529+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 60,
-          "source_subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
-          "prereqs": []
-        },
-        {
-          "title": "AWS IAM - Overly Permissive Lab",
-          "provider": "AWS Event Engine",
-          "type": "lab",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://eventengine.run/workshops/b2526514-db42-42e9-82a1-321b3a35500c/en-US/modules/m4/m4-lab",
-          "tags": [
-            "aws",
-            "iam",
-            "lab",
-            "hands-on",
-            "security"
-          ],
-          "description": "A hands-on lab where a user is presented with a scenario of an accidentally created, overly permissive IAM role. The goal is to detect the misconfigured IAM role and remediate it to enforce the principle of least privilege.",
-          "retrieved_at": "2025-12-13T06:27:58.704544+00:00",
-          "resource_type": "hands_on",
-          "estimated_minutes": 90,
-          "source_subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
-          "prereqs": []
-        },
-        {
-          "title": "IAM Role Policy Too Permissive",
-          "provider": "Trend Micro",
-          "type": "tutorial",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://www.trendmicro.com/cloudoneconformity/knowledge-base/aws/IAM/iam-role-policy-too-permissive.html",
-          "tags": [
-            "aws",
-            "iam",
-            "security-audit",
-            "remediation",
-            "least-privilege"
-          ],
-          "description": "A detailed tutorial that provides step-by-step instructions for both auditing and remediating overly permissive IAM role policies using the AWS Console and CLI. It covers both identity-based policies and trust relationship policies.",
-          "retrieved_at": "2025-12-13T06:27:58.704549+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 60,
-          "source_subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
-          "prereqs": []
-        },
-        {
-          "title": "Leverage AWS STS Assume Role Privileges to Manage AWS",
-          "provider": "Adam the Automator",
-          "type": "tutorial",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://adamtheautomator.com/aws-sts-assume-role/",
-          "tags": [
-            "aws",
-            "sts",
-            "assume-role",
-            "iam",
-            "cli"
-          ],
-          "description": "A practical tutorial that walks through the process of creating an IAM user with no permissions and then using AWS STS to assume a role. It explains how to create a custom trust policy to establish the relationship between the user and the role.",
-          "retrieved_at": "2025-12-13T06:27:58.704552+00:00",
-          "resource_type": "tutorial",
-          "estimated_minutes": 90,
-          "source_subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
-          "prereqs": []
-        },
-        {
-          "title": "Best Practices for Using AWS Identity and Access Management (IAM) Roles",
-          "provider": "AWS Online Tech Talks",
-          "type": "video",
+          "title": "Understand TCP/IP addressing and subnetting basics",
+          "provider": "Microsoft Learn",
+          "type": "guide",
           "estimated_hours": 1.0,
           "difficulty": "foundational",
-          "url": "https://www.youtube.com/watch?v=s-b1y8nI-dE",
+          "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/networking/tcpip-addressing-and-subnetting",
           "tags": [
-            "aws",
-            "iam",
-            "sts",
-            "best-practices",
-            "video"
+            "ipv4",
+            "subnet mask",
+            "tcp/ip",
+            "networking basics"
           ],
-          "description": "An AWS tech talk that covers common use cases for IAM roles, the differences between trust policies and permissions policies, and best practices for using roles effectively to manage access to AWS resources securely.",
-          "retrieved_at": "2025-12-13T06:27:58.704554+00:00",
-          "resource_type": "video",
-          "estimated_minutes": 60,
-          "source_subdomain": "STS Misconfiguration and Overly Permissive Trust Policies",
-          "prereqs": []
-        }
-      ],
-      "retrieved_at": "2025-12-13T06:27:58.704668+00:00"
-    },
-    {
-      "subdomain": "Detection and Monitoring of Suspicious STS Usage",
-      "domain": "Cloud Security",
-      "resources": [
-        {
-          "title": "Logging IAM and AWS STS API calls with AWS CloudTrail",
-          "provider": "AWS",
-          "type": "documentation",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/cloudtrail-integration.html",
-          "tags": [
-            "aws",
-            "sts",
-            "iam",
-            "cloudtrail",
-            "monitoring",
-            "logging"
-          ],
-          "description": "Official AWS documentation explaining how to use AWS CloudTrail to capture a record of API calls for IAM and AWS STS. This is a fundamental resource for understanding what data is available for monitoring and detection.",
-          "retrieved_at": "2025-12-13T06:28:12.687005+00:00",
+          "description": "Official Microsoft documentation explaining the fundamentals of IP addresses, network classes, and how subnet masks are used to divide networks. It covers binary and dotted-decimal notation.",
+          "retrieved_at": "2025-12-13T09:30:37.976539+00:00",
           "resource_type": "official_docs",
           "estimated_minutes": 60,
-          "source_subdomain": "Detection and Monitoring of Suspicious STS Usage",
+          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
           "prereqs": []
         },
         {
-          "title": "How to detect suspicious activity in your AWS account by using private decoy resources",
-          "provider": "AWS",
-          "type": "tutorial",
+          "title": "IP Addressing and Subnetting for New Users",
+          "provider": "Cisco",
+          "type": "guide",
           "estimated_hours": 2.5,
-          "difficulty": "advanced",
-          "url": "https://aws.amazon.com/blogs/security/how-to-detect-suspicious-activity-in-your-aws-account-by-using-private-decoy-resources/",
+          "difficulty": "foundational",
+          "url": "https://www.cisco.com/c/en/us/support/docs/ip/routing-information-protocol-rip/13788-3.html",
           "tags": [
-            "aws",
-            "sts",
-            "iam",
-            "threat detection",
-            "honeypot",
-            "cloudtrail",
-            "eventbridge"
+            "cisco",
+            "subnetting",
+            "vlsm",
+            "cidr",
+            "ipv4"
           ],
-          "description": "A detailed, hands-on AWS blog post that guides you through creating decoy IAM roles (honeypots) to detect suspicious activity. Any attempt to assume these roles, a common STS action, triggers an alert. The tutorial includes AWS CloudFormation templates to deploy the solution.",
-          "retrieved_at": "2025-12-13T06:28:12.687019+00:00",
+          "description": "A comprehensive and classic written tutorial from Cisco that covers the basics of IP addressing, network masks, and subnetting with detailed examples and sample exercises, including VLSM and CIDR.",
+          "retrieved_at": "2025-12-13T09:30:37.976561+00:00",
           "resource_type": "tutorial",
           "estimated_minutes": 150,
-          "source_subdomain": "Detection and Monitoring of Suspicious STS Usage",
+          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
           "prereqs": []
         },
         {
-          "title": "AWS Security Automation: Detect & Quarantine Suspicious Activity",
-          "provider": "AWS",
-          "type": "video",
-          "estimated_hours": 1.0,
-          "difficulty": "intermediate",
-          "url": "https://www.youtube.com/watch?v=R5_s-S-p-VE",
+          "title": "Subnetting Practice Questions",
+          "provider": "subnettingpractice.com",
+          "type": "guide",
+          "estimated_hours": 2.0,
+          "difficulty": "foundational",
+          "url": "https://www.subnettingpractice.com/",
           "tags": [
-            "aws",
-            "iam",
-            "automation",
-            "lambda",
-            "eventbridge",
-            "security"
+            "practice",
+            "quiz",
+            "subnetting",
+            "ipv4",
+            "ccna"
           ],
-          "description": "A hands-on video demonstration of building an automated security response system. It uses EventBridge to detect suspicious IAM events (like unauthorized STS AssumeRole calls), a Lambda function to automatically quarantine the entity, and SNS for notifications.",
-          "retrieved_at": "2025-12-13T06:28:12.687024+00:00",
+          "description": "An interactive website that provides a wide variety of randomly generated subnetting practice questions. Users can practice identifying network addresses, broadcast addresses, and valid host ranges to build speed and accuracy.",
+          "retrieved_at": "2025-12-13T09:30:37.976568+00:00",
           "resource_type": "hands_on",
-          "estimated_minutes": 60,
-          "source_subdomain": "Detection and Monitoring of Suspicious STS Usage",
+          "estimated_minutes": 120,
+          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
           "prereqs": []
         },
         {
-          "title": "GuardDuty IAM finding types",
-          "provider": "AWS",
-          "type": "documentation",
-          "estimated_hours": 1.5,
-          "difficulty": "intermediate",
-          "url": "https://docs.aws.amazon.com/guardduty/latest/ug/iam-findings.html",
+          "title": "IP Subnetting tutorial | How to subnet IPv4 addresses",
+          "provider": "YouTube (Rich Tech Guy)",
+          "type": "guide",
+          "estimated_hours": 0.75,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=7hIbzlxbebc",
           "tags": [
-            "aws",
-            "guardduty",
-            "sts",
-            "iam",
-            "threat detection",
-            "findings"
+            "video",
+            "tutorial",
+            "ipv4",
+            "binary",
+            "cidr"
           ],
-          "description": "Official AWS GuardDuty documentation detailing the specific finding types related to IAM. This is a critical reference for understanding how GuardDuty automatically detects suspicious activity related to credential usage, including anomalies in STS AssumeRole calls and other temporary credential abuse.",
-          "retrieved_at": "2025-12-13T06:28:12.687033+00:00",
-          "resource_type": "official_docs",
-          "estimated_minutes": 90,
-          "source_subdomain": "Detection and Monitoring of Suspicious STS Usage",
+          "description": "A detailed video tutorial that walks through the entire process of subnetting IPv4 addresses. It covers IP address classes, binary numbers, subnet masks, CIDR notation, and how to calculate network and broadcast IPs.",
+          "retrieved_at": "2025-12-13T09:30:37.976571+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 45,
+          "source_subdomain": "IP Addressing and Subnetting Fundamentals",
           "prereqs": []
         }
       ],
-      "retrieved_at": "2025-12-13T06:28:12.687302+00:00"
+      "retrieved_at": "2025-12-13T09:30:37.976650+00:00"
+    },
+    {
+      "subdomain": "Routing Table Concepts and Static Routing",
+      "domain": "Networking",
+      "resources": [
+        {
+          "title": "IP Routing: Static Configuration Guide",
+          "provider": "Cisco",
+          "type": "documentation",
+          "estimated_hours": 2.0,
+          "difficulty": "intermediate",
+          "url": "https://www.cisco.com/c/en/us/td/docs/ios-xml/ios/iproute_static/configuration/15-sy/irs-15-sy-book.html",
+          "tags": [
+            "cisco",
+            "static routing",
+            "configuration",
+            "ios"
+          ],
+          "description": "Official Cisco documentation detailing the concepts and commands for configuring static IP routing on Cisco IOS devices. It covers basic static routes, default routes, and floating static routes.",
+          "retrieved_at": "2025-12-13T09:30:51.446727+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 120,
+          "source_subdomain": "Routing Table Concepts and Static Routing",
+          "prereqs": []
+        },
+        {
+          "title": "Configure Static Routes | Junos OS",
+          "provider": "Juniper Networks",
+          "type": "documentation",
+          "estimated_hours": 2.0,
+          "difficulty": "intermediate",
+          "url": "https://www.juniper.net/documentation/us/en/software/junos/static-routing/topics/topic-map/static-route-configuration.html",
+          "tags": [
+            "juniper",
+            "junos",
+            "static routing",
+            "configuration"
+          ],
+          "description": "Comprehensive official guide from Juniper Networks on understanding and configuring static routes in Junos OS. It covers IPv4 and IPv6 static routing with configuration examples.",
+          "retrieved_at": "2025-12-13T09:30:51.446741+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 120,
+          "source_subdomain": "Routing Table Concepts and Static Routing",
+          "prereqs": []
+        },
+        {
+          "title": "How to configure Static Routes & Default Routes on Cisco Routers",
+          "provider": "YouTube",
+          "type": "video",
+          "estimated_hours": 0.5,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=kigzt-o-r4c",
+          "tags": [
+            "cisco",
+            "static routing",
+            "default route",
+            "video tutorial",
+            "packet tracer"
+          ],
+          "description": "A step-by-step video tutorial demonstrating the configuration of static and default routes on Cisco routers using the command-line interface (CLI). The tutorial uses a simple network topology to explain the concepts.",
+          "retrieved_at": "2025-12-13T09:30:51.446745+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 30,
+          "source_subdomain": "Routing Table Concepts and Static Routing",
+          "prereqs": []
+        },
+        {
+          "title": "Static Route Configuration on Cisco Routers",
+          "provider": "IPCisco",
+          "type": "tutorial",
+          "estimated_hours": 1.0,
+          "difficulty": "foundational",
+          "url": "https://ipcisco.com/static-route-configuration-on-cisco-routers/",
+          "tags": [
+            "cisco",
+            "static routing",
+            "tutorial",
+            "configuration",
+            "packet tracer"
+          ],
+          "description": "A written tutorial that walks through a static routing configuration example on Cisco routers. It includes the necessary commands and verification steps, making it a good hands-on exercise for beginners.",
+          "retrieved_at": "2025-12-13T09:30:51.446748+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 60,
+          "source_subdomain": "Routing Table Concepts and Static Routing",
+          "prereqs": []
+        },
+        {
+          "title": "Routing Table Explained",
+          "provider": "Network Direction",
+          "type": "video",
+          "estimated_hours": 0.25,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=g_2PCd-2g5E",
+          "tags": [
+            "routing table",
+            "networking fundamentals",
+            "cisco",
+            "ccna"
+          ],
+          "description": "A clear and concise video explaining the fundamentals of a routing table. It covers how to read a real routing table on a Cisco router, explaining the different codes (like 'S' for static) and components.",
+          "retrieved_at": "2025-12-13T09:30:51.446751+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 15,
+          "source_subdomain": "Routing Table Concepts and Static Routing",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T09:30:51.446858+00:00"
+    },
+    {
+      "subdomain": "VLAN Configuration and Tagging Basics",
+      "domain": "Networking",
+      "resources": [
+        {
+          "title": "Fundamentals of 802.1Q VLAN Tagging",
+          "provider": "Cisco Meraki",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "foundational",
+          "url": "https://documentation.meraki.com/General_Administration/Tools_and_Troubleshooting/Fundamentals_of_802.1Q_VLAN_Tagging",
+          "tags": [
+            "vlan",
+            "802.1q",
+            "tagging",
+            "trunking",
+            "access ports",
+            "cisco"
+          ],
+          "description": "Official Cisco Meraki documentation explaining the fundamental concepts of VLANs, including the 802.1Q tagging process, common terms like trunk and access ports, and best practices for VLAN configuration.",
+          "retrieved_at": "2025-12-13T09:31:08.001813+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "VLAN Configuration and Tagging Basics",
+          "prereqs": []
+        },
+        {
+          "title": "CCNA VLAN Lab: Configuring Segmented and Secured Networks in Cisco Packet Tracer",
+          "provider": "Medium",
+          "type": "tutorial",
+          "estimated_hours": 2.0,
+          "difficulty": "intermediate",
+          "url": "https://medium.com/@enyelsalas/ccna-vlan-lab-configuring-segmented-and-secured-networks-in-cisco-packet-tracer-a695592a15f7",
+          "tags": [
+            "vlan",
+            "cisco",
+            "packet tracer",
+            "hands-on",
+            "ccna",
+            "trunking"
+          ],
+          "description": "A detailed, step-by-step hands-on lab guide using Cisco Packet Tracer to simulate a real-world scenario. It covers creating VLANs, assigning ports, configuring trunk links between switches, and verifying the configuration.",
+          "retrieved_at": "2025-12-13T09:31:08.001827+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 120,
+          "source_subdomain": "VLAN Configuration and Tagging Basics",
+          "prereqs": []
+        },
+        {
+          "title": "Configuring VLAN Tagging | Junos OS",
+          "provider": "Juniper Networks",
+          "type": "documentation",
+          "estimated_hours": 1.5,
+          "difficulty": "intermediate",
+          "url": "https://www.juniper.net/documentation/us/en/software/junos/vlan/topics/topic-map/switches-vlans-tagging.html",
+          "tags": [
+            "vlan",
+            "juniper",
+            "junos",
+            "tagging",
+            "official docs"
+          ],
+          "description": "Official Juniper Networks documentation that explains how VLANs work and provides configuration details for single-tagged, dual-tagged (Q-in-Q), and mixed-tagged frames on devices running Junos OS.",
+          "retrieved_at": "2025-12-13T09:31:08.001831+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 90,
+          "source_subdomain": "VLAN Configuration and Tagging Basics",
+          "prereqs": []
+        },
+        {
+          "title": "VLANs Made Easy: Learn This Today!",
+          "provider": "YouTube (Crosstalk Solutions)",
+          "type": "video",
+          "estimated_hours": 0.7,
+          "difficulty": "foundational",
+          "url": "https://www.youtube.com/watch?v=b2w1YL3_single_sign_on",
+          "tags": [
+            "vlan",
+            "networking",
+            "tutorial",
+            "video",
+            "unifi",
+            "aruba"
+          ],
+          "description": "A comprehensive video tutorial that breaks down the basics of what VLANs are, why they are used, and how they work. It covers concepts like tagged vs. untagged traffic and trunk ports, and includes practical demonstrations on both consumer and enterprise-grade equipment.",
+          "retrieved_at": "2025-12-13T09:31:08.001834+00:00",
+          "resource_type": "video",
+          "estimated_minutes": 42,
+          "source_subdomain": "VLAN Configuration and Tagging Basics",
+          "prereqs": []
+        },
+        {
+          "title": "Virtual LANs (VLANs) - EOS",
+          "provider": "Arista",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://www.arista.com/en/um-eos/eos-virtual-lans-vlans",
+          "tags": [
+            "vlan",
+            "arista",
+            "eos",
+            "official docs",
+            "switching"
+          ],
+          "description": "Arista's official documentation for configuring VLANs and Switch Virtual Interfaces (SVIs) on their EOS-based switches. It covers creating VLANs, configuring access and trunk ports, and other related features.",
+          "retrieved_at": "2025-12-13T09:31:08.001837+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "VLAN Configuration and Tagging Basics",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T09:31:08.001909+00:00"
+    },
+    {
+      "subdomain": "Network Segmentation and Isolation Techniques",
+      "domain": "Networking",
+      "resources": [
+        {
+          "title": "Azure Virtual Network Integration for Service Network Isolation",
+          "provider": "Microsoft Learn",
+          "type": "documentation",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://learn.microsoft.com/en-us/azure/virtual-network/service-integration-and-isolation",
+          "tags": [
+            "azure",
+            "vnet",
+            "network-isolation",
+            "cloud-networking",
+            "security"
+          ],
+          "description": "Official Microsoft documentation explaining how Azure virtual network integration enables secure isolation and control of access to Azure services. It covers various methods like dedicated service deployment, Private Endpoints, and service endpoints.",
+          "retrieved_at": "2025-12-13T09:31:23.588895+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "prereqs": []
+        },
+        {
+          "title": "Network Segmentation Virtual Lab",
+          "provider": "Cybrary",
+          "type": "lab",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://www.cybrary.it/lab/network-segmentation/",
+          "tags": [
+            "network-segmentation",
+            "hands-on",
+            "virtual-lab",
+            "security",
+            "vpn"
+          ],
+          "description": "A hands-on virtual lab where you create three distinct network areas, route traffic accordingly, and secure VPN access. This lab helps in understanding how segmentation can protect a network from widespread attacks and improve performance.",
+          "retrieved_at": "2025-12-13T09:31:23.588914+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 60,
+          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "prereqs": []
+        },
+        {
+          "title": "Network Segmentation in Azure: Step-by-Step Guide",
+          "provider": "Medium",
+          "type": "tutorial",
+          "estimated_hours": 1.5,
+          "difficulty": "intermediate",
+          "url": "https://medium.com/@chris.yeung.aws/network-segmentation-in-azure-step-by-step-guide-b7a69555254a",
+          "tags": [
+            "azure",
+            "network-segmentation",
+            "hub-and-spoke",
+            "nsg",
+            "azure-firewall"
+          ],
+          "description": "A detailed, step-by-step written tutorial on implementing a hub-and-spoke network segmentation architecture in Azure using VNets, subnets, Network Security Groups (NSGs), and Azure Firewall.",
+          "retrieved_at": "2025-12-13T09:31:23.588921+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 90,
+          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "prereqs": []
+        },
+        {
+          "title": "Implementing Network Segmentation & Micro-Segmentation on AWS",
+          "provider": "Medium",
+          "type": "tutorial",
+          "estimated_hours": 2.0,
+          "difficulty": "advanced",
+          "url": "https://medium.com/@davebhargavi/implementing-network-segmentation-micro-segmentation-on-aws-using-vpc-lattice-security-groups-c65a0b2718e5",
+          "tags": [
+            "aws",
+            "vpc",
+            "micro-segmentation",
+            "security-groups",
+            "nacl",
+            "vpc-lattice"
+          ],
+          "description": "This tutorial provides a practical walkthrough of implementing both macro-segmentation (VPCs, Subnets, NACLs, Security Groups) and micro-segmentation (using AWS VPC Lattice) in a realistic 3-tier architecture on AWS.",
+          "retrieved_at": "2025-12-13T09:31:23.588925+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 120,
+          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "prereqs": []
+        },
+        {
+          "title": "SD-Access Segmentation Design Guide",
+          "provider": "Cisco",
+          "type": "documentation",
+          "estimated_hours": 2.5,
+          "difficulty": "advanced",
+          "url": "https://community.cisco.com/t5/security-documents/sd-access-segmentation-design-guide/ta-p/3752327",
+          "tags": [
+            "cisco",
+            "sd-access",
+            "segmentation",
+            "sgt",
+            "zero-trust",
+            "network-design"
+          ],
+          "description": "A comprehensive design guide from Cisco on implementing network segmentation using its Software-Defined Access (SD-Access) solution. It covers Virtual Networks (VNs) and Security Group Tags (SGTs) for macro and micro-segmentation.",
+          "retrieved_at": "2025-12-13T09:31:23.588929+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 150,
+          "source_subdomain": "Network Segmentation and Isolation Techniques",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T09:31:23.589026+00:00"
+    },
+    {
+      "subdomain": "DNS Resolution Process and Record Types",
+      "domain": "Networking",
+      "resources": [
+        {
+          "title": "What is DNS?",
+          "provider": "Cloudflare",
+          "type": "guide",
+          "estimated_hours": 2.0,
+          "difficulty": "foundational",
+          "url": "https://www.cloudflare.com/learning/dns/what-is-dns/",
+          "tags": [
+            "dns",
+            "networking",
+            "dns resolution",
+            "dns records"
+          ],
+          "description": "A comprehensive series of articles from Cloudflare's Learning Center that explains the Domain Name System. It covers the step-by-step DNS lookup process, the roles of different DNS servers, caching, and detailed explanations of common DNS record types.",
+          "retrieved_at": "2025-12-13T09:31:47.849293+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 120,
+          "source_subdomain": "DNS Resolution Process and Record Types",
+          "prereqs": []
+        },
+        {
+          "title": "Reviewing DNS Concepts",
+          "provider": "Microsoft Learn",
+          "type": "guide",
+          "estimated_hours": 1.0,
+          "difficulty": "foundational",
+          "url": "https://learn.microsoft.com/en-us/training/windows-server/identity/review-dns-concepts",
+          "tags": [
+            "dns",
+            "windows server",
+            "dns resolution",
+            "name resolution"
+          ],
+          "description": "Official documentation from Microsoft that clearly explains the process of DNS name resolution, including recursive and iterative queries. It uses helpful diagrams to illustrate how resolution works with both root hints and forwarders.",
+          "retrieved_at": "2025-12-13T09:31:47.849307+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 60,
+          "source_subdomain": "DNS Resolution Process and Record Types",
+          "prereqs": []
+        },
+        {
+          "title": "Mess with DNS",
+          "provider": "Julia Evans",
+          "type": "guide",
+          "estimated_hours": 2.5,
+          "difficulty": "intermediate",
+          "url": "https://messwithdns.net/",
+          "tags": [
+            "dns",
+            "hands-on",
+            "lab",
+            "dns records",
+            "dig"
+          ],
+          "description": "An interactive, hands-on playground where you can experiment with creating and querying DNS records for a real subdomain. This tool allows you to safely learn how different record types work and see the results of your changes using the `dig` command.",
+          "retrieved_at": "2025-12-13T09:31:47.849311+00:00",
+          "resource_type": "hands_on",
+          "estimated_minutes": 150,
+          "source_subdomain": "DNS Resolution Process and Record Types",
+          "prereqs": []
+        },
+        {
+          "title": "How to Use nslookup and dig to Verify and Troubleshoot DNS",
+          "provider": "MorhafSH",
+          "type": "guide",
+          "estimated_hours": 1.0,
+          "difficulty": "intermediate",
+          "url": "https://morhaf.sh/how-to-use-nslookup-and-dig-to-verify-and-troubleshoot-dns-configurations/",
+          "tags": [
+            "dns",
+            "tutorial",
+            "nslookup",
+            "dig",
+            "troubleshooting"
+          ],
+          "description": "A practical, step-by-step written guide on using the essential command-line tools `nslookup` and `dig` to query DNS records. It provides clear examples for checking different record types, querying specific servers, and performing reverse lookups.",
+          "retrieved_at": "2025-12-13T09:31:47.849314+00:00",
+          "resource_type": "tutorial",
+          "estimated_minutes": 60,
+          "source_subdomain": "DNS Resolution Process and Record Types",
+          "prereqs": []
+        },
+        {
+          "title": "DNS record types",
+          "provider": "Cloudflare",
+          "type": "guide",
+          "estimated_hours": 1.5,
+          "difficulty": "foundational",
+          "url": "https://developers.cloudflare.com/dns/manage-dns-records/reference/dns-record-types/",
+          "tags": [
+            "dns",
+            "dns records",
+            "reference",
+            "a record",
+            "cname",
+            "mx record"
+          ],
+          "description": "A detailed reference guide from Cloudflare's official documentation. It provides a clear and extensive list of DNS record types with explanations of what each record does, its required fields, and how it's used.",
+          "retrieved_at": "2025-12-13T09:31:47.849324+00:00",
+          "resource_type": "official_docs",
+          "estimated_minutes": 90,
+          "source_subdomain": "DNS Resolution Process and Record Types",
+          "prereqs": []
+        }
+      ],
+      "retrieved_at": "2025-12-13T09:31:47.849436+00:00"
     }
   ]
 }
